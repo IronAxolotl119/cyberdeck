@@ -1,30 +1,30 @@
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ ▓▒░ CYBERDECK//╳ASH ░▒▓             SIM   FIELD ○   LINK ◆   ⚠ 3             20:03:55 Thu 12 Nov ┃
+┃ ▓▒░ CYBERDECK//MAIN ░▒▓           SIM   FIELD ○   LINK ◆ SIM   ⚠ 5           08:00:41 Fri 15 Jan ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  ◢ AWARENESS & DIAGNOSTICS ◣    Deck & PULSE     [ ] switch · 7 panels
+  ◢ AWARENESS & DIAGNOSTICS ◣   PULSE   Console   Dungeon   Notes   Fun   [ ] switch · 7 panels     
 ┏━  1  ≋ WI-FI  ━━━━━━━━━━━━━━━━┓╭─  2  ✱ BLUETOOTH  ────────────╮╭─  3  ⌂ LAN MAP  ───────────────╮
-┃ AXOLOTL_NET          ▇▇██ -36 ┃│ 7 near · 7 seen · dwell 10m   ││ 7 hosts                        │
-┃ AXOLOTL_NET          ▅▅▅▅ -60 ┃│ CYBERDECK-PET         -40 24s ││ 192.168.1.1    router      24s │
-┃ Pixel_8842              ▄ -66 ┃│ Chessin's Ph…         -50 24s ││ 192.168.1.10   pi-hole     24s │
-┃ HomeLab-IoT          ▅▅▃▄ -69 ┃│ JBL Flip 5            -59 24s ││ 192.168.1.20   homelab-nas 24s │
-┃ Free Pub… BAIT          ▃ -71 ┃│ Galaxy Watch4         -73 24s ││ 192.168.1.21   proxmox     24s │
-┃ NETGEAR42            ▃▃▃▃ -73 ┃│ Tile                  -73  5s ││ 192.168.1.42   cyberdeck-… 24s │
-┃ SunsetVilla_5G       ▃▂▃▃ -75 ┃│ · unnamed             -85 24s ││ 192.168.1.77   laptop      24s │
+┃ AXOLOTL_NET        ▇▇███▇ -40 ┃│ 7 near · 7 seen · dwell 10m   ││ 7 hosts                        │
+┃ AXOLOTL_NET        ▅▅▅▅▅▅ -60 ┃│ CYBERDECK-PET         -37 41s ││ 192.168.1.1    router      41s │
+┃ AXOLOTL_… TWIN          ▅ -60 ┃│ Chessin's Ph…         -44 41s ││ 192.168.1.10   pi-hole     41s │
+┃ HomeLab-IoT        ▅▅▃▄▄▄ -65 ┃│ JBL Flip 5            -63 41s ││ 192.168.1.20   homelab-nas 41s │
+┃ Pixel_8842             ▄▄ -67 ┃│ Tile                  -66 21s ││ 192.168.1.21   proxmox     41s │
+┃ NETGEAR42          ▃▃▃▃▃▃ -74 ┃│ Galaxy Watch4         -79 41s ││ 192.168.1.42   cyberdeck-… 41s │
+┃ Free Pub… BAIT         ▃▃ -74 ┃│ · unnamed             -83 41s ││ 192.168.1.77   laptop      41s │
 ┗━━━━━━━━━━━━━━━━━━━━━  SIM ●  ━┛╰─────────────────────  SIM ●  ─╯╰──────────────────────  SIM ●  ─╯
 ╭─  4  ◈ RFID/NFC  ─────────────╮╭─  5  ▤ JOURNAL  ──────────────╮╭─  6  ⌁ DIAGNOSTICS  ───────────╮
-│ last 93:5e:01:c4  transit     ││ 20:03 ◈ tag_seen    transit … ││ wlan0 192.168.1.50 26.2K 16.5K │
-│ card                          ││ 20:03 ✱ new         Tile      ││ p ping · d dns (sim)           │
-│ on reader: 93:5e:01:c4        ││ 20:03 ≋ rssi_jump   HomeLab-… ││                                │
-│ inventory 2 · n = add note    ││ 20:03 ✱ new         unnamed   ││                                │
-│ 04:a2:19:7f   front door fob  ││ 20:03 ≋ suspicious_ Free Pub… ││                                │
-│ 93:5e:01:c4   transit card    ││ 20:03 ≋ open_networ Free Pub… ││                                │
-│                               ││ 20:03 ≋ new_ssid    Free Pub… ││                                │
-│                               ││ 20:03 ◆ learned_mov Beacon B… ││                                │
+│ last 04:77:e1:2a:9b:30:80     ││ 08:00 ≋ back        Free Pub… ││ wlan0  192.168.1.50 18.1K 9.7K │
+│ UNKNOWN                       ││ 08:00 ≋ back        Pixel_88… ││ ping 192.168.1.1 3/3 replies … │
+│ on reader: —                  ││ 21:05 ◆ discovery   PULSE lo… ││ dns github.com 93.184.167.62 … │
+│ inventory 2 · n = add note    ││ 08:00 ≋ gone        Free Pub… ││ p ping · d dns (sim)           │
+│ 04:a2:19:7f   front door fob  ││ 08:00 ≋ gone        Pixel_88… ││                                │
+│ 93:5e:01:c4   transit card    ││ 08:00 ≋ evil_twin   AXOLOTL_… ││                                │
+│                               ││ 08:00 ≋ open_networ AXOLOTL_… ││                                │
+│                               ││ 08:00 ≋ new         AXOLOTL_… ││                                │
 ╰─────────────────────  SIM ●  ─╯╰───────────────────────────────╯╰────────────────────────────────╯
 ╭─  7  ☐ CHECKLIST  ───────────────────────────────────────────────────────────────────────────────╮
 │ 0/6 ready   ↑↓ select · space tick · x reset                                                     │
 │  □ Phone charged             □ Badge / keys on me         □ Deck battery above 50%               │
 │  □ Companion board linked    □ Wi-Fi field log started    □ Notes reviewed                       │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
- ⟫ 20:03:51 (sim) tag held on reader: 93:5e:01:c4
- [ ]  group  1-9  panel  ⏎  zoom  m  menu  s  scan  u  move  f  field  ?  keys  q  quit
+ ⟫ 08:00:32 PULSE logged AXOLOTL_NET (+4 XP).                                                       
+ [ ]  tab  1-9  panel  ⏎  zoom/run  :  console  m  menu  s  scan  u  move  ?  keys  q  quit         
