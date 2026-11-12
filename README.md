@@ -1,19 +1,29 @@
 # CYBERDECK / MAIN
 
-Simulation-first scaffold for the main Raspberry Pi Zero 2 W
-cyberdeck: a custom full-screen terminal UI (not the Pi OS desktop)
-that talks to a companion board running a Digimon-style pet.
+Simulation-first software for the main Raspberry Pi Zero 2 W
+cyberdeck: a custom full-screen terminal interface (not the Pi OS
+desktop) that talks to a companion board running a Digimon-style pet.
 
-Everything runs on a normal Linux terminal today. No Pi is required.
-Python 3 and the standard library (including curses) are enough.
+Everything runs on a normal Linux/macOS terminal today. No Pi is
+required. **One interface** does everything: the Rich dashboard look
+(awareness panels, PULSE, system) with every main-deck feature as tabs
+(command console, dungeon with PULSE, notes & todo, fun & tools).
+
+![the interface](docs/dashboard.png)
 
 ## Run it
 
 From this directory:
 
 ```bash
-# Full-screen UI (sim sensors + sim companion pet)
+pip install -r requirements-dash.txt   # once: Rich, for the interface
+
+# The interface (sim sensors + sim radios + PULSE)
 python3 -m cyberdeck
+python3 -m cyberdeck --theme amber --tab console
+
+# The original curses interface (standard library only)
+python3 -m cyberdeck --classic
 
 # Headless: type commands, or pipe them in
 python3 -m cyberdeck --headless
@@ -23,11 +33,20 @@ printf 'status\nping\npet status\nquit\n' | python3 -m cyberdeck --headless
 python3 -m cyberdeck --headless --script 'help' --script 'ping' --script 'pet status'
 ```
 
+Tabs: **Awareness & Diagnostics**, **Deck & PULSE**, **Console**,
+**Dungeon**, **Notes & Todo**, **Fun & Tools**. `[` `]` switch tabs,
+`:` jumps to the console, `?` lists the keys, `q` quits. The full guide
+(keys per tab, adding a tab, panel or command) is
+[docs/DASHBOARD.md](docs/DASHBOARD.md). Without Rich installed,
+`python3 -m cyberdeck` falls back to `--classic` with a hint.
+`python3 -m cyberdeck_dash` is an alias for `python3 -m cyberdeck`.
+
 `--mode sim` is the default. You can also set `CYBERDECK_MODE=sim`.
-`--mode real` selects the Pi sensors and the UART companion link
-(`--link serial`, default `/dev/serial0`). `--link sim|tcp|serial`
-picks the companion link on its own; see "Deck + pet on one computer"
-below.
+`--mode real` selects the Pi sensors and real radio backends. The
+companion link is `[link] mode` in `config/hardware.ini`: `auto` (the
+default: the companion program if it is already running, else the
+built-in sim pet), `sim`, `tcp` or `serial` (`/dev/serial0`); `--link`
+overrides it. See "Deck + pet on one computer" below.
 
 ```bash
 python3 -m cyberdeck --help
@@ -42,11 +61,16 @@ python3 -m unittest discover -s tests -v
 ## Layout
 
 ```text
-config/theme.ini        colors for the full-screen UI
-config/layout.ini       title, prompt, clock, minimum size
+config/dash.ini         the interface: tabs, panels, themes, awareness settings
+config/hardware.ini     companion link (auto/sim/tcp/serial), GPIO, buzzer
+config/keys.ini         hotkeys + the launcher / Fun & Tools list (both UIs)
+config/theme.ini        colors for --classic (curses)
+config/layout.ini       prompt, history, features on/off, --classic layout
 plugins/hello.py        example user command (auto-loaded)
 plugins/_template.py    copy this to add your own command
-cyberdeck/              the Python package
+cyberdeck/              the deck's brain (commands, features, link) + the classic UI
+cyberdeck_dash/         the Rich interface (tabs, panels, the bridge to cyberdeck/)
+docs/DASHBOARD.md       the interface guide: tabs, keys, adding a tab or panel
 docs/PROTOCOL.md        dual-board message protocol
 docs/ARCHITECTURE.md    how modules fit together
 docs/screenshot.txt     captured text snapshot of the UI
@@ -65,13 +89,15 @@ To run both together, open two terminals in this directory:
 
 ```bash
 cd companion && python3 companion.py --tcp 127.0.0.1:7777   # terminal 1: the pet
-python3 -m cyberdeck --link tcp                             # terminal 2: the deck
+python3 -m cyberdeck                                        # terminal 2: the deck
 ```
 
-The deck connects to `127.0.0.1:7777` by default (change it with
-`--host` / `--port` or `[link]` in `config/hardware.ini`). The status
-line shows `LINK UP · TCP 7777` once they are talking. Start them in
-either order; the deck keeps retrying.
+With the default `[link] mode = auto` the deck uses the companion if it
+is already running, so start the pet first (the header shows `LINK ◆`;
+`LINK ◆ SIM` means the built-in sim pet). `--link tcp` instead waits for
+the companion and keeps retrying, so then the order does not matter.
+Change the address with `--host` / `--port` or `[link]` in
+`config/hardware.ini`.
 
 No companion checkout handy? `tools/fake_companion.py` is a stand-in
 that speaks the same protocol:
@@ -93,10 +119,15 @@ Serial and two-Pi setups: [docs/TESTING_TWO_BOARDS.md](docs/TESTING_TWO_BOARDS.m
 
 ## What it can do
 
-Type `help` for everything, or press F2 for the launcher menu.
+Type `help` in the Console tab for everything, or press F2 for the
+launcher menu.
 
-- **Core:** split panes or tabs (`view`, `layout`, F4/F6), launcher
-  (F2), hotkeys (`keys`), history (Up/Down, `history`), Tab completion.
+- **Awareness & Diagnostics:** Wi-Fi, Bluetooth, LAN map, RFID/NFC,
+  discovery journal, ping/DNS/interface stats, checklist, field mode;
+  every first find feeds PULSE XP (`pet.discovery`).
+- **Core:** one tabbed interface, launcher (F2), hotkeys (`keys`),
+  history (Up/Down, `history`), Tab completion. (`--classic`: split
+  panes or tabs, `view`, `layout`, F4/F6.)
 - **Productivity and network:** `note`, `todo`, `wifi scan`/`wifi meter`,
   `net info`, `ping`, `net port`, `net check`, `ssh <name>`.
 - **Pet and hardware:** `pet` (feed/play/rest/sleep/evolve/avatar/log/
@@ -131,23 +162,19 @@ Next steps after this scaffold:
 
 Boards exchange newline-delimited JSON objects with three keys:
 `type`, `id`, and `payload`. Requests and replies share the same
-`id`. Current types: `hello`, `ping`, `pet.status`, `pet.feed`,
-`pet.play`, plus their `*.ok` replies and `error`. Full rules are
-in [docs/PROTOCOL.md](docs/PROTOCOL.md).
+`id`. Types include `hello`, `ping`, `pet.status`, `pet.feed`,
+`pet.play`, `pet.gift`, `pet.rest`/`sleep`/`evolve`, `pet.combat.*`,
+`pet.discovery`, plus their `*.ok` replies, `pet.event` pushes and
+`error`. Full rules are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
-## Rich dashboard (CYBERDECK//DASH)
+## The interface in one paragraph
 
-A second, Rich-powered full-screen dashboard with an **Awareness &
-Diagnostics** tab (Wi-Fi, Bluetooth, LAN map, RFID/NFC, discovery
-journal, ping/DNS/interface diagnostics, checklist) and a **Deck &
-PULSE** tab (field mode, PULSE, system). Simulation-first; real Pi
-backends are picked in `config/dash.ini`. Awareness and logging tools
-for personal use only (passive, own surroundings and own subnet; not a
-skimmer detector).
-
-```bash
-pip install -r requirements-dash.txt
-python3 -m cyberdeck_dash            # q quits, ? shows keys
-```
-
-Full guide: [docs/DASHBOARD.md](docs/DASHBOARD.md).
+`cyberdeck/` is the deck's brain (commands, features, the companion
+link, the sim pet) and never draws anything itself. Two front ends show
+it: `cyberdeck_dash/` (Rich, the default) and `cyberdeck/tui.py`
+(curses, `--classic`). Both use the same commands, files in `data/`,
+plugins and companion link, so a note added in one is there in the
+other. The awareness panels listen passively to your own surroundings
+and your own subnet, for personal use only (not a skimmer detector).
+Guide: [docs/DASHBOARD.md](docs/DASHBOARD.md). How the pieces fit:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

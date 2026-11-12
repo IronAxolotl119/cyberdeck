@@ -24,6 +24,51 @@ normal Linux terminal and *simulates* both the sensors and the pet.
 The seams are already in place so those simulations can be swapped
 for real hardware later.
 
+## One interface, two front ends
+
+The deck's **brain** is the `cyberdeck/` package: the command registry,
+every feature (notes, dungeon, weather, ISS, music, GPIO, SSH…), the
+companion link and the sim pet. It never draws anything. Commands
+return text lines; full-screen modes are `Activity` objects that return
+rows of `(text, role)` pieces; side panes do the same. Anything a
+command wants from the screen (clear, quit, open a mode, run ssh) is
+left on the `Context` as a request.
+
+Three front ends read that brain:
+
+```text
+                     cyberdeck/  (commands, features, link, sim pet)
+                    /                 |                     \
+ cyberdeck_dash/ (Rich, default)   tui.py (--classic)   headless.py (--headless/--script)
+   DeckBridge + Dashboard          curses DeckUI         plain text
+```
+
+`python3 -m cyberdeck` starts the **Rich interface** (`cyberdeck_dash/`):
+
+- `cyberdeck_dash/unified.py` builds a `DeckBridge` around the deck's
+  Context and registry, then a `Dashboard` with that bridge, and runs
+  the Rich Live loop (keys, GPIO buttons, redraw; it pauses the screen
+  for ssh).
+- `deck_bridge.py` is `tui.DeckUI` without curses: the console log,
+  the line being typed, history and Tab completion (reusing
+  `history.py` and `completion.py`), the current Activity, background
+  job results, service ticks, deck notices, pop-ups and badges.
+- `shared_link.py` makes the deck's companion link the **only** link.
+  `TeeCompanion` copies each pushed `pet.event` to the deck's features
+  and to the dashboard's PULSE panel; `SharedLink` gives the dashboard
+  its small request/callback API on top of the same connection.
+- `ui/deck_panels.py` holds the deck tiles (console, dungeon, PULSE
+  combat, loot, notes, todo, fun & tools, sky, music, net, output) and
+  `ui/rows.py` paints deck rows with the Rich theme, so one theme
+  colours everything.
+- Keys: `Dashboard.handle_key()` sends a key to an open Activity
+  first, then to `keys.ini` hotkeys, then to the focused deck tile
+  (the Console takes all typing), and only then to the dashboard keys.
+
+`--classic` starts the curses UI (`tui.py`) exactly as before, and
+`--headless` / `--script` are unchanged. If Rich is not installed, the
+default falls back to `--classic`.
+
 ## Folder map
 
 ```text
@@ -32,8 +77,8 @@ cyberdeck-main/
   plugins/              your extra commands; auto-loaded at startup
   data/                 files the deck writes (history, notes…); not in git
   cyberdeck/            the Python package (`python -m cyberdeck`)
-    app.py              flags, startup, choose UI or headless
-    tui.py              full-screen curses interface (the only drawing code)
+    app.py              flags, startup, choose Rich UI, --classic, or headless
+    tui.py              the classic curses interface (--classic)
     jobs.py             run slow commands on a thread; "fetching…" placeholder
     statusline.py       fit the status readings + link label into the bar
     popups.py           boxed evolution pop-ups: queue, timeout, never eats keys
@@ -82,6 +127,13 @@ cyberdeck-main/
   text/                 editable text: typing phrases, fallback ISS orbit
   docs/                 protocol, architecture, UI snapshot
   tests/                unit tests (stdlib unittest)
+  cyberdeck_dash/       the Rich interface (`python -m cyberdeck`; alias `python -m cyberdeck_dash`)
+    unified.py          builds Dashboard + DeckBridge, Rich Live loop, --snapshot
+    deck_bridge.py      the deck minus curses: console, history, completion, activities, jobs
+    shared_link.py      the deck's one companion link, shared with the dashboard
+    app.py              the Dashboard: tabs, scanners, alerts, key routing (incl. deck tabs)
+    ui/                 screen layout, panels, deck panels, rows -> Rich text
+    scanners/, rules.py, journal.py, field.py, diag.py …  awareness side (see DASHBOARD.md)
 ```
 
 ## How data flows from a keypress to the screen
@@ -390,16 +442,24 @@ the item back in the loot bag.
 
 ### `app.py`
 
-Startup only. Parses `--mode`, `--headless`, `--script`, and friends,
-opens hardware, loads config and commands, then hands off to the TUI
+Startup only. Parses `--mode`, `--headless`, `--script`, `--classic`,
+the Rich options (`--theme`, `--tab`, `--snapshot`…) and friends, opens
+hardware, loads config and commands, then hands off to the Rich
+interface (`cyberdeck_dash/unified.py`), the curses TUI (`--classic`),
 or the headless runner. Environment variables `CYBERDECK_MODE` and
 `CYBERDECK_LINK` and `CYBERDECK_SERIAL` are also read here. `--link`,
 `--host`, `--port`, `--device`/`--serial` and `--baud` override
 `[link]` in hardware.ini.
 
+### `cyberdeck_dash/` (the Rich interface)
+
+See "One interface, two front ends" above and
+[DASHBOARD.md](DASHBOARD.md) for every file. The awareness side
+(scanners, rules, journal, field mode) is described there too.
+
 ### `tui.py`
 
-The visible deck. A status bar, an output log, and a prompt, drawn
+The classic visible deck (`--classic`). A status bar, an output log, and a prompt, drawn
 with curses. It knows almost nothing about pets or sensors except
 how to display them. Colors and labels come from `config.py`.
 
@@ -457,7 +517,7 @@ independent:
 | Flag | Choices | Default |
 |------|---------|---------|
 | `--mode` (or `CYBERDECK_MODE`) | `sim` = `SimSensors`, `real` = `PiSensors` | `sim` |
-| `--link` (or `CYBERDECK_LINK`, `[link] mode`) | `sim`, `tcp`, `serial` | `sim` |
+| `--link` (or `CYBERDECK_LINK`, `[link] mode`) | `sim`, `tcp`, `serial`, `auto` (tcp if the companion is listening at start-up, else sim) | `auto` |
 
 On two Pis: `python3 -m cyberdeck --mode real --link serial`.
 

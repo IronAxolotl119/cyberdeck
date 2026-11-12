@@ -4,13 +4,25 @@ This project is meant to be edited. You can change how it looks and
 add your own commands without touching the core Python unless you
 want to. Restart the deck after you change a file.
 
+There is **one interface** (`python3 -m cyberdeck`, Rich): the dashboard
+look with every deck feature as a tab. The original curses screen is
+still there as `python3 -m cyberdeck --classic`. Everything below about
+commands, plugins, notes, hosts, songs, the pet, GPIO, moods and the
+world works the same in both. A few settings only affect one of them,
+marked **(Rich)** or **(classic)** in the table.
+
 ## Where things live
 
 | What you want to change          | Where to edit |
 |----------------------------------|---------------|
-| Colors                           | `config/theme.ini` |
-| Title, prompt, clock, min size   | `config/layout.ini` `[layout]` |
-| Split panes vs tabs, side panels | `config/layout.ini` `[panes]` |
+| Colors and themes **(Rich)**     | `config/dash.ini` `[theme.*]` (`t` cycles, `--theme amber`) |
+| Tabs and what each holds **(Rich)** | `config/dash.ini` `[tabs]`, `[tab.*]` (see "Add your own tab" below) |
+| Logo text **(Rich)**             | `config/dash.ini` `[dash] title` |
+| Awareness panels (radios, alerts, checklist) **(Rich)** | `config/dash.ini` (see docs/DASHBOARD.md) |
+| Colors **(classic)**             | `config/theme.ini` |
+| Prompt text, history size        | `config/layout.ini` `[layout]`, `[history]` (both UIs) |
+| Title, clock, min size **(classic)** | `config/layout.ini` `[layout]` |
+| Split panes vs tabs, side panels **(classic)** | `config/layout.ini` `[panes]` |
 | History size                     | `config/layout.ini` `[history]` |
 | Switch off a built-in feature    | `config/layout.ini` `[features]` |
 | Hotkeys (F-keys, Ctrl combos)    | `config/keys.ini` `[hotkeys]` |
@@ -25,11 +37,13 @@ want to. Restart the deck after you change a file.
 | The deck's sassy status lines    | `config/moods.ini` |
 | Typing-challenge phrases         | `text/hack_phrases.txt` |
 | Your location, units, ISS options| `config/world.ini` |
-| Launcher menu entries            | `config/keys.ini` `[launcher]` |
+| Launcher menu + the Fun & Tools list | `config/keys.ini` `[launcher]` |
 | Add a command of your own        | `plugins/` (copy `_template.py`) |
 | Built-in commands (help, pet…)   | `cyberdeck/commands.py` |
 | Bigger features (one file each)  | `cyberdeck/features/` |
 | Side panels / tabs (what they show) | `cyberdeck/panes.py` (or `register_pane` in a plugin) |
+| Rich tiles for deck features     | `cyberdeck_dash/ui/deck_panels.py` |
+| Rich key routing for deck tabs   | `deck_key()` in `cyberdeck_dash/app.py` |
 | Fake pet behaviour               | `PetState` in `cyberdeck/companion.py` |
 | Status-bar sensor values         | `cyberdeck/sensors.py` |
 | Message format between boards    | `cyberdeck/protocol.py` and `docs/PROTOCOL.md` |
@@ -453,14 +467,52 @@ def clock_pane(ctx, width, height):
 register_pane("clock", "CLOCK", clock_pane)
 ```
 
-Then add `clock` to `side =` or `tabs =` in `[panes]`. Built-in panel
-names so far: `pet`, `system`, `net`, `todo`, `music`. Roles are the
-theme names: `text`, `title`, `dim`, `ok`, `warn`, `alert`, `prompt`.
+Then add `clock` to `side =` or `tabs =` in `[panes]` for `--classic`.
+Built-in panel names so far: `pet`, `system`, `net`, `todo`, `music`,
+`sky`. Roles are the theme names: `text`, `title`, `dim`, `ok`, `warn`,
+`alert`, `prompt` (the Rich interface maps them to its theme colours).
+
+### In the Rich interface
+
+To show that same pane as a tile, add one line to `DECK_PANELS` in
+`cyberdeck_dash/ui/deck_panels.py` and its key to `DECK_PANEL_KEYS` in
+`cyberdeck_dash/app.py`:
+
+```python
+"clock": ("CLOCK", "◷", deck_pane("clock"), None),
+```
+
+## Add your own tab (Rich)
+
+Tabs are plain INI in `config/dash.ini`. Add a section and put its key
+in `[tabs] order`:
+
+```ini
+[tabs]
+order = awareness, deck, console, dungeon, notes, fun, bench
+
+[tab.bench]
+title = My Bench
+short = Bench          ; name in the tab bar when it is not the current tab
+panels = todo, clock, console
+columns = 2            ; tiles per row
+ratios = 1, 1          ; relative widths in a row (optional)
+detail = yes           ; tiles show their full view
+```
+
+Panel keys you can use: `wifi bt lan rfid journal diag checklist field
+pet system` (awareness) and `console avatar dungeon combat loot notes
+todo launcher sky music net output` (main deck), plus your own. Every
+command you add in `plugins/` already works in the Console tab, in
+`help` and in Tab completion; add it to `[launcher]` in `keys.ini` to
+list it on the Fun & Tools tab, or to `[hotkeys]` to give it a key.
 
 ## What you usually should not need to change
 
-- `tui.py` — only if you want a different screen layout (extra
-  panes, a second status line, and so on). Prefer `layout.ini`
+- `cyberdeck_dash/ui/screen.py` — only if you want a different overall
+  layout for the Rich interface. Prefer `dash.ini` tabs first.
+- `tui.py` — only if you want a different `--classic` screen layout
+  (extra panes, a second status line, and so on). Prefer `layout.ini`
   first.
 - `app.py` — only if you are adding a new command-line flag.
 - `protocol.py` — only if the companion board needs a new message

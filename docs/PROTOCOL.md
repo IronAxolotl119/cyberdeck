@@ -303,6 +303,18 @@ the authority: the deck only applies the numbers it gets back.
 - The deck plays solo if `pet.combat.stats` fails, is unknown, or says
   the pet is asleep.
 
+### Discoveries (`pet.discovery`)
+
+The interface's awareness tab reports each first sighting of a Wi-Fi
+network, Bluetooth device, LAN host or RFID tag as `pet.discovery`
+(`kind`, `id`, `interest` 1-3, `label`). The reply `pet.discovery.ok`
+carries `xp`, `level`, `level_up`, `learned_move`,
+`strengthened_move`, `reaction` and the pet object (with
+`environment`). Full rules: the "Protocol: `pet.discovery`" section of
+[DASHBOARD.md](DASHBOARD.md). The deck's built-in sim pet
+(`cyberdeck/companion.py`) answers it too, so `--link sim` behaves like
+the real companion.
+
 ### Events (`pet.event`, optional push)
 
 Sent by the companion **only** after a `hello` with `"events": true`
