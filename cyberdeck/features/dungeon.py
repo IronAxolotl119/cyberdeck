@@ -16,6 +16,23 @@ In the dungeon:
   .                      wait a turn
   q / Esc                leave (your loot is kept)
 
+PULSE fights at your side (config/fx.ini [dungeon] pulse = yes):
+  * at the start the deck asks the companion for PULSE's real combat
+    stats (pet.combat.stats): hp, energy, attack, moves with power,
+    accuracy and energy cost. The HUD shows PULSE's HP and energy.
+  * each round, after you act, PULSE gets a turn if a monster is within
+    two steps of you. You pick its move (1-9, space = auto, . = let it
+    rest) or, with pulse_moves = auto, it picks the strongest move it has
+    the energy for. The deck sends pet.combat.action and the pet decides
+    whether it hits and for how much; the deck applies the damage.
+  * monsters next to you sometimes go for PULSE instead (pet.combat.hit).
+    A fainted PULSE sits out until a repair kit revives it — kits go to
+    whichever of you is more hurt (pet.combat.heal).
+  * when you leave or are derezzed, pet.combat.end reports the result,
+    xp and defeated enemies; PULSE may level up or learn a move.
+  * no link, an older companion, or a sleeping PULSE: you play solo, and
+    the HUD says why.
+
 Map symbols:  @ you   # wall   . floor   > stairs   * loot   ! repair kit
               b bug  g glitch  v virus  w worm  D daemon
 
@@ -41,7 +58,16 @@ from cyberdeck.activity import Activity, Row
 from cyberdeck.commands import PET_ACTIONS, CompanionError, run_pet_hooks
 from cyberdeck.config import Settings
 from cyberdeck.fx import banner
-from cyberdeck.protocol import TYPE_ERROR, TYPE_PET_GIFT
+from cyberdeck.petdata import CombatStats, Move, combat_stats
+from cyberdeck.protocol import (
+    TYPE_ERROR,
+    TYPE_PET_COMBAT_ACTION,
+    TYPE_PET_COMBAT_END,
+    TYPE_PET_COMBAT_HEAL,
+    TYPE_PET_COMBAT_HIT,
+    TYPE_PET_COMBAT_STATS,
+    TYPE_PET_GIFT,
+)
 
 if TYPE_CHECKING:
     from cyberdeck.commands import Context, Registry
@@ -85,6 +111,136 @@ class Monster:
     hp: int
     attack: int
 
+    def describe(self) -> dict[str, Any]:
+        """The enemy object sent in pet.combat.action / hit."""
+        return {"name": self.name, "hp": self.hp, "attack": self.attack}
+
+
+# --- PULSE as a party member ---------------------------------------------------------
+
+class PulseAlly:
+    """PULSE in the dungeon. Every outcome comes from the companion.
+
+    `request` is ctx.companion.request (or a fake in tests). Any link
+    trouble or "unknown message" reply turns PULSE off for the rest of
+    the run (solo mode) instead of breaking the game; `note` says why.
+    """
+
+    def __init__(self, request: Callable[..., Any], name: str = "PULSE") -> None:
+        self.request = request
+        self.name = name
+        self.online = False
+        self.note = ""
+        self.hp = self.max_hp = 0
+        self.energy: int | None = None
+        self.moves: tuple[Move, ...] = ()
+        self.stats: CombatStats | None = None
+        self.defeated: list[str] = []      # enemies beaten while PULSE was in the party
+        self.ended = False
+
+    # One request; None (and offline) on any trouble.
+    def _ask(self, typ: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            reply = self.request(typ, payload)
+        except Exception as exc:   # CompanionError, timeouts…
+            self._drop(f"lost contact ({exc})")
+            return None
+        body = reply.payload or {}
+        if reply.type == TYPE_ERROR:
+            if body.get("code") == "unknown_type":
+                self._drop("this companion can't fight yet")
+            else:
+                self._drop(f"companion said: {body.get('message') or body.get('code')}")
+            return None
+        return body
+
+    def _drop(self, why: str) -> None:
+        self.online = False
+        self.note = why
+
+    def join(self) -> bool:
+        """Ask for PULSE's combat stats. False = solo run (see note)."""
+        self.online = True
+        body = self._ask(TYPE_PET_COMBAT_STATS, {})
+        if body is None:
+            return False
+        stats = combat_stats(body)
+        if stats is None:
+            self._drop("companion sent no combat stats")
+            return False
+        if stats.asleep:
+            self._drop("asleep — `pet sleep off` to bring it next time")
+            return False
+        self.stats, self.hp, self.max_hp, self.energy = stats, stats.hp, stats.max_hp, stats.energy
+        self.moves = stats.moves or (Move("tackle", 4, 0.9, 0),)
+        self.note = ""
+        return True
+
+    @property
+    def fainted(self) -> bool:
+        return self.hp <= 0
+
+    @property
+    def can_act(self) -> bool:
+        return self.online and not self.fainted
+
+    def affordable(self, move: Move) -> bool:
+        return self.energy is None or move.energy_cost <= self.energy
+
+    def auto_move(self) -> Move:
+        """Strongest expected hit we have the energy for (else the cheapest)."""
+        options = [m for m in self.moves if self.affordable(m)]
+        if not options:
+            return min(self.moves, key=lambda m: m.energy_cost)
+        return max(options, key=lambda m: (m.power * m.accuracy, -m.energy_cost))
+
+    def act(self, move: Move, enemy: Monster) -> dict[str, Any] | None:
+        body = self._ask(TYPE_PET_COMBAT_ACTION, {"move": move.name, "enemy": enemy.describe()})
+        if body is None:
+            return None
+        self._update(body)
+        return body
+
+    def take_hit(self, damage: int, enemy: Monster) -> dict[str, Any] | None:
+        body = self._ask(TYPE_PET_COMBAT_HIT, {"damage": int(damage), "enemy": enemy.describe()})
+        if body is None:
+            return None
+        if body.get("fainted") is True:
+            self.hp = 0
+        self._update(body)
+        return body
+
+    def heal(self, amount: int) -> dict[str, Any] | None:
+        """A repair kit for PULSE. A companion without pet.combat.heal just
+        says no (None) and PULSE stays in the fight; the kit heals you."""
+        try:
+            reply = self.request(TYPE_PET_COMBAT_HEAL, {"amount": int(amount)})
+        except Exception as exc:
+            self._drop(f"lost contact ({exc})")
+            return None
+        if reply.type == TYPE_ERROR:
+            return None
+        body = reply.payload or {}
+        self._update(body)
+        return body
+
+    def _update(self, body: dict[str, Any]) -> None:
+        hp = body.get("pet_hp")
+        if isinstance(hp, int) and not isinstance(hp, bool):
+            self.hp = max(0, hp)
+        energy = body.get("energy")
+        if isinstance(energy, int) and not isinstance(energy, bool):
+            self.energy = energy
+        elif self.energy is not None and isinstance(body.get("energy_spent"), int):
+            self.energy = max(0, self.energy - body["energy_spent"])
+
+    def end(self, result: str, xp: int) -> dict[str, Any] | None:
+        """pet.combat.end, once. Sent even if PULSE fainted (it still learns)."""
+        if self.ended or self.stats is None or not self.online:
+            return None
+        self.ended = True
+        return self._ask(TYPE_PET_COMBAT_END, {"result": result, "xp": int(xp), "enemies": list(self.defeated)})
+
 
 @dataclass
 class Game:
@@ -95,9 +251,14 @@ class Game:
     max_hp: int = 20
     rng: random.Random = field(default_factory=random.Random)
     on_loot: Callable[[dict[str, Any]], None] | None = None  # called when you pick loot up
+    ally: PulseAlly | None = None          # PULSE, when it joined the run
+    pulse_moves: str = "ask"               # ask | auto
+    pulse_target_chance: float = 0.35
 
     def __post_init__(self) -> None:
         self.depth = 0
+        self.awaiting: Monster | None = None   # PULSE's turn: waiting for you to pick a move
+        self.last_target: Monster | None = None
         self.hp = self.max_hp
         self.score = 0
         self.over = False
@@ -195,17 +356,15 @@ class Game:
         """Your turn: walk, fight, or pick things up; then the monsters move."""
         if self.over:
             return
+        if self.awaiting is not None:
+            self.say(f"{self.ally_name}'s turn first: 1-9 pick a move, space = auto, . = rest")
+            return
         nx, ny = self.px + dx, self.py + dy
         target = self.monster_at(nx, ny)
         if target is not None:
             hit = self.rng.randint(2, 4) + self.depth // 3
-            target.hp -= hit
-            if target.hp <= 0:
-                self.monsters.remove(target)
-                self.score += 10 * self.depth
-                self.say(f"you delete the {target.name}. (+{10 * self.depth})")
-            else:
-                self.say(f"you hit the {target.name} for {hit}.")
+            self.last_target = target
+            self.damage(target, hit, "you")
         elif not self.walkable(nx, ny):
             self.say("bonk. that's a wall.")
             return  # bumping a wall does not cost a turn
@@ -213,11 +372,78 @@ class Game:
             self.px, self.py = nx, ny
             self._pick_up()
         self._reveal()
-        self.monsters_turn()
+        self.end_round()
 
     def wait(self) -> None:
-        if not self.over:
-            self.monsters_turn()
+        if not self.over and self.awaiting is None:
+            self.end_round()
+
+    def damage(self, target: Monster, amount: int, who: str) -> None:
+        """Apply a hit to a monster; remove it (and score) when it drops."""
+        target.hp -= amount
+        if target.hp > 0:
+            if who == "you":
+                self.say(f"you hit the {target.name} for {amount}.")
+            return
+        self.monsters.remove(target)
+        self.score += 10 * self.depth
+        if self.ally is not None and self.ally.online:
+            self.ally.defeated.append(target.name)
+        self.say(f"{who} deleted the {target.name}. (+{10 * self.depth})" if who != "you"
+                 else f"you delete the {target.name}. (+{10 * self.depth})")
+
+    # --- PULSE's turn ------------------------------------------------------------
+
+    @property
+    def ally_name(self) -> str:
+        return self.ally.name if self.ally else "PULSE"
+
+    def pet_target(self) -> Monster | None:
+        """What PULSE goes for: your last target if close, else the nearest within 2."""
+        def near(m: Monster) -> int:
+            return max(abs(m.x - self.px), abs(m.y - self.py))
+        if self.last_target in self.monsters and near(self.last_target) <= 2:
+            return self.last_target
+        close = sorted((m for m in self.monsters if near(m) <= 2), key=near)
+        return close[0] if close else None
+
+    def end_round(self) -> None:
+        """After you act: PULSE's turn (maybe waiting for your pick), then the monsters."""
+        if self.over:
+            return
+        target = self.pet_target() if self.ally is not None and self.ally.can_act else None
+        if target is not None:
+            if self.pulse_moves == "ask":
+                self.awaiting = target
+                return
+            self.pet_act(self.ally.auto_move(), target)
+        self.monsters_turn()
+
+    def pet_choose(self, index: int | None) -> None:
+        """Your pick for PULSE: a move number (0-based), None = auto, -1 = rest."""
+        target, self.awaiting = self.awaiting, None
+        if target is None or self.ally is None:
+            return
+        if index == -1:
+            self.say(f"{self.ally_name} holds back this round.")
+        else:
+            moves = self.ally.moves
+            move = moves[index] if index is not None and 0 <= index < len(moves) else self.ally.auto_move()
+            if target in self.monsters:
+                self.pet_act(move, target)
+        self.monsters_turn()
+
+    def pet_act(self, move: Move, target: Monster) -> None:
+        result = self.ally.act(move, target) if self.ally else None
+        if result is None:
+            self.say(f"{self.ally_name} drops out: {self.ally.note if self.ally else 'gone'} — you're solo.")
+            return
+        reaction = result.get("reaction") or (f"{self.ally_name} uses {move.name}"
+                                              + (f" for {result.get('damage')}" if result.get("hit") else " — miss"))
+        self.say(str(reaction))
+        damage = result.get("damage")
+        if result.get("hit") and isinstance(damage, int) and damage > 0 and target in self.monsters:
+            self.damage(target, damage, self.ally_name)
 
     def descend(self) -> bool:
         if self.over or (self.px, self.py) != self.stairs:
@@ -233,6 +459,15 @@ class Game:
         if item is None:
             return
         if item["kind"] == "heal":
+            ally = self.ally
+            # The kit goes to whichever of you is more hurt (it also revives PULSE).
+            if (ally is not None and ally.online and ally.max_hp and ally.hp < ally.max_hp
+                    and ally.hp / ally.max_hp < self.hp / self.max_hp):
+                before = ally.hp
+                if ally.heal(item["power"]) is not None:
+                    self.say(f"repair kit → {ally.name}: +{ally.hp - before} hp"
+                             + (" (back on its feet!)" if before <= 0 < ally.hp else ""))
+                    return
             self.hp = min(self.max_hp, self.hp + item["power"])
             self.say(f"repair kit: +{item['power']} hp")
             return
@@ -247,6 +482,14 @@ class Game:
             dist = max(abs(m.x - self.px), abs(m.y - self.py))
             if dist == 1:
                 dmg = self.rng.randint(1, m.attack)
+                ally = self.ally
+                if ally is not None and ally.can_act and self.rng.random() < self.pulse_target_chance:
+                    result = ally.take_hit(dmg, m)
+                    if result is not None:
+                        self.say(str(result.get("reaction") or f"the {m.name} hits {ally.name}."))
+                        if ally.fainted:
+                            self.say(f"{ally.name} fainted! a repair kit will bring it back.")
+                        continue
                 self.hp -= dmg
                 self.say(f"the {m.name} hits you for {dmg}.")
                 if self.hp <= 0:
@@ -269,6 +512,25 @@ class Game:
             for x in range(self.px - SIGHT, self.px + SIGHT + 1):
                 if 0 <= x < self.width and 0 <= y < self.height and (x - self.px) ** 2 + (y - self.py) ** 2 <= SIGHT ** 2:
                     self.seen.add((x, y))
+
+    def finish(self) -> list[str]:
+        """End of run: tell the companion (pet.combat.end) and summarise."""
+        ally = self.ally
+        if ally is None or ally.stats is None:
+            return []
+        result = "lost" if self.over else ("won" if ally.defeated else "fled")
+        xp = min(500, sum(3 * self.depth for _ in ally.defeated) + 2 * self.depth)
+        body = ally.end(result, xp)
+        if body is None:
+            return [f"{ally.name}: {ally.note or 'could not report the run'}"]
+        line = f"{ally.name}: +{body.get('xp_gained', xp)} xp"
+        if body.get("level_ups"):
+            line += f", level up → Lv {body.get('level', '?')}"
+        learned = body.get("learned_moves") or []
+        if learned:
+            line += f", learned {', '.join(map(str, learned))}"
+        self.end_payload = body
+        return [line]
 
     def visible(self, x: int, y: int) -> bool:
         return (x - self.px) ** 2 + (y - self.py) ** 2 <= SIGHT ** 2
@@ -395,6 +657,7 @@ class DungeonActivity(Activity):
         self.game = game
         self.unicode = unicode
         self.show_bag = False
+        self.finished = False
         game.on_loot = loot_bag(ctx).add
 
     def on_key(self, key: str) -> None:
@@ -403,6 +666,16 @@ class DungeonActivity(Activity):
             self.done = True
         elif g.over:
             self.done = True
+        elif g.awaiting is not None:
+            # PULSE's turn: 1-9 = that move, space/enter = auto, . = hold back.
+            if key.isdigit() and key != "0":
+                g.pet_choose(int(key) - 1)
+            elif key in {" ", "space", "enter"}:
+                g.pet_choose(None)
+            elif key == ".":
+                g.pet_choose(-1)
+            else:
+                g.say(f"{g.ally_name}'s turn: 1-9 pick a move, space = auto, . = rest")
         elif key in MOVES:
             g.move(*MOVES[key])
         elif key == ">":
@@ -422,9 +695,15 @@ class DungeonActivity(Activity):
             if not ok:
                 bag.add(item)  # keep it if delivery failed
             g.say(lines[0])
-        if self.done:
+        if self.done and not self.finished:
+            self.finished = True
             self.result_lines = [f"dungeon: depth {g.depth}, score {g.score}, "
                                  f"{len(g.found)} loot found this run — `loot` to see your bag"]
+            self.result_lines += g.finish()
+            payload = getattr(g, "end_payload", None)
+            if payload:
+                run_pet_hooks(self.ctx, "combat", payload)
+                self.ctx.services.pop("pet_cache", None)
 
     def render(self, width: int, height: int) -> list[Row]:
         g = self.game
@@ -433,7 +712,7 @@ class DungeonActivity(Activity):
         rows: list[Row] = []
         hp_role = "ok" if g.hp > g.max_hp * 0.5 else "warn" if g.hp > g.max_hp * 0.25 else "alert"
         rows.append([(" HP ", "dim"), (f"{g.hp}/{g.max_hp}", hp_role), (f"   depth {g.depth}   score {g.score}"
-                     f"   loot {len(loot_bag(self.ctx).items())}", "text")])
+                     f"   loot {len(loot_bag(self.ctx).items())}", "text")] + pulse_hud(g))
         view_h = max(3, height - 7)
         view_w = max(10, width - 2)
         # Scroll the map so you stay on screen when it is bigger than the terminal.
@@ -451,7 +730,13 @@ class DungeonActivity(Activity):
         rows.append([])
         for msg in list(g.messages)[-3:]:
             rows.append([(" " + msg, "text")])
-        rows.append([(" arrows/wasd move · > stairs · g gift newest loot · i bag · q quit", "dim")])
+        if g.awaiting is not None and g.ally is not None:
+            picks = "  ".join(f"{i}:{m.name}({m.energy_cost})" + ("" if g.ally.affordable(m) else "×")
+                              for i, m in enumerate(g.ally.moves[:9], 1))
+            rows.append([(f" {g.ally_name} vs {g.awaiting.name}: ", "title"), (picks, "prompt"),
+                         ("  space auto · . rest", "dim")])
+        else:
+            rows.append([(" arrows/wasd move · > stairs · g gift newest loot · i bag · q quit", "dim")])
         if self.show_bag:
             bag = loot_bag(self.ctx).items()
             overlay = [[(" LOOT BAG ", "title")]] + [[(" " + format_item(i, it), "prompt")] for i, it in enumerate(bag, 1)]
@@ -475,10 +760,36 @@ class DungeonActivity(Activity):
         return ["dungeon needs the full-screen UI. a taste of depth 1:"] + self.game.map_text()
 
 
+def pulse_hud(g: Game) -> Row:
+    """'│ PULSE HP 20/28 EN 64' (or why PULSE is not with you) for the HUD."""
+    ally = g.ally
+    if ally is None:
+        return []
+    if not ally.online:
+        return [("   │ ", "dim"), (f"{ally.name}: solo — {ally.note}", "warn")]
+    if ally.fainted:
+        return [("   │ ", "dim"), (f"{ally.name} fainted", "alert")]
+    role = "ok" if ally.hp > ally.max_hp * 0.5 else "warn" if ally.hp > ally.max_hp * 0.25 else "alert"
+    energy = f" EN {ally.energy}" if ally.energy is not None else ""
+    return [("   │ ", "dim"), (f"{ally.name} ", "title"), (f"HP {ally.hp}/{ally.max_hp}", role), (energy, "text")]
+
+
 def new_game(ctx: "Context", seed: int | None = None) -> Game:
     s = Settings.load("fx.ini", ctx.config_dir)
-    return Game(width=max(30, s.get_int("dungeon", "width", 56)), height=max(12, s.get_int("dungeon", "height", 17)),
-                max_hp=max(5, s.get_int("dungeon", "hp", 20)), rng=random.Random(seed))
+    game = Game(width=max(30, s.get_int("dungeon", "width", 56)), height=max(12, s.get_int("dungeon", "height", 17)),
+                max_hp=max(5, s.get_int("dungeon", "hp", 20)), rng=random.Random(seed),
+                pulse_moves="auto" if s.get_str("dungeon", "pulse_moves", "ask").lower() == "auto" else "ask",
+                pulse_target_chance=max(0.0, min(1.0, s.get_float("dungeon", "pulse_target_chance", 0.35))))
+    if s.get_bool("dungeon", "pulse", True):
+        ally = PulseAlly(ctx.companion.request)
+        if not ctx.companion.is_linked():
+            ally.note = "link down"
+        else:
+            ally.join()
+        game.ally = ally
+        game.say(f"{ally.name} joins you! HP {ally.hp}/{ally.max_hp}" if ally.online
+                 else f"{ally.name} can't come: {ally.note}. solo run.")
+    return game
 
 
 def register(reg: "Registry") -> None:
