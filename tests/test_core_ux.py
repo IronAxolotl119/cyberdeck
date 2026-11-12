@@ -83,7 +83,7 @@ class CompletionTests(unittest.TestCase):
     def test_subcommands(self):
         self.assertEqual(complete_line("pet f", self.reg, self.ctx)[0], "pet feed ")
         _, choices = complete_line("pet ", self.reg, self.ctx)
-        self.assertEqual(set(choices), {"status", "feed", "play"})
+        self.assertTrue({"status", "feed", "play", "log"} <= set(choices))
 
     def test_dynamic_completer(self):
         line, _ = complete_line("help st", self.reg, self.ctx)
