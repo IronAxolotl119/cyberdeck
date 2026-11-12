@@ -3,7 +3,8 @@
 This is the traffic director. It:
 
   1. Reads command-line flags and a couple of environment variables.
-  2. Opens the sensor pack and companion link (--mode sim or real).
+  2. Opens the sensor pack (--mode sim|real) and the companion link
+     (--link sim|tcp|serial, or [link] in config/hardware.ini).
   3. Loads theme, layout, built-in commands, and user plugins.
   4. Starts either the full-screen curses UI or headless/script mode.
 
@@ -18,8 +19,9 @@ import sys
 
 from cyberdeck import __app_name__, __version__
 from cyberdeck.commands import Context, build_registry
-from cyberdeck.companion import open_hardware
-from cyberdeck.config import data_dir, load_layout, load_theme
+from cyberdeck.companion import open_sensors
+from cyberdeck.config import Settings, data_dir, load_layout, load_theme
+from cyberdeck.link import load_link_settings, open_link, with_overrides
 from cyberdeck.headless import run_headless
 from cyberdeck.tui import run_tui, wants_unicode
 
@@ -29,14 +31,23 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     mode = (args.mode or os.environ.get("CYBERDECK_MODE") or "sim").strip().lower()
 
+    # Link settings: hardware.ini [link], then environment, then flags.
+    link_settings = with_overrides(
+        load_link_settings(Settings.load("hardware.ini", args.config_dir)),
+        mode=args.link or os.environ.get("CYBERDECK_LINK"),
+        host=args.host, port=args.port,
+        device=args.device or os.environ.get("CYBERDECK_SERIAL"),
+        baud=args.baud,
+    )
     try:
-        sensors, companion = open_hardware(mode, serial_port=args.serial)
+        sensors = open_sensors(mode)
+        companion = open_link(link_settings)
     except ValueError as exc:
         print(f"cyberdeck: {exc}", file=sys.stderr)
         return 2
 
-    # The sim link is up after connect(); the UART stub stays down
-    # until that backend is implemented, which is expected.
+    # tcp/serial links connect in the background and keep retrying, so a
+    # companion that is not running yet is fine: the UI shows LINK DOWN.
     try:
         companion.connect()
     except Exception as exc:  # noqa: BLE001 — still start the UI and show the error
@@ -85,13 +96,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         choices=("sim", "real"),
         default=None,
-        help="hardware backend (default: sim, or CYBERDECK_MODE)",
+        help="sensors: sim (pretend numbers) or real (Pi sysfs). Default sim, or CYBERDECK_MODE",
     )
     parser.add_argument(
-        "--serial",
+        "--link",
+        choices=("sim", "tcp", "serial"),
         default=None,
-        help="serial port for --mode real (default: CYBERDECK_SERIAL or /dev/ttyAMA0)",
+        help="how to reach the companion pet (default: hardware.ini [link] mode, or CYBERDECK_LINK)",
     )
+    parser.add_argument("--host", default=None, help="companion TCP host (default 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=None, help="companion TCP port (default 7777)")
+    parser.add_argument(
+        "--device", "--serial",
+        dest="device",
+        default=None,
+        help="serial device for --link serial (default: CYBERDECK_SERIAL or /dev/serial0)",
+    )
+    parser.add_argument("--baud", type=int, default=None, help="serial speed (default 115200)")
     parser.add_argument(
         "--headless",
         action="store_true",
