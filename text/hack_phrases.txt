@@ -1,0 +1,17 @@
+# Phrases for the typing challenge (`typehack`). One per line.
+# Lines starting with # are ignored. Add your own!
+sudo override --firewall=off --no-questions
+inject payload into port 31337 and wait
+decrypt the cipher before the trace completes
+reroute power from life support to the mainframe
+the gibson is protected by four layers of ice
+ssh root@mainframe -p 2222 --stealth
+compile the exploit and upload it to the node
+spoof the mac address and slip past the proxy
+download the garbage file before they notice
+ping the satellite and triangulate the signal
+enable god mode and disable the alarms
+it's a unix system, i know this
+hack the planet before the daemon wakes up
+bypass the kernel with a buffer overflow
+patch the backdoor and cover your tracks
