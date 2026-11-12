@@ -74,6 +74,23 @@ class PetEvent:
     kind: str     # evolve, hungry, bored, tired, recovered, mood, feed, play, gift
     level: str    # alert, warn, ok, info, quiet (quiet = log only)
     text: str
+    # The pushed pet.event payload, when the companion sent one (else None).
+    payload: dict | None = field(default=None, compare=False)
+
+
+# Functions called for every PULSE event the watcher handles (pushed or
+# found by its own checks), as hook(ctx, event, now). The LCD uses this
+# (cyberdeck/features/lcd.py). Errors in a hook are ignored.
+EVENT_HOOKS: list = []
+
+
+def run_event_hooks(ctx: "Context", events: list[PetEvent], now: float) -> None:
+    for event in events:
+        for hook in EVENT_HOOKS:
+            try:
+                hook(ctx, event, now)
+            except Exception:
+                pass
 
 
 # The three needs we watch: (name, payload key, test, message).
@@ -191,7 +208,7 @@ class PetWatcher:
         for message in ctx.companion.drain_events():
             payload = message.payload or {}
             kind, level, text = event_notice(payload)
-            events.append(PetEvent(kind, level, text))
+            events.append(PetEvent(kind, level, text, payload))
             local = PUSHED_TO_LOCAL.get(kind)
             if local:
                 self.active.add(local)
@@ -214,6 +231,7 @@ class PetWatcher:
 
     def handle(self, ctx: "Context", events: list[PetEvent], now: float) -> None:
         """Log every event; announce the important ones."""
+        run_event_hooks(ctx, events, now)
         for event in events:
             self.log.add(event.kind, event.text, now)
             if event.level != "quiet":
@@ -366,6 +384,7 @@ def headless_event_lines(ctx: "Context") -> list[str]:
     watcher = get_watcher(ctx)
     now = time.time()
     events = watcher.pushed(ctx, now)
+    run_event_hooks(ctx, events, now)
     for event in events:
         watcher.log.add(event.kind, event.text, now)
     return [f"[pet {event.kind}] {event.text}" for event in events]

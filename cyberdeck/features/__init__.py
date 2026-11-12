@@ -40,6 +40,7 @@ FEATURES = [
     "dungeon",      # ASCII roguelike + loot gifts to PULSE
     "weather",      # weather, sun clock, moon phase, the "sky" panel
     "iss",          # ISS passes over you (orbit maths on the deck)
+    "lcd",          # the 16x2 I2C LCD: PULSE blurbs + notifications (after petwatch)
 ]
 
 

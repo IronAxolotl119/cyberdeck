@@ -74,6 +74,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         data_dir=data_dir(args.data_dir),
         config_dir=args.config_dir,
     )
+    ctx.services["lcd_options"] = lcd_options(args, ctx)
     registry = build_registry(include_plugins=not args.no_plugins)
     theme = load_theme(args.config_dir)
     layout = load_layout(args.config_dir)
@@ -105,7 +106,31 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
     except KeyboardInterrupt:
         return 0
     finally:
+        lcd = ctx.services.get("lcd")
+        if lcd is not None:
+            lcd.stop()               # clears the real LCD and turns its backlight off
         companion.close()
+
+
+def lcd_options(args, ctx) -> dict:
+    """--lcd / --lcd-sim -> options for cyberdeck.lcd.get_lcd().
+
+    --lcd sim|i2c|none   override config/lcd.ini [lcd] backend this time
+    --lcd-sim [FILE]     mirror the 16x2 screen as text: printed after each
+                         command in --headless/--script, otherwise written to
+                         FILE (default data/lcd_screen.txt; try `watch cat` on it)
+    """
+    opts: dict = {}
+    if args.lcd:
+        opts["backend"] = args.lcd
+    if args.lcd_sim is not None:
+        if (args.headless or args.script) and args.lcd_sim == "-":
+            opts["print"] = True
+            opts["threaded"] = False
+        else:
+            target = args.lcd_sim if args.lcd_sim != "-" else None
+            opts["mirror"] = target or str(ctx.data_path("lcd_screen.txt"))
+    return opts
 
 
 def _load_rich_ui():
@@ -203,6 +228,13 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     rich_opts.add_argument("--size", default="100x30", help="snapshot size COLSxROWS (default 100x30)")
     rich_opts.add_argument("--keys", default=None,
                            help="snapshot: keys to press first, comma separated (e.g. enter,right,help,enter)")
+    # --- the 16x2 LCD (config/lcd.ini, docs/LCD.md) ---------------------------
+    lcd_opts = parser.add_argument_group("16x2 LCD")
+    lcd_opts.add_argument("--lcd", choices=("sim", "i2c", "none"), default=None,
+                          help="LCD backend this time (default: config/lcd.ini [lcd] backend, sim)")
+    lcd_opts.add_argument("--lcd-sim", nargs="?", const="-", default=None, metavar="FILE",
+                          help="show the simulated LCD as text: printed in --headless/--script, "
+                               "else written to FILE (default data/lcd_screen.txt)")
     parser.add_argument(
         "--version",
         action="version",

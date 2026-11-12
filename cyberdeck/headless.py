@@ -37,6 +37,7 @@ def run_headless(
     else:
         stream = commands
 
+    lcd_ready(ctx)
     for raw in stream:
         line = raw.strip()
         if not line:
@@ -45,6 +46,7 @@ def run_headless(
         output = registry.dispatch(line, ctx)
         output += handle_ui_requests(ctx)
         output += pushed_events(ctx)
+        output += lcd_lines(ctx)
         for piece in output:
             print(piece, file=out)
         if ctx.should_quit:
@@ -82,6 +84,26 @@ def pushed_events(ctx: Context) -> list[str]:
 
         return headless_event_lines(ctx)
     except Exception:  # the petwatch feature may be switched off
+        return []
+
+
+def lcd_ready(ctx: Context) -> None:
+    """Start the LCD in headless mode when it is real hardware or asked for."""
+    try:
+        from cyberdeck.features.lcd import headless_start
+
+        headless_start(ctx)
+    except Exception as exc:  # the lcd feature may be switched off
+        print(f"lcd: {exc}", file=sys.stderr)
+
+
+def lcd_lines(ctx: Context) -> list[str]:
+    """--lcd-sim: the simulated 16x2 screen after each command (when it changed)."""
+    try:
+        from cyberdeck.features.lcd import headless_lines
+
+        return headless_lines(ctx)
+    except Exception:
         return []
 
 
