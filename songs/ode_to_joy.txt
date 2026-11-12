@@ -1,0 +1,5 @@
+title: Ode to Joy (Beethoven)
+tempo: 132
+# Public domain. Bar lines are just for reading.
+E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | E4/4. D4/8 D4/2
+E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | D4/4. C4/8 C4/2

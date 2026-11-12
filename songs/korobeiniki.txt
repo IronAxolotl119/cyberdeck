@@ -1,0 +1,5 @@
+title: Korobeiniki (the "block game" tune)
+tempo: 150
+# Russian folk song, public domain.
+E5 B4/8 C5/8 D5 C5/8 B4/8 | A4 A4/8 C5/8 E5 D5/8 C5/8 | B4/4. C5/8 D5 E5 | C5 A4 A4/2
+R/8 D5/4. F5/8 A5 G5/8 F5/8 | E5/4. C5/8 E5 D5/8 C5/8 | B4 B4/8 C5/8 D5 E5 | C5 A4 A4/2

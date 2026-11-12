@@ -1,0 +1,4 @@
+title: Deck boot jingle
+tempo: 180
+# An original little arpeggio for startup. Make your own!
+C5/16 E5/16 G5/16 C6/8 R/16 G5/16 C6/4.

@@ -1,0 +1,6 @@
+title: Twinkle Twinkle Little Star
+tempo: 120
+# Traditional (public domain)
+C5 C5 G5 G5 | A5 A5 G5/2 | F5 F5 E5 E5 | D5 D5 C5/2
+G5 G5 F5 F5 | E5 E5 D5/2 | G5 G5 F5 F5 | E5 E5 D5/2
+C5 C5 G5 G5 | A5 A5 G5/2 | F5 F5 E5 E5 | D5 D5 C5/2

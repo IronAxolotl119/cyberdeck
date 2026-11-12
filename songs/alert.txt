@@ -1,0 +1,4 @@
+title: Pet alert chirp
+tempo: 200
+# Played when PULSE needs attention (if [alerts] sound = alert in pet.ini).
+A5/16 R/16 A5/16 R/16 E6/8
