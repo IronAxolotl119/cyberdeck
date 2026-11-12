@@ -1,0 +1,56 @@
+# PULSE's lines for the 16x2 LCD, shown between notifications.
+#
+# [mood] starts a group; the lines under it show while PULSE has that mood.
+# [any] lines show for every mood. Moods: happy, content, excited, hungry,
+# tired, sad, sleeping (joyful/playful count as happy, grumpy/angry/bored as sad).
+#
+# Fill-ins:  {name} {level} {mood} {species} {stage} {hunger} {energy} {happiness}
+# Symbols:   {heart} {face} {wifi} {bell} {bolt} {diamond} {note} {food}
+#
+# 16 characters fit on one line, 32 over both (word-wrapped). Longer lines
+# scroll like a ticker. Emoji and accents are swapped for LCD-safe ones.
+# After editing, type `lcd reload` in the console.
+
+[any]
+{wifi} listening to the airwaves...
+{heart} hi, operator!
+{name} L{level} reporting in
+{diamond} every packet tells a story
+{name} is guarding the deck
+scanning for new friends {wifi}
+
+[happy]
+{heart} best day ever!
+{name} does a little dance {note}
+{face} feeling sharp today
+let's go find signals!
+
+[content]
+all quiet on the net
+{face} just vibing
+{name} is keeping watch
+
+[excited]
+{diamond} something big is coming...
+{name} can feel it: evolution!
+{bolt} buzzing with energy!
+
+[hungry]
+{food} snack, please?
+{name}'s tummy rumbles... `pet feed`
+{food} data cookies? anyone?
+
+[tired]
+{bolt} low battery vibes...
+{name} could use a nap (`pet rest`)
+*yawn* zz...
+
+[sad]
+{heart} play with me? (`pet play`)
+{name} feels a bit left out
+the wifi is lonely today
+
+[sleeping]
+zZz... dreaming of packets
+zZz... {name} is recharging
+shh... {name} is asleep
