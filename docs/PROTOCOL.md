@@ -85,13 +85,26 @@ stays at `proto` 1.
 |---------------|-----------------|-------------------------|-----------------|
 | `hello`       | `hello.ok`      | `role`, `proto`         | `role`, `proto`, optional `source`, `pet` |
 | `ping`        | `pong`          | `{}`                    | `ok` (true), optional `source` |
-| `pet.status`  | `pet.status.ok` | `{}`                    | `pet` object (see below) |
+| `pet.status`  | `pet.status.ok` | `{}`                    | `pet` object (see below), optional `evolution` |
 | `pet.feed`    | `pet.feed.ok`   | `item` (string)         | `item`, `hunger_delta`, `pet` |
 | `pet.play`    | `pet.play.ok`   | `game` (string)         | `game`, `played` (bool), optional `reason`, `pet` |
 | `pet.gift`    | `pet.gift.ok`   | `item` (object, below)  | `accepted`, `item`, `reaction`, `effects`, `pet` |
-| `pet.avatar`  | `pet.avatar.ok` | optional `frame`, `mood`| picture, see below (optional message) |
+| `pet.avatar`  | `pet.avatar.ok` | optional `frame`, `mood`| text face, see below (optional message) |
+| `pet.rest`    | `pet.rest.ok`   | `{}`                    | `rested`, `energy_delta`, optional `reason`, `pet` |
+| `pet.sleep`   | `pet.sleep.ok`  | `on` (bool)             | `asleep`, `changed`, `reason` (or null), `pet` |
+| `pet.evolve`  | `pet.evolve.ok` | `species`               | `accepted`, `from`, `to`, `reaction`, optional `reason` |
+| `pet.combat.stats`  | `pet.combat.stats.ok`  | `{}`               | combat sheet, see "Dungeon combat" |
+| `pet.combat.action` | `pet.combat.action.ok` | optional `move`, `enemy` | outcome, see "Dungeon combat" |
+| `pet.combat.hit`    | `pet.combat.hit.ok`    | `damage` or `heal` | `damage_taken`, `healed`, `pet_hp`, `fainted`, `pet` |
+| `pet.combat.end`    | `pet.combat.end.ok`    | `result`, `xp`, `enemies` | `result`, `xp_granted`, `reaction`, `pet` |
 | *(push)*      | —               |                         | `pet.event`, see below (optional) |
 |               | `error`         |                         | `code`, `message` |
+
+The rest / sleep / evolve / combat messages and the evolution events
+are specified by the companion in
+[companion/docs/DUNGEON_INTEGRATION.md](../companion/docs/DUNGEON_INTEGRATION.md).
+That document wins if anything here disagrees; the sections below are
+the deck's summary of it.
 
 The deck always fills in `pet.feed` `item` (default `"ration"`) and
 `pet.play` `game` (default `"spar"`). A companion may answer an empty
@@ -115,7 +128,8 @@ one with `error` / `bad_payload`.
   "attack": 7, "defense": 6, "speed": 8,
   "moves": ["Chirp", "Static Snap"],
   "care_mistakes": 0,
-  "avatar": {"form": "chirplet", "mood": "playful", "frame": 0}
+  "asleep": false,
+  "avatar": {"style": "face", "mood": "playful", "frame": 0, "text": "(^_^)"}
 }
 ```
 
@@ -127,10 +141,28 @@ not expect any fixed name.
 
 **Optional fields** (the deck shows them only when present): `level`,
 `xp`, `hp`, `max_hp`, `attack`, `defense`, `speed`, `moves` (a list
-of names), `care_mistakes`, and `avatar` `{form, mood, frame}`. That
-last one says which picture `pet.avatar` would return, so the deck
-re-fetches the picture only when it changes. Unknown extra fields are
-ignored.
+of names), `care_mistakes`, `asleep` (zZ in the pet pane and status
+bar), and `avatar` `{style: "face", mood, frame, text}` — the face to
+show right now. The deck fetches the full animation with `pet.avatar`
+again only when the mood (or asleep) changes, not on every frame.
+Older companions sent `avatar` `{form, mood, frame}` for a sprite; that
+still works. Unknown extra fields are ignored.
+
+**Evolution progress** comes beside the pet in `pet.status.ok`:
+
+```json
+{"pet": {...}, "evolution": {"next_stage": "champion", "progress": 0.62, "ready": false,
+  "choices": [{"species": "Voltshard", "stage": "champion", "hint": "needs level 5+", "available": false}, …]}}
+```
+
+`progress` is 0–1 (the deck draws a bar in the pet pane and in
+`pet status`), `ready` turns true when the time gates are met (or an evo
+chip skipped them), and `choices` lists every branch for the next
+stage. A choice with `available: false` is shown greyed out with its
+`hint` and cannot be picked. `next_stage: null` means the final form.
+The pet **never** evolves on its own: the deck sends `pet.evolve
+{species}`. A refusal is `accepted: false` with a `reason` (not ready /
+unavailable); an unknown species is `error` / `bad_payload`.
 
 **Needs are need levels:** `hunger` 0 = full, 100 = starving (`pet.feed`
 lowers it). If your pet stores *fullness*, send `100 - fullness`.
@@ -169,7 +201,7 @@ What the reference (sim) companion does with each kind:
 | `food`    | hunger − power, happiness + 5 |
 | `toy`     | happiness + power, energy − 5 |
 | `battery` | energy + power |
-| `evolve`  | moves one stage up: egg → baby → in-training → rookie → champion → ultimate → mega |
+| `evolve`  | makes the pet *ready to evolve* now (skipping the time gates) and pushes `evolve_soon` + `evolve_choice`; it never evolves by itself. Refused at `mega`. |
 | `trinket` | happiness + 10 (kept as a keepsake) |
 
 The reply says whether the gift was `accepted`, echoes the cleaned-up
@@ -200,26 +232,76 @@ retried automatically.
 
 ### Avatar (`pet.avatar`, optional)
 
-The pet's picture, for the deck's pet panel. The request payload is
-`{}`, or it may name a `frame` (0 or 1, the idle animation frame) and/or
-a `mood` word to draw.
+The pet's animated text face, for the pet pane and `pet avatar`. The
+request payload is `{}`, or it may name a `frame` and/or a `mood`.
 
 ```json
-{"type":"pet.avatar","id":"…","payload":{"frame":0}}
-{"type":"pet.avatar.ok","id":"…","payload":{"form":"chirplet","mood":"playful","frame":0,"width":16,"height":16,
-  "palette":[null,"#121018","#ffd440","#ffffff"],
-  "rows":[[0,0,0,1,1,1,0,…16 numbers…],…16 rows…]}}
+{"type":"pet.avatar","id":"…","payload":{}}
+{"type":"pet.avatar.ok","id":"…","payload":{"style":"face","mood":"playful","frame":0,
+  "frames":["(^_^)","(^_~)"],"interval_ms":600}}
 ```
 
-- `palette[0]` is `null`, meaning transparent. Every other entry is
-  `"#rrggbb"`.
-- `rows` is 16 lists of 16 palette indexes, top to bottom.
-- The deck draws the picture with half-block characters in the nearest
-  terminal colours, 8 text rows tall. It does this only when the panel has
-  room, the terminal has colour, and Unicode is on. Otherwise it shows
-  the ASCII face.
+- The deck shows `frames` in turn, one every `interval_ms`, so the face
+  animates on the deck without more messages. Frames are short one-line
+  strings; the deck drops control characters and trims each to 24
+  characters (and strips stray outer quotes like `'(^_^)'`).
+- While the pet is `asleep`, a face without `zZ` gets ` zZ` added.
+- Headless `pet avatar` prints the frames as text.
+- **Older companions** answered with a 16x16 sprite instead:
+  `{form, mood, frame, width, height, palette: [null, "#rrggbb", …],
+  rows: [[…16 palette indexes…], …16 rows]}`. The deck still accepts
+  that as a fallback: half-block colour rows in the pet pane (colour +
+  Unicode terminals only) and a character grid in headless
+  `pet avatar`.
 - A companion without this message replies `error` / `unknown_type`.
-  The deck then stops asking.
+  The deck then stops asking and uses a face for the mood word.
+
+### Rest and sleep (`pet.rest`, `pet.sleep`)
+
+`pet rest` is an instant short rest (the companion: about +20 energy,
++6 HP). A fully rested pet answers `rested: false` with a `reason`; a
+fainted or hurt pet may always rest, so it is never stuck.
+
+`pet sleep on|off` sends `{"on": true|false}`. While asleep the pet's
+energy refills each tick (HP slowly too), it will not play or fight,
+and it wakes **by itself** at full energy with a `woke` event. Going to
+sleep when fully rested is refused: `changed: false` and a `reason`.
+
+### Dungeon combat (`pet.combat.*`)
+
+PULSE fights next to the player in the deck's dungeon. The companion is
+the authority: the deck only applies the numbers it gets back.
+
+```json
+{"type":"pet.combat.stats","id":"…","payload":{}}
+{"type":"pet.combat.stats.ok","id":"…","payload":{"hp":32,"max_hp":32,"attack":6,"defense":5,"speed":7,"level":1,
+  "moves":[{"name":"Chirp","power":8,"accuracy":95,"energy_cost":4,"kind":"electric","effect":null}],
+  "fainted":false,"asleep":false,"guarding":false}}
+
+{"type":"pet.combat.action","id":"…","payload":{"move":"Chirp","enemy":{"name":"worm","level":3,"hp":12,"attack":4,"defense":0,"speed":0}}}
+{"type":"pet.combat.action.ok","id":"…","payload":{"move":"Chirp","hit":true,"damage":12,"effect":null,"energy_spent":4,
+  "pet_hp":32,"reaction":"PULSE uses Chirp on the worm for 12.","acted":true,"pet":{...}}}
+
+{"type":"pet.combat.hit","id":"…","payload":{"damage":5,"enemy":{...}}}
+{"type":"pet.combat.hit.ok","id":"…","payload":{"damage_taken":4,"healed":0,"pet_hp":28,"fainted":false,"pet":{...}}}
+
+{"type":"pet.combat.end","id":"…","payload":{"result":"win","xp":11,"enemies":["bug","glitch"]}}
+{"type":"pet.combat.end.ok","id":"…","payload":{"result":"win","xp_granted":11,"reaction":"…","pet":{...}}}
+```
+
+- `accuracy` is 0–100. Energy is not on the combat sheet; the deck reads
+  it from the `pet` object.
+- `move` may be left out: the pet picks. A missing or unaffordable move
+  makes the pet fall back to Chirp (if it knows and can afford it) or a
+  built-in Guard (0 energy, 0 damage, `effect: "guard"`, halves the next
+  hit), with `fallback: true`.
+- An asleep or fainted pet answers `acted: false` with a `reason`.
+- Heals (a repair kit) use `pet.combat.hit` with `heal: N` (or a
+  negative `damage`). A fainted pet healed above 0 fights again.
+- `result` is `win`, `lose` or `flee`. Level-ups and new moves arrive as
+  the usual `level_up` / `learned_move` events.
+- The deck plays solo if `pet.combat.stats` fails, is unknown, or says
+  the pet is asleep.
 
 ### Events (`pet.event`, optional push)
 
@@ -237,10 +319,20 @@ shows each one on the ticker line, writes it to the pet log, and uses
 | `hungry`       | —                                      | alert: "PULSE is hungry!" |
 | `tired`        | —                                      | warning |
 | `sad`          | —                                      | warning |
-| `evolved`      | `to` or `form` (new species), `stage`, `from` | "PULSE evolved into Wavling!" |
+| `evolve_soon`  | `from`, `next_stage`, `to_candidates`, `eta_hours`, `progress` | pop-up: "close to evolving" |
+| `evolve_choice`| `from`, `next_stage`, `choices`, `progress` | alert + pop-up listing the forms; `pet evolve` picks |
+| `evolving`     | `from`, `to`                            | pop-up with a shimmer animation |
+| `evolved`      | `to` or `form` (new species), `stage`, `from` | pop-up: "PULSE evolved into Wavling!" |
+| `woke`         | optional `reason`                       | "PULSE woke up" (zZ goes away) |
 | `level_up`     | `level`                                | "PULSE reached level 4!" |
 | `learned_move` | `move` (or `name`)                     | "PULSE learned Static Snap!" |
 | `signal_found` | `ssid` (or `name`, `signal`), optional `rssi` | "PULSE sniffed out a signal: …" |
+
+Evolution events come in this order: `evolve_soon` (once, near the end
+of the time gates), `evolve_choice` (once, when ready), then — after the
+deck's `pet.evolve` — `evolving` and `evolved`. The companion never drops
+these (or `woke`) when it paces events. In the full-screen deck the four
+evolution events open a boxed pop-up (config/pet.ini `[popups]`).
 
 Any other `event` name is shown as plain info, with `detail.text` if
 present. Send a need event (`hungry`, `tired`, `sad`) once when the

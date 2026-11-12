@@ -36,6 +36,7 @@ cyberdeck-main/
     tui.py              full-screen curses interface (the only drawing code)
     jobs.py             run slow commands on a thread; "fetching…" placeholder
     statusline.py       fit the status readings + link label into the bar
+    popups.py           boxed evolution pop-ups: queue, timeout, never eats keys
     headless.py         run commands as plain text (for scripts/tests)
     commands.py         command registry, Context, core commands
     features/           one module per bigger feature, each with register()
@@ -48,16 +49,17 @@ cyberdeck-main/
       hardware.py       gpio command + shared Hardware (backend, pin names, buzzer lock)
       music.py          song parser, background MusicPlayer, music panel
       petwatch.py       PULSE alerts, pet log, pet sim (hooks into `pet`)
+      petcare.py        pet rest / sleep / evolve (+ picker) / avatar
       boot.py           boot animation Activity (+ `boot` command)
       visualizer.py     ticker-line bars, driven by the music player or idle sim
       moods.py          moods.ini rules -> sassy ticker lines
       mainframe.py      `hack` show Activity
       typing_game.py    `typehack` rounds, scoring, high scores
-      dungeon.py        roguelike rules (Game), loot bag, gifts, `loot`
+      dungeon.py        roguelike rules (Game), PULSE as an ally (PulseAlly), loot bag, gifts, `loot`
       weather.py        weather / sun / moon commands, ASCII icons, sky panel
       iss.py            ISS passes, position, TLE fallback, pass alerts
     link.py             companion link over TCP or UART: background thread, ids, events, reconnect
-    petdata.py          tolerant pet payload parsing, event text, avatar colours
+    petdata.py          tolerant pet parsing: needs, asleep, evolution, faces, combat stats, event text
     netcache.py         cached web downloads with offline fallback (data/cache/)
     world.py            world.ini settings, timezone display, background refresher
     astro.py            sun and moon maths, sidereal time, look angles
@@ -285,7 +287,9 @@ The UI never waits on the wire for drawing:
 
 - `cached_pet()` uses `pet_snapshot()`, the link's latest pet.
 - `PetWatcher` drains pushed events every 0.5 s.
-- The avatar is fetched on a short background thread.
+- The avatar (an animated text face, or an older companion's sprite)
+  is fetched on a short background thread when the mood changes; the
+  face's frames are cycled locally every `interval_ms`.
 
 Only a command you type (`pet feed`) can wait, at most `timeout` (1.5 s).
 
@@ -303,7 +307,20 @@ Only a command you type (`pet feed`) can wait, at most `timeout` (1.5 s).
   every `poll_seconds`. `PetWatcher.check()` is pure logic (pet dict +
   time → events), so alert rules are unit-tested.
 - **Status badges.** Any service with `status_badge()` can put a short
-  flashing label on the right of the status bar (`! HUNGRY`).
+  flashing label on the right of the status bar (`! HUNGRY`, or
+  `zZ ASLEEP` while PULSE sleeps).
+- **Pop-ups that never steal input.** Evolution events (`evolve_soon`,
+  `evolve_choice`, `evolving`, `evolved`) become `popups.Popup`s in a
+  `PopupQueue` service. Unlike an Activity, a pop-up is not modal: the TUI
+  draws the current one last in `_draw()`, `_handle_key()` dismisses it on
+  any key and then handles that key as usual, and `active(now)` closes it
+  after `[popups] seconds` and shows the next one. `evolving` animates
+  (the frame rate goes up only while it is on screen).
+- **Evolution is the player's choice.** The companion reports
+  `evolution {progress, ready, choices}` in `pet.status`; the pet pane and
+  `pet status` draw a progress bar, and `pet evolve` opens `EvolvePicker`
+  (locked forms grey, with their hint, and skipped by the cursor), which
+  runs `pet evolve <species>`.
 - **Fitting the status bar.** `statusline.status_items()` turns a sensor
   reading and the link label into items, each with a priority and
   shorter forms (`CPU 17%` → `C17%`, `DECK-NET -53dBm` → `-53dBm` →
@@ -321,6 +338,22 @@ Only a command you type (`pet feed`) can wait, at most `timeout` (1.5 s).
   live. It exposes `level()` and `pitch()` for the visualizer and reports
   "finished" through `ui_tick`. In headless mode `music play` blocks
   until the song ends.
+
+## PULSE in the dungeon
+
+`dungeon.PulseAlly` wraps `ctx.companion.request`. At the start of a run
+it sends `pet.combat.stats`; after each of your turns `Game.end_round()`
+gives PULSE a turn if a monster is within two steps. With
+`pulse_moves = ask` the game pauses (`Game.awaiting`) until you pick a
+move; with `auto` it sends `pet.combat.action` without a move and the pet
+chooses. The pet decides hits and damage; the deck only applies the
+damage to the monster. Monsters next to you go for PULSE with
+`pulse_target_chance` (`pet.combat.hit`), repair kits go to whoever is
+more hurt (`pet.combat.hit {heal}`), and `Game.finish()` sends
+`pet.combat.end` once. Any link error or unknown-message reply turns the
+ally off for the rest of the run, so the game always carries on solo.
+Combat requests happen on the UI thread; on the sim they are instant and
+over TCP/UART each is one short round trip (at most the link timeout).
 
 ## The fun layer
 

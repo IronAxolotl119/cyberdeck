@@ -230,8 +230,37 @@ sound = beep          # none, beep, or a song name such as alert
 
 `pet log` shows evolutions, alerts, recoveries, mood changes, feeds,
 plays, and gifts (saved in `data/pet_log.txt`). `pet alerts` checks
-right now. In sim mode, `pet sim hunger 90` or `pet sim stage champion`
-lets you try alerts and evolutions without waiting.
+right now. In sim mode, `pet sim hunger 90`, `pet sim stage champion`,
+`pet sim ready yes` (ready to evolve now) or `pet sim discoveries 3`
+let you try alerts and evolutions without waiting. To speed up the sim
+pet's evolution clock, start the deck with `CYBERDECK_EVOLUTION_SPEED=200`
+(`tools/fake_companion.py --evolution-speed 200` does the same; the
+real companion has `--evolution-speed` too).
+
+### Rest, sleep, and evolving
+
+- `pet rest` refills some energy right away; `pet sleep` (or
+  `pet sleep on`) puts PULSE to sleep until its energy is full — zZ shows
+  in the pet pane and on the status bar — and `pet sleep off` wakes it.
+- `pet evolve` shows how close PULSE is to its next stage and which forms
+  it could pick (locked ones say why). When it is ready the full-screen
+  deck opens a picker; `pet evolve <species>` picks directly (Tab
+  completes the names).
+- `pet avatar` plays PULSE's face animation in a pop-up (headless: the
+  frames as text).
+
+### Evolution pop-ups
+
+When PULSE is close to evolving, ready to pick a form, evolving, and
+evolved, a box pops up over the deck. Any key closes it — and that key
+still goes to the prompt, so it never eats what you type. `config/pet.ini`:
+
+```ini
+[popups]
+enabled = yes   # no = only the ticker line and the pet log
+seconds = 10    # close by itself after this long (0 = wait for a key)
+max_queue = 6   # several at once wait in line; older ones beyond this are dropped
+```
 
 ## GPIO: LEDs, buttons, buzzer
 
@@ -283,8 +312,9 @@ to `[panes]` to see what is playing. Rename or add `alert.txt` and set
 |---------|--------------|
 | `hack [target]` | Fake "hack the mainframe" show: scrolling code, stage bars, ACCESS GRANTED. Any key exits. |
 | `typehack` | Typing-speed challenge with a trace timer; `typehack scores` for the board. |
-| `dungeon` | ASCII roguelike. Arrows/WASD move, `>` stairs, `g` gifts loot to PULSE, `i` bag, `q` quit. |
+| `dungeon` | ASCII roguelike with PULSE at your side. Arrows/WASD move, `>` stairs, `g` gifts loot to PULSE, `i` bag, `q` quit. On PULSE's turn: `1`-`9` pick its move, space = let it choose, `.` = hold back. |
 | `loot`, `loot gift <n>`, `pet gift <n>` | Your saved loot; gifts go to PULSE with the `pet.gift` message. |
+| `loot add <item>` | Put a loot item in the bag without crawling (for scripts and trying gifts), e.g. `loot add evo chip`. |
 | `boot` | Replay the boot animation. |
 | `viz [on\|off]` | The animated bars on the ticker line (they dance to `music play`). |
 | `mood` | What the deck is feeling right now. |
@@ -298,7 +328,11 @@ to `[panes]` to see what is playing. Rename or add `alert.txt` and set
 - `[moods]` `enabled`, `file`, `rotate_seconds`.
 - `[mainframe]` `target`, `duration`.
 - `[typing]` `phrases` file, `rounds`, `time_limit`, `player` name.
-- `[dungeon]` `width`, `height`, `hp`.
+- `[dungeon]` `width`, `height`, `hp`; `pulse` (yes = PULSE joins with
+  its real stats from the companion; no link = solo), `pulse_moves`
+  (`ask` = you pick its move each round, `auto` = it picks), and
+  `pulse_target_chance` (0–1, how often a monster next to you goes for
+  PULSE instead). The HUD shows PULSE's HP and energy.
 
 ### Give the deck a personality (moods.ini)
 

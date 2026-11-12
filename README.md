@@ -81,6 +81,11 @@ python3 tools/fake_companion.py          # terminal 1: fake pet (TCP 127.0.0.1:7
 python3 -m cyberdeck --link tcp          # terminal 2: the deck
 ```
 
+Rest, sleep, evolution and dungeon combat are specified by the companion
+in [companion/docs/DUNGEON_INTEGRATION.md](companion/docs/DUNGEON_INTEGRATION.md)
+(summarised in [docs/PROTOCOL.md](docs/PROTOCOL.md)). Add
+`--evolution-speed 50` to `companion.py` to see evolution sooner.
+
 The companion's own tests run from its folder:
 `cd companion && python3 -m unittest discover -s tests -v`.
 
@@ -94,11 +99,13 @@ Type `help` for everything, or press F2 for the launcher menu.
   (F2), hotkeys (`keys`), history (Up/Down, `history`), Tab completion.
 - **Productivity and network:** `note`, `todo`, `wifi scan`/`wifi meter`,
   `net info`, `ping`, `net port`, `net check`, `ssh <name>`.
-- **Pet and hardware:** `pet` (feed/play/log/alerts/gift), hunger and
-  boredom alerts, `gpio led|set|read|beep`, `music play <song>` on the
-  buzzer.
+- **Pet and hardware:** `pet` (feed/play/rest/sleep/evolve/avatar/log/
+  alerts/gift), an animated face and evolution progress in the pet pane,
+  evolution pop-ups, hunger and boredom alerts, `gpio led|set|read|beep`,
+  `music play <song>` on the buzzer.
 - **Fun:** boot animation, ticker visualizer, deck moods, `hack`,
-  `typehack`, `dungeon` (loot can be gifted to PULSE).
+  `typehack`, `dungeon` (PULSE fights at your side with its real stats;
+  loot can be gifted to it; `loot add <item>` for scripts).
 - **Outside world:** `weather`, `sun`, `moon`, `iss` (passes over you,
   computed on the deck), plus a `sky` panel.
 
