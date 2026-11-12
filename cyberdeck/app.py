@@ -6,9 +6,16 @@ This is the traffic director. It:
   2. Opens the sensor pack (--mode sim|real) and the companion link
      (--link sim|tcp|serial, or [link] in config/hardware.ini).
   3. Loads theme, layout, built-in commands, and user plugins.
-  4. Starts either the full-screen curses UI or headless/script mode.
+  4. Starts one of the front ends:
+       * the combined Rich interface (default): the dashboard look with
+         every deck feature as tabs. Lives in cyberdeck_dash/ (needs
+         `pip install -r requirements-dash.txt`).
+       * the classic curses UI (--classic), stdlib only.
+       * headless / script mode (--headless, --script) for tests and pipes.
+     If Rich is not installed, the default falls back to --classic.
 
-`python -m cyberdeck` lands here via __main__.py.
+`python -m cyberdeck` lands here via __main__.py, and so does
+`python -m cyberdeck_dash` (an alias kept for old instructions).
 """
 
 from __future__ import annotations
@@ -26,15 +33,22 @@ from cyberdeck.headless import run_headless
 from cyberdeck.tui import run_tui, wants_unicode
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
     """Parse arguments and run. Returns a process exit code."""
-    args = build_parser().parse_args(argv)
+    args = build_parser(prog).parse_args(argv)
     mode = (args.mode or os.environ.get("CYBERDECK_MODE") or "sim").strip().lower()
+    # The dashboard's radios follow --mode too (else config/dash.ini [dash] mode).
+    args.dash_mode = args.mode
+    link_mode = args.link or os.environ.get("CYBERDECK_LINK")
+    if args.no_companion:
+        link_mode = "sim"
+    elif args.snapshot and not link_mode:
+        link_mode = "sim"            # docs snapshots: same picture every time
 
     # Link settings: hardware.ini [link], then environment, then flags.
     link_settings = with_overrides(
         load_link_settings(Settings.load("hardware.ini", args.config_dir)),
-        mode=args.link or os.environ.get("CYBERDECK_LINK"),
+        mode=link_mode,
         host=args.host, port=args.port,
         device=args.device or os.environ.get("CYBERDECK_SERIAL"),
         baud=args.baud,
@@ -69,6 +83,12 @@ def main(argv: list[str] | None = None) -> int:
             scripts = list(args.script or [])
             commands = scripts if scripts else None
             return run_headless(ctx, registry, commands=commands)
+        rich_ui = None if args.classic else _load_rich_ui()
+        if args.snapshot:
+            if rich_ui is None:
+                print("cyberdeck: --snapshot needs Rich: pip install -r requirements-dash.txt", file=sys.stderr)
+                return 2
+            return rich_ui.snapshot_unified(args, ctx, registry)
         # Effects pick Unicode blocks or plain ASCII to match the frame style.
         ctx.services["unicode"] = wants_unicode(layout)
         startup = []
@@ -78,6 +98,8 @@ def main(argv: list[str] | None = None) -> int:
             boot = make_boot(ctx)
             if boot is not None:
                 startup.append(boot)
+        if rich_ui is not None:
+            return rich_ui.run_unified(args, ctx, registry, startup=startup)
         run_tui(ctx, registry, theme, layout, startup=startup)
         return 0
     except KeyboardInterrupt:
@@ -86,11 +108,25 @@ def main(argv: list[str] | None = None) -> int:
         companion.close()
 
 
-def build_parser() -> argparse.ArgumentParser:
+def _load_rich_ui():
+    """The combined Rich interface, or None (with a hint) if Rich is missing."""
+    try:
+        import rich  # noqa: F401
+
+        from cyberdeck_dash import unified
+    except ImportError as exc:
+        print(f"cyberdeck: Rich interface unavailable ({exc}); using the classic UI.\n"
+              "  install it with: pip install -r requirements-dash.txt", file=sys.stderr)
+        return None
+    return unified
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     """Flags the user can pass to `python -m cyberdeck`."""
     parser = argparse.ArgumentParser(
-        prog="cyberdeck",
-        description=f"{__app_name__} main-board interface (v{__version__})",
+        prog=prog or "cyberdeck",
+        description=f"{__app_name__} main-board interface (v{__version__}). "
+                    "Starts the combined Rich interface; --classic for the curses one.",
     )
     parser.add_argument(
         "--mode",
@@ -100,9 +136,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--link",
-        choices=("sim", "tcp", "serial"),
+        choices=("sim", "tcp", "serial", "auto"),
         default=None,
-        help="how to reach the companion pet (default: hardware.ini [link] mode, or CYBERDECK_LINK)",
+        help="how to reach the companion pet: sim, tcp, serial, or auto = tcp if the companion is "
+             "running, else sim (default: hardware.ini [link] mode, or CYBERDECK_LINK)",
     )
     parser.add_argument("--host", default=None, help="companion TCP host (default 127.0.0.1)")
     parser.add_argument("--port", type=int, default=None, help="companion TCP port (default 7777)")
@@ -144,6 +181,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not auto-load commands from the plugins/ folder",
     )
+    # --- front end choice --------------------------------------------------
+    parser.add_argument(
+        "--classic",
+        action="store_true",
+        help="use the original curses interface instead of the Rich one",
+    )
+    # --- Rich interface options (ignored by --classic / --headless) --------------
+    rich_opts = parser.add_argument_group("Rich interface")
+    rich_opts.add_argument("--theme", default=None, help="theme from config/dash.ini, e.g. neon, amber, matrix")
+    rich_opts.add_argument("--dash-config", "--config", dest="dash_config", default=None,
+                           help="path to a dash.ini (default config/dash.ini)")
+    rich_opts.add_argument("--tab", default=None,
+                           help="open on this tab or panel, e.g. console, dungeon, notes, fun, wifi")
+    rich_opts.add_argument("--no-companion", action="store_true",
+                           help="use the built-in sim pet (same as --link sim)")
+    rich_opts.add_argument("--seed", type=int, default=None, help="random seed for repeatable simulations")
+    rich_opts.add_argument("--snapshot", metavar="PREFIX", default=None,
+                           help="no terminal: simulate --frames seconds, write PREFIX.txt and PREFIX.svg, exit")
+    rich_opts.add_argument("--frames", type=int, default=40, help="simulated seconds for --snapshot (default 40)")
+    rich_opts.add_argument("--size", default="100x30", help="snapshot size COLSxROWS (default 100x30)")
+    rich_opts.add_argument("--keys", default=None,
+                           help="snapshot: keys to press first, comma separated (e.g. enter,right,help,enter)")
     parser.add_argument(
         "--version",
         action="version",
