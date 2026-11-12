@@ -38,6 +38,11 @@ cyberdeck-main/
     commands.py         command registry, Context, core commands
     features/           one module per bigger feature, each with register()
       core_ux.py        history / menu / view / layout / keys commands
+      notes.py          note + todo commands, plain-text stores, todo panel
+      wifi.py           wifi status / scan / live meter (nmcli, iw, sim)
+      netcheck.py       net hosts / ping / port / check (TCP + system ping)
+      netinfo.py        net info screen, rx/tx RateMeter, net panel
+      ssh.py            ssh shortcuts (runs ssh with curses suspended)
     activity.py         base class for full-screen modes + the launcher menu
     panes.py            side panels, tabs, and the screen-layout maths
     history.py          Up/Down history saved to data/history.txt
@@ -176,6 +181,24 @@ Long-lived helpers (history, later the GPIO backend, music player, pet
 watcher) live in `ctx.services`. If one has a `ui_tick(ctx, now)`
 method, the TUI calls it every frame, which is how background features
 update without threads in the UI.
+
+## Network features and the outside world
+
+The network helpers are written so they can never hang or crash the
+deck:
+
+- External tools (`nmcli`, `iw`, `ping`, `ip`, `ssh`) are found with
+  `shutil.which` and run with timeouts. If a tool is missing or not
+  permitted, a fallback is used (sim scan, current link only, TCP ping).
+- Their output is parsed by small `parse_*` functions that take text,
+  so tests feed them captured samples.
+- `net check` uses a thread pool so slow hosts are checked in parallel.
+  Each check still blocks the prompt until it finishes (worst case
+  about one `port_timeout`), which keeps the UI loop simple.
+- Traffic rates come from two `/proc/net/dev` samples (`RateMeter`).
+- `ssh` sets `ctx.external`; `tui.py` calls `curses.endwin()`, runs
+  ssh in the real terminal, then redraws. A failed ssh waits for Enter
+  so the error stays readable.
 
 ## What each module does
 

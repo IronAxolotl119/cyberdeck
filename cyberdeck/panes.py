@@ -61,7 +61,7 @@ class PaneSettings:
     side: list[str] = field(default_factory=lambda: ["pet", "system"])
     side_width: int = 30
     min_split_cols: int = 72            # narrower screens fall back to tabs
-    tabs: list[str] = field(default_factory=lambda: ["output", "pet", "system"])
+    tabs: list[str] = field(default_factory=lambda: ["output", "pet", "system", "net", "todo"])
     ticker: bool = True                 # the mood / notification line
     hints: bool = True                  # hotkey hints on the bottom frame
     pet_refresh: float = 3.0            # seconds between pet pane updates

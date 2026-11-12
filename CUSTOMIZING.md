@@ -14,6 +14,9 @@ want to. Restart the deck after you change a file.
 | History size                     | `config/layout.ini` `[history]` |
 | Switch off a built-in feature    | `config/layout.ini` `[features]` |
 | Hotkeys (F-keys, Ctrl combos)    | `config/keys.ini` `[hotkeys]` |
+| Homelab hosts and ports to check | `config/hosts.ini` `[hosts]` |
+| SSH shortcuts                    | `config/hosts.ini` `[ssh]` |
+| Wifi backend, timeouts, ssh opts | `config/network.ini` |
 | Launcher menu entries            | `config/keys.ini` `[launcher]` |
 | Add a command of your own        | `plugins/` (copy `_template.py`) |
 | Built-in commands (help, pet…)   | `cyberdeck/commands.py` |
@@ -142,6 +145,60 @@ Runtime files (history, notes, scores, cache) go in `data/` (ignored by
 git). Use `--data-dir /path` or `CYBERDECK_DATA_DIR` to put them
 somewhere else, such as a USB stick.
 
+## Notes and to-dos
+
+`note add <text>`, `note list`, `note find <word>`, `note del <n>`;
+`todo add <text>`, `todo list`, `todo done <n>`, `todo undo <n>`,
+`todo del <n>`, `todo clear` (removes ticked tasks). They are saved as
+plain text in `data/notes.txt` and `data/todo.txt`:
+
+```text
+2026-11-12 10:40 | buy more jumper wires        <- notes.txt
+[ ] solder the buzzer                           <- todo.txt
+[x] flash the SD card
+```
+
+Edit those files by hand if you like; the deck re-reads them each time.
+Add `todo` to `[panes] side` or `tabs` to keep your list on screen.
+
+## Your homelab: hosts, checks, and SSH
+
+`config/hosts.ini` ships with **example** addresses — replace them:
+
+```ini
+[hosts]
+# name = address   ports to test
+nas    = 192.168.1.20   22, 80, 445
+router = 192.168.1.1    53, 80
+
+[ssh]
+# name = what you would type after "ssh"
+nas    = pi@192.168.1.20
+router = admin@192.168.1.1 -p 2222
+```
+
+- `net hosts` lists them, `net check` pings every host and tests its
+  ports (in parallel), `net check nas` does one, `ping nas` or
+  `net ping 10.0.0.5` pings one, `net port nas 22 8080` tests ports.
+- `ssh nas` pauses the deck screen, runs ssh in the terminal, and
+  brings the deck back when you log out. `ssh user@host` works without
+  a shortcut. Tab completes host and shortcut names.
+- Ping uses the system `ping` when allowed, otherwise times a TCP
+  connection instead ("via tcp:22"). A *closed* port still means the
+  host is up; *filtered* means nothing answered in time.
+
+`config/network.ini` holds the knobs: `[wifi] backend` (`auto`,
+`nmcli`, `iw`, `sim`) and `interface`, `[net] ping_timeout`,
+`port_timeout`, `workers`, and `[ssh] binary` / `options`.
+
+## Wifi
+
+`wifi` shows the current network, `wifi scan` lists nearby networks
+strongest first, and `wifi meter` opens a full-screen live signal
+meter (any key to leave). In `--mode sim` the networks are made up.
+On the Pi, `nmcli` (NetworkManager) is used when installed; `iw` scans
+usually need root, so the deck falls back to the current link.
+
 ## Add your own command
 
 1. Copy `plugins/_template.py` to something like `plugins/mood.py`.
@@ -194,7 +251,8 @@ def clock_pane(ctx, width, height):
 register_pane("clock", "CLOCK", clock_pane)
 ```
 
-Then add `clock` to `side =` or `tabs =` in `[panes]`. Roles are the
+Then add `clock` to `side =` or `tabs =` in `[panes]`. Built-in panel
+names so far: `pet`, `system`, `net`, `todo`. Roles are the
 theme names: `text`, `title`, `dim`, `ok`, `warn`, `alert`, `prompt`.
 
 ## What you usually should not need to change

@@ -23,6 +23,11 @@ if TYPE_CHECKING:
 # Loaded in this order. Each name is a module in this folder.
 FEATURES = [
     "core_ux",      # history, launcher menu, views/tabs, hotkey list
+    "notes",        # note / todo (plain text files in data/)
+    "wifi",         # wifi status, scan, live signal meter
+    "netcheck",     # net hosts / ping / port / check (homelab)
+    "netinfo",      # net info screen and the live "net" panel
+    "ssh",          # ssh shortcuts from hosts.ini
 ]
 
 
