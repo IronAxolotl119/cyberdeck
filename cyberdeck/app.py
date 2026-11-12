@@ -21,7 +21,7 @@ from cyberdeck.commands import Context, build_registry
 from cyberdeck.companion import open_hardware
 from cyberdeck.config import data_dir, load_layout, load_theme
 from cyberdeck.headless import run_headless
-from cyberdeck.tui import run_tui
+from cyberdeck.tui import run_tui, wants_unicode
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -58,7 +58,16 @@ def main(argv: list[str] | None = None) -> int:
             scripts = list(args.script or [])
             commands = scripts if scripts else None
             return run_headless(ctx, registry, commands=commands)
-        run_tui(ctx, registry, theme, layout)
+        # Effects pick Unicode blocks or plain ASCII to match the frame style.
+        ctx.services["unicode"] = wants_unicode(layout)
+        startup = []
+        if not args.no_boot:
+            from cyberdeck.features.boot import make_boot
+
+            boot = make_boot(ctx)
+            if boot is not None:
+                startup.append(boot)
+        run_tui(ctx, registry, theme, layout, startup=startup)
         return 0
     except KeyboardInterrupt:
         return 0
@@ -103,6 +112,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--data-dir",
         default=None,
         help="folder for history, notes, scores, cache (default: ./data or CYBERDECK_DATA_DIR)",
+    )
+    parser.add_argument(
+        "--no-boot",
+        action="store_true",
+        help="skip the boot animation this time (config/fx.ini [boot] turns it off for good)",
     )
     parser.add_argument(
         "--no-plugins",
