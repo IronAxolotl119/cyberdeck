@@ -33,6 +33,8 @@ class SaveLoadTests(unittest.TestCase):
             ),
             known_move_ids=["chirp", "static_snap", "stray_handshake"],
             discovered_ids={"wifi:cafe-lumen", "bt:mystery-beacon"},
+            asleep=True,
+            evolution_ready_override=True,
         )
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pet.save.json"
@@ -46,6 +48,8 @@ class SaveLoadTests(unittest.TestCase):
         self.assertEqual(loaded.stats.level, 5)
         self.assertEqual(loaded.known_move_ids, pet.known_move_ids)
         self.assertEqual(loaded.discovered_ids, pet.discovered_ids)
+        self.assertTrue(loaded.asleep)
+        self.assertTrue(loaded.evolution_ready_override)
 
     def test_round_trip_via_creature_to_dict_alone(self) -> None:
         pet = Creature(name="Bare")

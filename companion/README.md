@@ -32,8 +32,8 @@ Chirplet (baby)
   tight on memory, so heavy frameworks do not belong in the simulation,
   save system, or discovery logic.
 - Hide anything hardware-shaped behind **small interfaces**. `Scanner` is one example (a real radio driver can be dropped in later).
-  `Renderer` is another: `TerminalRenderer` stands in today; a future SPI,
-  e-ink, or OLED driver can consume the same 2D pixel array.
+  The pet's avatar is a small text face, not a pixel framebuffer, so a later
+  UI can just print or place the current frame string.
 - Learn by reading. The code is commented for a beginner who is comfortable
   with Python basics (functions, classes, modules) and is learning how to
   structure a small game.
@@ -47,24 +47,24 @@ cyberdeck-pet/
 ├── pet/                 The creature itself
 │   ├── stats.py         HP, attack, hunger, mood, XP, care mistakes, ...
 │   ├── moves.py         Move dataclass and a small shared move library
-│   ├── evolution.py     Data-driven species table and evolution rules
-│   └── creature.py      Creature class: tick, feed, train, rest, serialize
+│   ├── evolution.py     Species table, time gates, and branch rules
+│   ├── combat.py        Dungeon combat helpers (stats, action, hit, end)
+│   └── creature.py      Creature class: tick, feed, train, rest, sleep, serialize
 ├── discovery/           How the pet notices the world around it
 │   ├── base.py          Signal + abstract Scanner interface
 │   ├── simulated.py     Seeded fake Wi-Fi / Bluetooth scans (no real radio)
 │   └── effects.py       Turns signals into XP, mood, or learned moves
-├── avatar/              16x16 text-grid sprites and a Renderer interface
-│   ├── sprites.py       Palettes, idle frames, and mood face-overlays
-│   └── renderer.py      ANSI half-blocks, ASCII fallback, optional rich
+├── avatar/              Kaomoji-style text faces (no images)
+│   └── faces.py         Moods, 2–4 animation frames, stage accents, banners
 ├── link/                Talks to the main cyberdeck (docs/PROTOCOL.md)
 │   ├── protocol.py      NDJSON encode/decode, buffer splitting, errors
-│   ├── handler.py       Maps hello/ping/feed/play/gift onto our Creature
+│   ├── handler.py       Maps protocol messages onto our Creature
+│   ├── events.py        pet.event coalescing and pacing
 │   └── transport.py     TCP server and UART (termios) server
 ├── companion.py         Live tick loop + link server (the pet-board entry)
 ├── scripts/link_smoke.py  Tiny scripted client for a running companion
-├── docs/sprites/        Pre-rendered catalogs (no images)
-│   ├── sheet.ansi       Truecolor half-block sheet (raw ANSI)
-│   └── sheet.txt        Plain-ASCII sheet
+├── docs/faces/sheet.txt Catalog of every mood and stage accent
+├── docs/DUNGEON_INTEGRATION.md  Rest, sleep, combat, and evolution protocol
 ├── tests/               unittest (standard library) coverage
 ├── README.md
 └── .gitignore
@@ -81,16 +81,17 @@ From this directory:
 # 50 simulated hours, reproducible with seed 42
 python3 main.py --ticks 50 --seed 42
 
-# Same run, but draw the creature's 16x16 avatar each tick
+# Same run, but draw the creature's text face each tick
 python3 main.py --ticks 50 --seed 42 --avatar
 
-# Plain-ASCII avatar (no color, good for a basic terminal or a log file)
+# Plain-ASCII stage accents (mega uses * instead of «»)
 python3 main.py --ticks 50 --seed 42 --avatar --ascii
 
-# Print every form and mood side by side, write docs/sprites/sheet.ansi
-# and docs/sprites/sheet.txt, then exit
-python3 main.py --show-sprites
-python3 main.py --show-sprites --ascii
+# Faster evolution (gates halved). 0.5 is slower (gates doubled).
+python3 main.py --ticks 80 --seed 42 --evolution-speed 2
+
+# Print every mood and stage accent, write docs/faces/sheet.txt, and exit
+python3 main.py --show-faces
 
 # Optional: write a save file at the end (or load one at the start)
 python3 main.py --ticks 20 --seed 42 --save ./save.json
@@ -106,27 +107,60 @@ Useful flags:
 | `--name` | `Pulse` | Your creature's nickname |
 | `--save` | none | JSON path to write after the run |
 | `--load` | none | JSON path to read before the run |
-| `--avatar` | off | Draw the current form's sprite each tick |
-| `--ascii` | off | Use a plain-ASCII sprite instead of color half-blocks |
-| `--show-sprites` | off | Print the catalog, write `docs/sprites/sheet.*`, and exit |
-| `--rich` | off | Use the optional `rich` package for sprites, if installed |
+| `--avatar` | off | Draw the current text face each tick |
+| `--ascii` | off | Use plain-ASCII stage accents |
+| `--show-faces` | off | Print the catalog, write `docs/faces/sheet.txt`, and exit |
+| `--evolution-speed` | `1.0` | Multiply evolution rate (2.0 = twice as fast, gates halved) |
+| `--evolution-config` | none | Optional `evolution.json` overlaying the default gates |
 
-Avatars are original 16×16 pixel art stored as text grids, not image files.
-`TerminalRenderer` packs two pixel rows into one terminal row with the `▀`
-half-block character and ANSI truecolor, so a sprite is 16 columns by 8
-rows. `--ascii` falls back to a luminance ramp (`#` for the outline). Pixel
-data is always a plain 2D array of RGB values, so a later SPI, e-ink, or
-OLED renderer can reuse it unchanged. The core does not depend on `rich`;
-`--rich` is only a nicer path when that library happens to be installed.
+Avatars are small kaomoji-style text faces (about 1–3 lines), not images
+or pixel grids. Each mood has 2–4 frames that blink, glance, or bounce a
+little, and a stage accent wraps the face (`'...'` for baby, `~...~` for
+in-training, `[...]` rookie, `{...}` champion, `<...>` ultimate, `«...»`
+mega; `--ascii` uses `*` for mega). Faces change with mood and stats:
+happy, content, hungry, tired, sleeping, sad, angry, hurt, fainted,
+excited (close to evolution), and an evolving animation. `pet.avatar.ok`
+returns `{style:"face", mood, frame, frames, interval_ms}`; the pet object
+carries `{style:"face", mood, frame, text}`.
 
-To review the art without running a simulation:
+To review the faces without running a simulation:
 
 ```bash
-python3 main.py --show-sprites --ascii
-cat docs/sprites/sheet.txt
-# In a truecolor terminal:
-cat docs/sprites/sheet.ansi
+python3 main.py --show-faces
+cat docs/faces/sheet.txt
 ```
+
+### Evolution speed and player choice
+
+The pet **never auto-evolves**. When the age / level / XP gates are met,
+`pet.status.evolution` becomes `{next_stage, progress, ready: true,
+choices:[{species, stage, hint, available}]}` and a one-shot `evolve_choice`
+event is pushed (`evolve_soon` still fires first, at about 90% of the
+gates). The deck (or a player) then sends `pet.evolve {species}`. An
+evolve-chip gift skips the time gates and emits `evolve_choice`, but does
+not change form on its own.
+
+Default gates (hours of age, level, and XP needed to leave that stage)
+live in `DEFAULT_EVOLUTION_GATES` in `pet/evolution.py` and can be
+overlaid by an optional project-root `evolution.json`:
+
+| Evolving from | min age (hours) | min level | min XP |
+|---------------|-----------------|-----------|--------|
+| baby          | 36              | 4         | 40     |
+| in-training   | 100             | 8         | 140    |
+| rookie        | 220             | 13        | 320    |
+| champion      | 400             | 19        | 600    |
+| ultimate      | 620             | 26        | 960    |
+
+`--evolution-speed` is a multiplier: `2.0` halves every number (twice as
+fast; level is at least 2), `0.5` doubles them. The headless `main.py`
+auto-picks the first available choice so a long sim still grows; the live
+`companion.py` waits for `pet.evolve`. In `--avatar` mode the companion
+prints a boxed list of choices (it does not block on stdin, because the
+server has to keep listening).
+
+See `docs/DUNGEON_INTEGRATION.md` for rest, sleep, dungeon combat, and the
+full evolution message flow.
 
 ## How to run the tests
 
@@ -136,13 +170,13 @@ Still from this directory, using only the standard library:
 python3 -m unittest discover -s tests -v
 ```
 
-All tests should pass. They cover time passing (`tick`), the evolution
-branches through mega (care, combat, and discovery forks), learning moves
-from levels and from discovery events, a save/load round trip, protocol
-encode/decode, every link handler type and error code, event gating,
-coalescing and pacing of `pet.event` pushes, a TCP round trip including two
-clients at once, and (when `socat` is installed) a UART exchange over a PTY
-pair. If a checkout of the main cyberdeck is next to this repo (or
+All tests should pass. They cover time passing (`tick`), rest and sleep,
+dungeon combat, player-chosen evolution through mega (care, combat, and
+discovery forks), text-face avatars, learning moves from levels and from
+discovery events, a save/load round trip, protocol encode/decode, every
+link handler type and error code, event gating, coalescing and pacing of
+`pet.event` pushes, a TCP round trip including two clients at once, and
+(when `socat` is installed) a UART exchange over a PTY pair. If a checkout of the main cyberdeck is next to this repo (or
 `CYBERDECK_MAIN` points at one) and that tree has the TCP client, one extra
 test drives our companion with the deck's own `StreamCompanionLink`.
 
@@ -162,8 +196,8 @@ On this repo (the pet board, or a regular computer for testing):
 python3 companion.py --tcp 127.0.0.1:7777 --save ./save.json
 python3 companion.py --tcp 127.0.0.1:7777 --event-interval 0.5
 
-# Same, with a terminal avatar and a slower/faster clock
-python3 companion.py --tcp 127.0.0.1:7777 --avatar --ascii --tick-seconds 1 --dt 0.05
+# Same, with a terminal face, evolution popups, and a slower/faster clock
+python3 companion.py --tcp 127.0.0.1:7777 --avatar --ascii --tick-seconds 1 --dt 0.05 --evolution-speed 1
 
 # UART on a Pi (115200 8N1 raw, no flow control). Path defaults to
 # $CYBERDECK_SERIAL or /dev/serial0.
@@ -221,43 +255,67 @@ starving), so feeding lowers it. Internally this sim stores the opposite
 meter (0 = starving, 100 = stuffed). `link/handler.py` is the only place
 that conversion happens. Species names stay ours (see the tree at the top)
 and stages are `baby` / `in-training` / `rookie` / `champion` / `ultimate`
-/ `mega`. An `evolve` gift advances one stage using our care / mood /
-discovery branch rules; it is rejected (`accepted: false`) only at mega.
-The TCP server accepts several clients at once: each has its own buffer and
-events flag, replies go only to the requester, and `pet.event` is pushed to
-every client that opted in, at most one event per `--event-interval`.
-Duplicate hungry / tired / sad events are coalesced while they are still
-queued; evolved / level_up / learned_move are never dropped.
+/ `mega`. An `evolve` gift (evo chip) skips the time gates and makes the
+pet *ready to choose*; it does not change form. It is rejected
+(`accepted: false`) only at mega. The player then sends
+`pet.evolve {"species":"Wavling"}`, which replies
+`pet.evolve.ok {accepted, from, to, reaction}` and is followed by
+`evolving` then `evolved` events. Unknown species names are a
+`bad_payload` error; a known but locked or unready species returns
+`accepted: false` with a reason. The TCP server accepts several clients at
+once: each has its own buffer and events flag, replies go only to the
+requester, and `pet.event` is pushed to every client that opted in, at
+most one event per `--event-interval`. Duplicate hungry / tired / sad
+events are coalesced while they are still queued; evolved / level_up /
+learned_move / woke / evolve_soon / evolving / evolve_choice are never
+dropped.
 
-The pet object in status / feed / play / gift / event replies includes the
-optional extras the main deck understands: `level`, `xp`, `hp`, `max_hp`,
-`attack`, `defense`, `speed`, `moves`, `care_mistakes`, and
-`avatar: {form, mood, frame}` (`mood` here is the protocol word:
-content / playful / joyful / hungry / tired / grumpy).
+The pet object in status / feed / play / gift / event replies includes
+`level`, `xp`, `hp`, `max_hp`, `attack`, `defense`, `speed`, `moves`,
+`care_mistakes`, `asleep`, `fainted`,
+`evolution: {next_stage, progress, ready, choices}`, and
+`avatar: {style:"face", mood, frame, text}`. Protocol mood words are
+content / playful / joyful / hungry / tired / grumpy, plus asleep,
+fainted, and excited when those states apply.
 
-`pet.avatar` asks for the 16×16 sprite itself and is answered with
-`pet.avatar.ok`:
+`pet.avatar` is answered with `pet.avatar.ok`:
 
 ```json
 {"type":"pet.avatar","id":"...","payload":{"frame":0,"mood":"playful"}}
 {"type":"pet.avatar.ok","id":"...","payload":{
-  "form":"chirplet","mood":"playful","frame":0,"width":16,"height":16,
-  "palette":[null,"#121018","#ffd440"],
-  "rows":[[0,0,...],[...]]
+  "style":"face","mood":"happy","frame":0,"interval_ms":450,
+  "frames":["'(^_^)'","'(^o^)'","'(^_^)'","'(^v^)'"]
 }}
 ```
 
-`frame` (0 or 1) and `mood` in the request are optional overrides. Index 0 of
-`palette` is transparent (`null`); later entries are `"#rrggbb"`. `rows` is
-16 lists of 16 palette indexes.
+`frame` (a non-negative int) and `mood` in the request are optional
+overrides. `mood` in the reply is the face mood (happy, content, hungry,
+tired, sleeping, sad, angry, hurt, fainted, excited, evolving).
+
+Other messages this companion speaks, all documented in
+`docs/DUNGEON_INTEGRATION.md`:
+
+- `pet.rest` → `pet.rest.ok {rested, energy_delta, pet}` (small instant rest;
+  refused with a reason when energy is already full, unless the pet is
+  fainted or missing HP)
+- `pet.sleep {on: true|false}` → `pet.sleep.ok {asleep, changed, pet}`
+  (energy refills each tick, hunger drains slower, HP trickles back; the
+  pet will not play, train, or fight; it wakes at full energy and emits
+  `woke`)
+- `pet.combat.stats` / `pet.combat.action` / `pet.combat.hit` /
+  `pet.combat.end` for the dungeon companion API
+- `pet.evolve {species}` as described above
 
 If the main deck's `hello` payload includes `"events": true`, we echo that
 in `hello.ok` and may then push `{type:"pet.event", id:<new>,
 payload:{event, detail, pet}}` for hungry / tired / sad / evolved /
-level_up / learned_move / signal_found. `detail` is a dict (empty for the
-need events; `from`/`to`/`form`/`stage`/`from_stage` for evolved; `level`
-for level_up; `move` for learned_move; `ssid`/`name`/`kind`/`rssi` for
-signal_found). Without that flag we stay request/reply only.
+level_up / learned_move / signal_found / woke / evolve_soon / evolving /
+evolve_choice. `detail` is a dict (empty for the need events and woke;
+`from`/`to`/`form`/`stage`/`from_stage` for evolved; `from`/`to` for
+evolving; `from`/`to_candidates`/`next_stage`/`eta_hours` for evolve_soon;
+`from`/`next_stage`/`choices` for evolve_choice; `level` for level_up;
+`move` for learned_move; `ssid`/`name`/`kind`/`rssi` for signal_found).
+Without that flag we stay request/reply only.
 
 ## Roadmap
 

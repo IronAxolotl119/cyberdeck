@@ -2,18 +2,22 @@
 
 tick(dt) is the heartbeat. It drains hunger and energy, shifts mood, ages
 the pet, and then checks for care mistakes, level-ups, new level-moves, and
-evolutions. feed / train / rest are the caretaker actions. to_dict and
+evolution readiness. feed / train / rest are the caretaker actions. to_dict and
 from_dict make the whole object JSON-friendly so save.py can be tiny.
 """
 
 from __future__ import annotations
 
 from pet.evolution import (
+    EVOLVE_SOON_PROGRESS,
     STARTER_SPECIES_ID,
     Species,
-    choose_evolution,
     choose_next_form,
+    evolution_status as _evolution_status,
     get_species,
+    resolve_species,
+    rules_from,
+    time_gates_met,
 )
 from pet.moves import MOVE_LIBRARY, get_move, moves_for_level
 from pet.stats import Stats
@@ -36,6 +40,17 @@ TRAIN_ENERGY_COST = 18.0
 TRAIN_HUNGER_COST = 6.0
 TRAIN_STAT_GAIN = 1
 TRAIN_MOOD = 3.0
+
+# Instant rest used by the protocol (smaller than the demo caretaker rest).
+SHORT_REST_ENERGY = 20.0
+SHORT_REST_MOOD = 2.0
+SHORT_REST_HP = 6
+REST_HP = 8
+
+# While asleep: energy refills, hunger slows, HP trickles back.
+ENERGY_SLEEP_PER_HOUR = 25.0
+HUNGER_SLEEP_FACTOR = 0.4
+HP_REGEN_PER_HOUR = 8.0
 
 # XP awards from caretaker actions. Discovery XP lives in discovery/effects.py.
 FEED_XP = 1
@@ -76,6 +91,10 @@ class Creature:
         known_move_ids: list[str] | None = None,
         discovered_ids: set[str] | None = None,
         inventory: list[str] | None = None,
+        asleep: bool = False,
+        evolution_ready_override: bool = False,
+        evolve_soon_announced: bool = False,
+        evolve_choice_announced: bool = False,
     ) -> None:
         self.name = name
         self.species_id = species_id
@@ -86,6 +105,18 @@ class Creature:
         self.discovered_ids: set[str] = set(discovered_ids or [])
         # Names of gifts received over the link (newest last). Kept short.
         self.inventory: list[str] = list(inventory or [])
+        self.asleep = bool(asleep)
+        # Fractional HP regen bank so small dt still adds up while sleeping.
+        self._hp_regen_bank = 0.0
+        # Set by a guard move; cleared after the next incoming hit.
+        self.guarding = False
+        # An evolve-chip skips the age/level/XP gates until the player picks.
+        self.evolution_ready_override = bool(evolution_ready_override)
+        # "evolve_soon" / "evolve_choice" already announced for this form.
+        self.evolve_soon_announced = bool(evolve_soon_announced)
+        self.evolve_choice_announced = bool(evolve_choice_announced)
+        # Protocol notices drained by the link handler (kind, detail).
+        self._evo_notices: list[tuple[str, dict]] = []
         if known_move_ids is None:
             # Brand-new pets start with every move their current level unlocks
             # (for a level-1 Chirplet that is just Chirp).
@@ -100,6 +131,11 @@ class Creature:
         """The Species record for the current form."""
         return get_species(self.species_id)
 
+    @property
+    def fainted(self) -> bool:
+        """True when HP has reached 0. The pet cannot fight until it rests."""
+        return self.stats.hp <= 0
+
     def tick(self, dt: float) -> list[str]:
         """Advance simulated time by dt hours and return a list of event lines.
 
@@ -113,21 +149,26 @@ class Creature:
         stats = self.stats
 
         stats.age += dt
-        stats.hunger -= HUNGER_DRAIN_PER_HOUR * dt
-        stats.energy -= ENERGY_DRAIN_PER_HOUR * dt
+        if self.asleep:
+            stats.hunger -= HUNGER_DRAIN_PER_HOUR * HUNGER_SLEEP_FACTOR * dt
+            stats.energy += ENERGY_SLEEP_PER_HOUR * dt
+            self._regen_hp(HP_REGEN_PER_HOUR * dt)
+        else:
+            stats.hunger -= HUNGER_DRAIN_PER_HOUR * dt
+            stats.energy -= ENERGY_DRAIN_PER_HOUR * dt
 
         # Mood slowly fades, and dips faster when the pet is hungry or tired.
         mood_delta = -MOOD_DRAIN_PER_HOUR * dt
         if stats.hunger < 30:
             mood_delta -= 2.0 * dt
-        if stats.energy < 30:
+        if not self.asleep and stats.energy < 30:
             mood_delta -= 2.0 * dt
         if stats.hunger > 70 and stats.energy > 70:
             mood_delta += 1.0 * dt  # a well-kept pet cheers up a little
         stats.mood += mood_delta
 
         # Starvation chips away at HP so neglect is visible on the sheet.
-        if stats.hunger <= 0:
+        if stats.hunger <= 0 and not self.asleep:
             lost = max(1, int(dt))
             stats.hp -= lost
             events.append(
@@ -136,9 +177,13 @@ class Creature:
 
         stats.clamp()
 
+        if self.asleep and stats.energy >= 100.0:
+            self.asleep = False
+            events.append(f"{self.name} wakes up, fully rested.")
+
         if (
             stats.hunger <= CARE_MISTAKE_THRESHOLD
-            or stats.energy <= CARE_MISTAKE_THRESHOLD
+            or (not self.asleep and stats.energy <= CARE_MISTAKE_THRESHOLD)
         ):
             stats.care_mistakes += 1
             reason = "hunger" if stats.hunger <= CARE_MISTAKE_THRESHOLD else "exhaustion"
@@ -147,7 +192,8 @@ class Creature:
             )
 
         events.extend(self._check_level_up())
-        events.extend(self._check_evolution())
+        # The pet never auto-evolves; we only announce readiness.
+        events.extend(self._announce_evolution())
         return events
 
     def feed(self) -> list[str]:
@@ -163,10 +209,12 @@ class Creature:
         """Spend energy to raise one combat stat and earn XP.
 
         stat must be one of 'attack', 'defense', or 'speed'. Training while
-        exhausted does nothing so the caretaker has to rest first.
+        exhausted or asleep does nothing so the caretaker has to rest first.
         """
         if stat not in {"attack", "defense", "speed"}:
             raise ValueError(f"Cannot train {stat!r}; use attack, defense, or speed.")
+        if self.asleep:
+            return [f"{self.name} is asleep and will not train."]
         if self.stats.energy < TRAIN_ENERGY_COST:
             return [f"{self.name} is too tired to train."]
 
@@ -184,11 +232,53 @@ class Creature:
         return events
 
     def rest(self) -> list[str]:
-        """Recover energy and a little mood. No XP — rest is not training."""
+        """Recover energy, a little mood, and some HP. No XP — rest is not training."""
         self.stats.energy += REST_ENERGY
         self.stats.mood += REST_MOOD
+        self.stats.hp = min(self.stats.max_hp, self.stats.hp + REST_HP)
         self.stats.clamp()
         return [f"{self.name} rests. Energy is now {self.stats.energy:.0f}."]
+
+    def short_rest(self) -> list[str]:
+        """A smaller instant rest used by the pet.rest protocol message."""
+        self.stats.energy += SHORT_REST_ENERGY
+        self.stats.mood += SHORT_REST_MOOD
+        self.stats.hp = min(self.stats.max_hp, self.stats.hp + SHORT_REST_HP)
+        self.stats.clamp()
+        return [f"{self.name} takes a short rest. Energy is now {self.stats.energy:.0f}."]
+
+    def energy_is_full(self) -> bool:
+        return self.stats.energy >= 100.0
+
+    def needs_hp(self) -> bool:
+        return self.stats.hp < self.stats.max_hp
+
+    def set_asleep(self, on: bool) -> list[str]:
+        """Start or stop a longer sleep. Returns log lines (may be empty)."""
+        if on:
+            if self.asleep:
+                return [f"{self.name} is already asleep."]
+            if self.energy_is_full() and not self.needs_hp() and not self.fainted:
+                return [f"{self.name} is already fully rested."]
+            self.asleep = True
+            return [f"{self.name} curls up and goes to sleep."]
+        if not self.asleep:
+            return [f"{self.name} is already awake."]
+        self.asleep = False
+        return [f"{self.name} is woken up."]
+
+    def _regen_hp(self, amount: float) -> int:
+        """Add fractional HP; returns the whole points actually applied."""
+        if amount <= 0 or self.stats.hp >= self.stats.max_hp:
+            return 0
+        self._hp_regen_bank += amount
+        gained = int(self._hp_regen_bank)
+        if gained <= 0:
+            return 0
+        self._hp_regen_bank -= gained
+        before = self.stats.hp
+        self.stats.hp = min(self.stats.max_hp, self.stats.hp + gained)
+        return self.stats.hp - before
 
     def add_xp(self, amount: int) -> list[str]:
         """Grant XP and immediately apply any level-ups it causes."""
@@ -231,40 +321,168 @@ class Creature:
                 events.extend(self.learn_move(move.id))
         return events
 
-    def _check_evolution(self) -> list[str]:
-        """Evolve if a rule matches, applying the new form's stat bonuses once."""
-        nxt = choose_evolution(
-            self.species_id, self.stats, discovered=len(self.discovered_ids)
+    def evolution_status(self) -> dict:
+        """Hints for pet.status.evolution (progress, ready, choices)."""
+        return _evolution_status(
+            self.species_id,
+            self.stats,
+            discovered=len(self.discovered_ids),
+            ready_override=self.evolution_ready_override,
         )
-        if nxt is None:
+
+    def take_evolution_notices(self) -> list[tuple[str, dict]]:
+        """Drain evolve_soon / evolve_choice notices for the link handler."""
+        notices = self._evo_notices
+        self._evo_notices = []
+        return notices
+
+    def _announce_evolution(self) -> list[str]:
+        """Push evolve_soon then evolve_choice once when the gates are reached.
+
+        An evolve-chip that jumps straight to ready still fires evolve_soon
+        first, then evolve_choice. The pet does not change form here.
+        """
+        status = self.evolution_status()
+        if not status.get("next_stage"):
             return []
-        return self._evolve_into(nxt)
+        events: list[str] = []
+        close = bool(status.get("ready")) or float(status.get("progress") or 0) >= EVOLVE_SOON_PROGRESS
+        if close and not self.evolve_soon_announced:
+            self.evolve_soon_announced = True
+            candidates = list(status.get("to_candidates") or [])
+            detail = {
+                "from": status.get("from"),
+                "to_candidates": candidates,
+                "next_stage": status.get("next_stage"),
+                "eta_hours": status.get("eta_hours"),
+                "progress": status.get("progress"),
+            }
+            self._evo_notices.append(("evolve_soon", detail))
+            names = ", ".join(candidates) or str(status.get("next_stage"))
+            events.append(
+                f"{self.name} is close to evolving ({status.get('from')} -> {names})."
+            )
+        if status.get("ready") and not self.evolve_choice_announced:
+            # If a chip skipped the 90% window, fire soon first (above), then choice.
+            self.evolve_choice_announced = True
+            detail = {
+                "from": status.get("from"),
+                "next_stage": status.get("next_stage"),
+                "choices": list(status.get("choices") or []),
+                "progress": status.get("progress"),
+            }
+            self._evo_notices.append(("evolve_choice", detail))
+            events.append(f"{self.name} is ready to evolve. Choose a form.")
+        return events
+
+    def catalyze_evolution(self) -> list[str]:
+        """An evolve-chip: skip the time gates and become ready, but do not evolve."""
+        if not rules_from(self.species_id):
+            return []
+        self.evolution_ready_override = True
+        events = [
+            f"An evo chip hums. {self.name} is ready to choose a new form."
+        ]
+        events.extend(self._announce_evolution())
+        return events
 
     def next_form_id(self) -> str | None:
-        """The species id this pet would grow into next, or None at mega.
-
-        If age/level/XP already satisfy a table rule, that rule wins. Otherwise
-        the branch still follows the same care/mood/discovery gates used by
-        evolution.py (for example a well-cared-for Wavling -> Aethling, or an
-        Aethling with many discoveries -> Hexwave). Used by the link-layer
-        evolve gift, which may catalyze a form change before the usual time
-        gates have been met. Only mega (a form with no outgoing rule) returns
-        None.
-        """
+        """Preferred next species id (care/stat/discovery), or None at mega."""
         chosen = choose_next_form(
             self.species_id, self.stats, discovered=len(self.discovered_ids)
         )
         return chosen.id if chosen is not None else None
 
-    def advance_evolution(self) -> list[str]:
-        """Grow into the next form now, choosing the branch via our rules.
+    def first_available_choice(self) -> str | None:
+        """Species id of the first available branch, or None if none are ready."""
+        status = self.evolution_status()
+        if not status.get("ready"):
+            return None
+        for choice in status.get("choices") or []:
+            if choice.get("available"):
+                return str(choice.get("species_id") or choice.get("species") or "")
+        return None
 
-        Returns an empty list if the pet is already at a final mega form.
+    def evolve_to(self, species: str) -> dict:
+        """Player-chosen evolution. Never called automatically from tick.
+
+        Returns a result dict:
+            accepted, from, to, reaction, reason, unknown, events
+        unknown=True means the name was not in the species list.
         """
-        target_id = self.next_form_id()
-        if target_id is None or target_id == self.species_id:
+        previous = self.species
+        target = resolve_species(species) if species else None
+        if target is None:
+            return {
+                "accepted": False,
+                "unknown": True,
+                "from": previous.name,
+                "to": None,
+                "reason": f"unknown species: {species!r}",
+                "reaction": f"{self.name} tilts its head. it does not know that form.",
+                "events": [],
+            }
+        rules = [rule for rule in rules_from(self.species_id) if rule.to_species == target.id]
+        status = self.evolution_status()
+        if not rules:
+            return {
+                "accepted": False,
+                "unknown": False,
+                "from": previous.name,
+                "to": target.name,
+                "reason": f"{target.name} is not a next form for {previous.name}",
+                "reaction": f"{self.name} cannot become {target.name} from here.",
+                "events": [],
+            }
+        if not status.get("ready"):
+            return {
+                "accepted": False,
+                "unknown": False,
+                "from": previous.name,
+                "to": target.name,
+                "reason": "not ready to evolve yet",
+                "reaction": f"{self.name} is not ready to evolve yet.",
+                "events": [],
+            }
+        rule = rules[0]
+        choice = next(
+            (c for c in status.get("choices") or [] if c.get("species_id") == target.id),
+            None,
+        )
+        if choice is None or not choice.get("available"):
+            hint = (choice or {}).get("hint") or rule.hint or "requirements not met"
+            return {
+                "accepted": False,
+                "unknown": False,
+                "from": previous.name,
+                "to": target.name,
+                "reason": f"{target.name} is not available ({hint})",
+                "reaction": f"{self.name} cannot take that path yet ({hint}).",
+                "events": [],
+            }
+        events = self._evolve_into(target)
+        return {
+            "accepted": True,
+            "unknown": False,
+            "from": previous.name,
+            "from_stage": previous.stage,
+            "to": target.name,
+            "to_stage": target.stage,
+            "reason": None,
+            "reaction": f"{self.name} begins to glow... it is becoming {target.name}!",
+            "events": events,
+        }
+
+    def advance_evolution(self) -> list[str]:
+        """Auto-pick the first available choice (headless sim only).
+
+        Returns an empty list if the pet is not ready or no branch is available.
+        """
+        target_id = self.first_available_choice()
+        if not target_id:
             return []
-        return self._evolve_into(get_species(target_id))
+        result = self.evolve_to(target_id)
+        return list(result.get("events") or [])
 
     def receive_gift(self, name: str, keep: int = 20) -> None:
         """Remember a received gift name (newest last, capped)."""
@@ -274,6 +492,10 @@ class Creature:
         """Apply one form change and its stat bonuses."""
         previous = self.species
         self.species_id = nxt.id
+        self.evolution_ready_override = False
+        self.evolve_soon_announced = False
+        self.evolve_choice_announced = False
+        self._evo_notices = []
         self.stats.max_hp += nxt.bonus_hp
         self.stats.hp += nxt.bonus_hp
         self.stats.attack += nxt.bonus_attack
@@ -306,6 +528,10 @@ class Creature:
             "known_move_ids": list(self.known_move_ids),
             "discovered_ids": sorted(self.discovered_ids),
             "inventory": list(self.inventory),
+            "asleep": self.asleep,
+            "evolution_ready_override": self.evolution_ready_override,
+            "evolve_soon_announced": self.evolve_soon_announced,
+            "evolve_choice_announced": self.evolve_choice_announced,
         }
 
     @classmethod
@@ -319,4 +545,8 @@ class Creature:
             known_move_ids=list(data.get("known_move_ids") or []),
             discovered_ids=set(data.get("discovered_ids") or []),
             inventory=list(data.get("inventory") or []),
+            asleep=bool(data.get("asleep", False)),
+            evolution_ready_override=bool(data.get("evolution_ready_override", False)),
+            evolve_soon_announced=bool(data.get("evolve_soon_announced", False)),
+            evolve_choice_announced=bool(data.get("evolve_choice_announced", False)),
         )

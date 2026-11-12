@@ -5,6 +5,9 @@ Creatures do not invent moves; they look them up here by id. Some moves
 unlock automatically when the pet reaches a certain level. Others have no
 learn_level and can only show up through a discovery event (for example, a
 nearby Bluetooth device "teaching" a handshake).
+
+accuracy, energy_cost, and effect are used by the dungeon combat API
+(docs/DUNGEON_INTEGRATION.md). They are safe to ignore in the simulator.
 """
 
 from __future__ import annotations
@@ -28,6 +31,10 @@ class Move:
     # If set, the move is offered automatically when the pet reaches this level.
     # If None, the move is only learnable through a discovery event.
     learn_level: int | None = None
+    # Combat extras (0–100 chance to hit, energy spent, optional after-effect).
+    accuracy: int = 90
+    energy_cost: int = 8
+    effect: str | None = None
 
 
 # A small, original library. Keep this list short so it is easy to read and
@@ -40,6 +47,8 @@ MOVE_LIBRARY: dict[str, Move] = {
         kind="signal",
         description="A tiny radio peep. Every Chirplet knows this one.",
         learn_level=1,
+        accuracy=95,
+        energy_cost=4,
     ),
     "static_snap": Move(
         id="static_snap",
@@ -48,6 +57,8 @@ MOVE_LIBRARY: dict[str, Move] = {
         kind="strike",
         description="A sharp crackle of built-up static.",
         learn_level=3,
+        accuracy=90,
+        energy_cost=8,
     ),
     "echo_pulse": Move(
         id="echo_pulse",
@@ -56,6 +67,8 @@ MOVE_LIBRARY: dict[str, Move] = {
         kind="signal",
         description="A bouncing wave that comes back a little louder.",
         learn_level=5,
+        accuracy=90,
+        energy_cost=10,
     ),
     "bright_arc": Move(
         id="bright_arc",
@@ -64,6 +77,8 @@ MOVE_LIBRARY: dict[str, Move] = {
         kind="burst",
         description="A clean, high arc of light between two points.",
         learn_level=8,
+        accuracy=80,
+        energy_cost=14,
     ),
     "stray_handshake": Move(
         id="stray_handshake",
@@ -72,6 +87,8 @@ MOVE_LIBRARY: dict[str, Move] = {
         kind="signal",
         description="A borrowed greeting packet, picked up from a nearby device.",
         learn_level=None,
+        accuracy=85,
+        energy_cost=8,
     ),
     "packet_burst": Move(
         id="packet_burst",
@@ -80,16 +97,36 @@ MOVE_LIBRARY: dict[str, Move] = {
         kind="burst",
         description="A rushed spray of data borrowed from a chatty beacon.",
         learn_level=None,
+        accuracy=80,
+        energy_cost=12,
     ),
     "noise_veil": Move(
         id="noise_veil",
         name="Noise Veil",
-        power=10,
+        power=0,
         kind="guard",
         description="A curtain of hiss that makes the user harder to pin down.",
         learn_level=None,
+        accuracy=100,
+        energy_cost=6,
+        effect="guard",
     ),
 }
+
+# Built-in last-resort dungeon action (not a learnable library move).
+# Used when the pet is too tired even for Chirp: costs nothing, deals no
+# damage, and halves the next incoming hit.
+GUARD_MOVE = Move(
+    id="guard",
+    name="Guard",
+    power=0,
+    kind="guard",
+    description="A last-resort brace that costs no energy.",
+    learn_level=None,
+    accuracy=100,
+    energy_cost=0,
+    effect="guard",
+)
 
 
 def get_move(move_id: str) -> Move:
@@ -97,6 +134,19 @@ def get_move(move_id: str) -> Move:
     if move_id not in MOVE_LIBRARY:
         raise KeyError(f"Unknown move id: {move_id!r}")
     return MOVE_LIBRARY[move_id]
+
+
+def find_move(name_or_id: str) -> Move | None:
+    """Find a library move by id or display name (case-insensitive)."""
+    key = name_or_id.strip().lower()
+    if key in MOVE_LIBRARY:
+        return MOVE_LIBRARY[key]
+    for move in MOVE_LIBRARY.values():
+        if move.name.lower() == key:
+            return move
+    if key in {"guard", "brace", "defend"}:
+        return GUARD_MOVE
+    return None
 
 
 def moves_for_level(level: int) -> list[Move]:

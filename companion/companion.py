@@ -19,10 +19,10 @@ import threading
 import time
 from pathlib import Path
 
-from avatar.renderer import get_renderer, rich_is_available
-from avatar.sprites import mood_for_creature, sprite_pixels
+from avatar.faces import evolution_banner, face_mood, face_text
 from discovery.simulated import SimulatedScanner
 from link.handler import PET_NAME, CompanionHandler, mood_word, need_hunger
+from pet.evolution import apply_evolution_config
 from link.transport import (
     DEFAULT_SERIAL,
     DEFAULT_TCP_HOST,
@@ -70,9 +70,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="RNG seed for fake Wi-Fi / BT scans.")
     parser.add_argument("--save", type=str, default=None, help="Autosave JSON path.")
     parser.add_argument("--load", type=str, default=None, help="Load a JSON save at start.")
-    parser.add_argument("--avatar", action="store_true", help="Draw the sprite on each tick.")
-    parser.add_argument("--ascii", action="store_true", help="Plain-ASCII avatar (no ANSI color).")
-    parser.add_argument("--rich", action="store_true", help="Use the optional 'rich' package if installed.")
+    parser.add_argument("--avatar", action="store_true", help="Draw the text face on each tick.")
+    parser.add_argument("--ascii", action="store_true", help="Plain-ASCII face accents.")
+    parser.add_argument(
+        "--evolution-speed",
+        type=float,
+        default=1.0,
+        help="Multiply evolution rate (2.0 = gates halved / twice as fast; default 1.0).",
+    )
+    parser.add_argument(
+        "--evolution-config",
+        type=str,
+        default=None,
+        help="Optional evolution.json that overlays the default age/level/XP gates.",
+    )
     parser.add_argument("--source", type=str, default="sim", help="source field in hello.ok (default sim).")
     parser.add_argument(
         "--event-interval",
@@ -90,11 +101,24 @@ def serial_path(cli_value: str | None) -> str:
     return os.environ.get("CYBERDECK_SERIAL") or DEFAULT_SERIAL
 
 
-def print_avatar(creature: Creature, renderer, frame: int) -> None:
-    mood = mood_for_creature(creature)
-    picture = renderer.render(sprite_pixels(creature.species_id, frame=frame, mood=mood))
-    for line in picture.splitlines():
+def print_avatar(creature: Creature, frame: int, ascii_mode: bool = False) -> None:
+    word = face_mood(creature)
+    text = face_text(word, creature.species.stage, frame=frame, ascii_mode=ascii_mode)
+    for line in text.splitlines():
         print(f"  {line}")
+
+
+def print_popups(handler: CompanionHandler, name: str) -> None:
+    """Boxed banners when the pet is close to, or ready for, evolution.
+
+    This is a prompt, not a blocking stdin question — the server thread
+    has to keep listening. To evolve, send pet.evolve {species} from the
+    deck (or any protocol client).
+    """
+    for kind, detail in handler.take_popups():
+        banner = evolution_banner(kind, detail, name=name)
+        for line in banner.splitlines():
+            print(f"  {line}")
 
 
 def run(args: argparse.Namespace) -> int:
@@ -112,6 +136,10 @@ def run(args: argparse.Namespace) -> int:
     if args.event_interval < 0:
         print("--event-interval must be >= 0", file=sys.stderr)
         return 2
+    if args.evolution_speed <= 0:
+        print("--evolution-speed must be > 0", file=sys.stderr)
+        return 2
+    apply_evolution_config(speed=args.evolution_speed, path=args.evolution_config)
 
     use_serial = args.serial is not None
     if use_serial:
@@ -143,12 +171,6 @@ def run(args: argparse.Namespace) -> int:
     if save_path is not None:
         autosave()
 
-    renderer = None
-    if args.avatar:
-        if args.rich and not args.ascii and not rich_is_available():
-            print("Note: 'rich' is not installed; using the built-in renderer.", file=sys.stderr)
-        renderer = get_renderer(ascii_mode=args.ascii, use_rich=args.rich)
-
     def ticker() -> None:
         while not stop.wait(args.tick_seconds):
             with lock:
@@ -159,8 +181,9 @@ def run(args: argparse.Namespace) -> int:
                 need = need_hunger(creature)
                 word = mood_word(creature)
             print(f"[tick] need_hunger={need:.0f} mood={word}  {snapshot}")
-            if renderer is not None:
-                print_avatar(creature, renderer, frame)
+            if args.avatar:
+                print_avatar(creature, frame, ascii_mode=args.ascii)
+                print_popups(handler, creature.name)
 
     tick_thread = threading.Thread(target=ticker, name="pet-tick", daemon=True)
     server: TcpServer | UartServer
@@ -179,7 +202,8 @@ def run(args: argparse.Namespace) -> int:
     print(f"{endpoint}  ({origin})")
     print(
         f"tick every {args.tick_seconds:g}s, dt={args.dt:g} sim hours, "
-        f"event interval {args.event_interval:g}s"
+        f"event interval {args.event_interval:g}s, "
+        f"evolution-speed={args.evolution_speed:g}"
     )
     print(creature.summary())
     print("Waiting for the main deck. Ctrl-C to stop.")

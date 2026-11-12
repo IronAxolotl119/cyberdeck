@@ -87,6 +87,7 @@ class EvolutionRule:
     min_attack: int | None = None
     min_discoveries: int | None = None
     priority: int = 0
+    hint: str = ""
 
 
 # All known forms, keyed by species id.
@@ -251,79 +252,170 @@ SPECIES: dict[str, Species] = {
 
 STARTER_SPECIES_ID = "chirplet"
 
-# Time gates grow with the later stages. Branch gates (care / mood / attack /
-# discoveries) decide *which* form; a rule with no branch gate is the fallback
-# used by evolve gifts when no specialist branch matches.
-EVOLUTION_TABLE: list[EvolutionRule] = [
-    EvolutionRule(
-        from_species="chirplet",
-        to_species="wavling",
-        min_age=8.0,
-        min_level=2,
-        min_xp=10,
-        priority=1,
-    ),
-    EvolutionRule(
-        from_species="wavling",
-        to_species="aethling",
-        min_age=24.0,
-        min_level=3,
-        max_care_mistakes=2,
-        min_mood=50.0,
-        priority=2,
-    ),
-    EvolutionRule(
-        from_species="wavling",
-        to_species="staticore",
-        min_age=24.0,
-        min_level=3,
-        # No care/mood gate: this is the fallback branch once age and level
-        # are met. It also matches early if the pet was clearly neglected or
-        # trained hard.
-        priority=1,
-    ),
-    # Rookie -> champion. Discovery wins when the pet has sniffed out enough.
-    EvolutionRule(
-        from_species="aethling",
-        to_species="luminode",
-        min_age=48.0,
-        min_level=5,
-        priority=1,
-    ),
-    EvolutionRule(
-        from_species="aethling",
-        to_species="hexwave",
-        min_age=48.0,
-        min_level=5,
-        min_discoveries=DISCOVERY_BRANCH,
-        priority=2,
-    ),
-    EvolutionRule(
-        from_species="staticore",
-        to_species="voltshard",
-        min_age=48.0,
-        min_level=5,
-        priority=1,
-    ),
-    EvolutionRule(
-        from_species="staticore",
-        to_species="jammeron",
-        min_age=48.0,
-        min_level=5,
-        min_discoveries=DISCOVERY_BRANCH,
-        priority=2,
-    ),
-    # Champion -> ultimate (linear on each fork).
-    EvolutionRule(from_species="luminode", to_species="aurorion", min_age=80.0, min_level=8, priority=1),
-    EvolutionRule(from_species="hexwave", to_species="resonarch", min_age=80.0, min_level=8, priority=1),
-    EvolutionRule(from_species="voltshard", to_species="stormbit", min_age=80.0, min_level=8, priority=1),
-    EvolutionRule(from_species="jammeron", to_species="blackout", min_age=80.0, min_level=8, priority=1),
-    # Ultimate -> mega.
-    EvolutionRule(from_species="aurorion", to_species="aethernova", min_age=120.0, min_level=12, priority=1),
-    EvolutionRule(from_species="resonarch", to_species="signumega", min_age=120.0, min_level=12, priority=1),
-    EvolutionRule(from_species="stormbit", to_species="nullstorm", min_age=120.0, min_level=12, priority=1),
-    EvolutionRule(from_species="blackout", to_species="voidstatic", min_age=120.0, min_level=12, priority=1),
+# ---------------------------------------------------------------------------
+# Time gates (age / level / XP), keyed by the stage the pet is evolving FROM.
+# These are slower than the early demo values and grow at each stage.
+# You can overlay a project-root evolution.json with the same shape, and
+# scale every number with --evolution-speed (1.0 = these defaults;
+# 2.0 = twice as fast, gates halved; 0.5 = half speed, gates doubled).
+# ---------------------------------------------------------------------------
+DEFAULT_EVOLUTION_GATES: dict[str, dict[str, float]] = {
+    "baby": {"min_age": 36.0, "min_level": 4, "min_xp": 40},
+    "in-training": {"min_age": 100.0, "min_level": 8, "min_xp": 140},
+    "rookie": {"min_age": 220.0, "min_level": 13, "min_xp": 320},
+    "champion": {"min_age": 400.0, "min_level": 19, "min_xp": 600},
+    "ultimate": {"min_age": 620.0, "min_level": 26, "min_xp": 960},
+}
+
+# How close (0–1) counts as "about to evolve" for the evolve_soon event.
+EVOLVE_SOON_PROGRESS = 0.90
+
+# Branch rules only: which form, under what care/stat/discovery conditions.
+# Time gates are applied from DEFAULT_EVOLUTION_GATES when the table is built.
+_BRANCHES: list[dict] = [
+    {
+        "from_species": "chirplet",
+        "to_species": "wavling",
+        "priority": 1,
+        "hint": "the next form along the line",
+    },
+    {
+        "from_species": "wavling",
+        "to_species": "aethling",
+        "max_care_mistakes": 2,
+        "min_mood": 50.0,
+        "priority": 2,
+        "hint": "needs good care (mood 50+, at most 2 care mistakes)",
+    },
+    {
+        "from_species": "wavling",
+        "to_species": "staticore",
+        "priority": 1,
+        "hint": "the harder path (low mood or many care mistakes)",
+    },
+    {
+        "from_species": "aethling",
+        "to_species": "luminode",
+        "priority": 1,
+        "hint": "the default care path",
+    },
+    {
+        "from_species": "aethling",
+        "to_species": "hexwave",
+        "min_discoveries": DISCOVERY_BRANCH,
+        "priority": 2,
+        "hint": "needs 3+ unique discoveries",
+    },
+    {
+        "from_species": "staticore",
+        "to_species": "voltshard",
+        "priority": 1,
+        "hint": "the default combat path",
+    },
+    {
+        "from_species": "staticore",
+        "to_species": "jammeron",
+        "min_discoveries": DISCOVERY_BRANCH,
+        "priority": 2,
+        "hint": "needs 3+ unique discoveries",
+    },
+    {"from_species": "luminode", "to_species": "aurorion", "priority": 1, "hint": "the next form along this line"},
+    {"from_species": "hexwave", "to_species": "resonarch", "priority": 1, "hint": "the next form along this line"},
+    {"from_species": "voltshard", "to_species": "stormbit", "priority": 1, "hint": "the next form along this line"},
+    {"from_species": "jammeron", "to_species": "blackout", "priority": 1, "hint": "the next form along this line"},
+    {"from_species": "aurorion", "to_species": "aethernova", "priority": 1, "hint": "the next form along this line"},
+    {"from_species": "resonarch", "to_species": "signumega", "priority": 1, "hint": "the next form along this line"},
+    {"from_species": "stormbit", "to_species": "nullstorm", "priority": 1, "hint": "the next form along this line"},
+    {"from_species": "blackout", "to_species": "voidstatic", "priority": 1, "hint": "the next form along this line"},
 ]
+
+_evolution_speed: float = 1.0
+_loaded_gates: dict[str, dict[str, float]] = {k: dict(v) for k, v in DEFAULT_EVOLUTION_GATES.items()}
+EVOLUTION_TABLE: list[EvolutionRule] = []
+
+
+def evolution_speed() -> float:
+    return _evolution_speed
+
+
+def current_gates(stage: str) -> dict[str, float]:
+    """Age / level / XP thresholds for this stage, after speed scaling."""
+    base = _loaded_gates.get(stage) or DEFAULT_EVOLUTION_GATES.get(stage) or {
+        "min_age": 36.0,
+        "min_level": 4,
+        "min_xp": 40,
+    }
+    speed = _evolution_speed if _evolution_speed > 0 else 1.0
+    return {
+        "min_age": max(1.0, float(base["min_age"]) / speed),
+        "min_level": max(2, int(round(float(base["min_level"]) / speed))),
+        "min_xp": max(0, int(round(float(base["min_xp"]) / speed))),
+    }
+
+
+def current_gates_for_species(species_id: str) -> dict[str, float]:
+    stage = get_species(species_id).stage if species_id in SPECIES else "baby"
+    return current_gates(stage)
+
+
+def _rebuild_table() -> None:
+    """Rebuild EVOLUTION_TABLE from branch rules + scaled time gates."""
+    table: list[EvolutionRule] = []
+    for spec in _BRANCHES:
+        from_id = spec["from_species"]
+        stage = SPECIES[from_id].stage
+        gates = current_gates(stage)
+        table.append(
+            EvolutionRule(
+                from_species=from_id,
+                to_species=spec["to_species"],
+                min_age=float(gates["min_age"]),
+                min_level=int(gates["min_level"]),
+                min_xp=int(gates["min_xp"]),
+                max_care_mistakes=spec.get("max_care_mistakes"),
+                min_care_mistakes=spec.get("min_care_mistakes"),
+                min_mood=spec.get("min_mood"),
+                min_attack=spec.get("min_attack"),
+                min_discoveries=spec.get("min_discoveries"),
+                priority=int(spec.get("priority", 1)),
+                hint=str(spec.get("hint") or ""),
+            )
+        )
+    EVOLUTION_TABLE.clear()
+    EVOLUTION_TABLE.extend(table)
+
+
+def apply_evolution_config(speed: float = 1.0, path: str | None = None) -> None:
+    """Install a speed multiplier and optional evolution.json, then rebuild the table.
+
+    Speed must be > 0. A file, if given (or the default project-root
+    evolution.json when it exists), overlays DEFAULT_EVOLUTION_GATES.
+    """
+    global _evolution_speed, _loaded_gates
+    if speed <= 0:
+        raise ValueError("evolution speed must be > 0")
+    _evolution_speed = float(speed)
+    gates = {k: dict(v) for k, v in DEFAULT_EVOLUTION_GATES.items()}
+    import json
+    from pathlib import Path
+
+    candidates = []
+    if path:
+        candidates.append(Path(path))
+    else:
+        candidates.append(Path(__file__).resolve().parent.parent / "evolution.json")
+    for candidate in candidates:
+        if candidate.is_file():
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                for stage, values in data.items():
+                    if stage in gates and isinstance(values, dict):
+                        for key in ("min_age", "min_level", "min_xp"):
+                            if key in values:
+                                gates[stage][key] = float(values[key])
+            break
+    _loaded_gates = gates
+    _rebuild_table()
 
 
 def get_species(species_id: str) -> Species:
@@ -331,6 +423,19 @@ def get_species(species_id: str) -> Species:
     if species_id not in SPECIES:
         raise KeyError(f"Unknown species id: {species_id!r}")
     return SPECIES[species_id]
+
+
+def resolve_species(name_or_id: str) -> Species | None:
+    """Find a species by id or display name (case-insensitive)."""
+    key = name_or_id.strip().lower()
+    if not key:
+        return None
+    if key in SPECIES:
+        return SPECIES[key]
+    for species in SPECIES.values():
+        if species.name.lower() == key:
+            return species
+    return None
 
 
 def rules_from(species_id: str) -> list[EvolutionRule]:
@@ -348,6 +453,14 @@ def _time_gates_match(rule: EvolutionRule, stats: Stats) -> bool:
     return True
 
 
+def time_gates_met(species_id: str, stats: Stats) -> bool:
+    """True when this form's age/level/XP gates (after speed scaling) are met."""
+    rules = rules_from(species_id)
+    if not rules:
+        return False
+    return _time_gates_match(rules[0], stats)
+
+
 def _branch_gates_match(rule: EvolutionRule, stats: Stats, discovered: int) -> bool:
     if rule.max_care_mistakes is not None and stats.care_mistakes > rule.max_care_mistakes:
         return False
@@ -363,7 +476,7 @@ def _branch_gates_match(rule: EvolutionRule, stats: Stats, discovered: int) -> b
 
 
 def _rule_matches(rule: EvolutionRule, stats: Stats, discovered: int = 0) -> bool:
-    """True if time gates and branch gates both pass (natural evolution)."""
+    """True if time gates and branch gates both pass."""
     return _time_gates_match(rule, stats) and _branch_gates_match(rule, stats, discovered)
 
 
@@ -374,7 +487,7 @@ def _best(rules: list[EvolutionRule]) -> EvolutionRule | None:
 
 
 def available_evolutions(species_id: str, stats: Stats, discovered: int = 0) -> list[EvolutionRule]:
-    """Every matching natural-evolution rule for this species, highest priority first."""
+    """Every matching rule for this species (time + branch), highest priority first."""
     matches = [
         rule
         for rule in rules_from(species_id)
@@ -384,7 +497,10 @@ def available_evolutions(species_id: str, stats: Stats, discovered: int = 0) -> 
 
 
 def choose_evolution(species_id: str, stats: Stats, discovered: int = 0) -> Species | None:
-    """The species this pet should become right now (time gates on), or None."""
+    """The species this pet *could* naturally become right now, or None.
+
+    The pet never auto-evolves; this is used for readiness / hints only.
+    """
     matches = available_evolutions(species_id, stats, discovered)
     if not matches:
         return None
@@ -392,12 +508,7 @@ def choose_evolution(species_id: str, stats: Stats, discovered: int = 0) -> Spec
 
 
 def choose_next_form(species_id: str, stats: Stats, discovered: int = 0) -> Species | None:
-    """The form an evolve gift (or 'what is next?') should pick, ignoring time gates.
-
-    Prefers a fully due natural evolution, then the highest-priority rule
-    whose branch gates already match, then a fallback rule with no branch
-    gates. Returns None only when this species has no outgoing rule (mega).
-    """
+    """The form an auto-pick (or 'preferred next') should take, ignoring time gates."""
     if species_id not in SPECIES:
         return None
     if get_species(species_id).stage == FINAL_STAGE:
@@ -439,3 +550,90 @@ def forms_in_evolution_order() -> list[str]:
     for species_id in SPECIES:
         add(species_id)
     return ordered
+
+
+def _rule_progress(rule: EvolutionRule, stats: Stats) -> tuple[float, float | None]:
+    """(progress 0-1, remaining age-hours if the age gate still applies)."""
+    ratios: list[float] = []
+    eta_hours: float | None = None
+    if rule.min_age > 0:
+        ratios.append(stats.age / rule.min_age)
+        remaining = rule.min_age - stats.age
+        eta_hours = remaining if remaining > 0 else 0.0
+    if rule.min_level > 1:
+        ratios.append(stats.level / rule.min_level)
+    if rule.min_xp > 0:
+        ratios.append(stats.xp / rule.min_xp)
+    if not ratios:
+        return 1.0, 0.0
+    progress = min(1.0, min(ratios))
+    return progress, eta_hours
+
+
+def evolution_choices(
+    species_id: str,
+    stats: Stats,
+    discovered: int = 0,
+    *,
+    ready_override: bool = False,
+) -> list[dict]:
+    """Every next-stage branch, with availability and a short hint."""
+    choices: list[dict] = []
+    for rule in rules_from(species_id):
+        dest = get_species(rule.to_species)
+        choices.append(
+            {
+                "species": dest.name,
+                "species_id": dest.id,
+                "stage": dest.stage,
+                "hint": rule.hint or "the next form along the line",
+                "available": _branch_gates_match(rule, stats, discovered),
+            }
+        )
+    return choices
+
+
+def evolution_status(
+    species_id: str,
+    stats: Stats,
+    discovered: int = 0,
+    *,
+    ready_override: bool = False,
+) -> dict:
+    """Hints for pet.status.evolution.
+
+    progress is measured against the time gates of this stage. ready is True
+    when those gates pass, or when an evolve-chip has skipped them.
+    choices lists every branch for the next stage (available follows care /
+    stat / discovery rules, not the time gates).
+    """
+    current = get_species(species_id) if species_id in SPECIES else None
+    choices = evolution_choices(species_id, stats, discovered, ready_override=ready_override)
+    hint: dict = {
+        "next_stage": None,
+        "progress": 1.0 if current is not None and current.stage == FINAL_STAGE else 0.0,
+        "ready": False,
+        "choices": choices,
+        "to_candidates": [c["species"] for c in choices if c["available"]],
+        "eta_hours": None,
+        "from": current.name if current is not None else species_id,
+    }
+    rules = rules_from(species_id)
+    if not rules or (current is not None and current.stage == FINAL_STAGE):
+        return hint
+    progress, eta_hours = _rule_progress(rules[0], stats)
+    ready = bool(ready_override) or time_gates_met(species_id, stats)
+    next_stage = get_species(rules[0].to_species).stage
+    hint.update(
+        {
+            "next_stage": next_stage,
+            "progress": 1.0 if ready_override else round(progress, 3),
+            "ready": ready,
+            "eta_hours": 0.0 if ready_override else (None if eta_hours is None else round(max(0.0, eta_hours), 2)),
+        }
+    )
+    return hint
+
+
+# Build the default table at import time (speed 1.0, optional evolution.json).
+apply_evolution_config(speed=1.0)

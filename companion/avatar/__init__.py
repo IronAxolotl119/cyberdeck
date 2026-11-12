@@ -1,45 +1,31 @@
-"""Avatars for each creature form: text-grid sprites and a Renderer interface.
+"""Text-face avatars for the cyberdeck pet (kaomoji, no images)."""
 
-The core of this package is standard-library only. TerminalRenderer draws
-ANSI truecolor half-blocks (or a plain-ASCII fallback). If the optional
-'rich' package happens to be installed, RichRenderer can be used instead;
-nothing here imports it unless you ask.
-"""
-
-from avatar.renderer import (
-    Renderer,
-    RichRenderer,
-    TerminalRenderer,
-    format_catalog,
-    get_renderer,
-    rich_is_available,
-    write_sprite_sheets,
-)
-from avatar.sprites import (
-    FORMS,
-    MOODS,
-    PALETTE,
-    SPRITE_SIZE,
-    lookup_form,
-    mood_for_creature,
-    sprite_grid,
-    sprite_pixels,
+from avatar.faces import (
+    DEFAULT_INTERVAL_MS,
+    FACE_MOODS,
+    avatar_payload,
+    boxed_banner,
+    evolution_banner,
+    face_frames,
+    face_mood,
+    face_text,
+    format_face_sheet,
+    normalize_mood,
+    pet_avatar,
+    write_face_sheet,
 )
 
 __all__ = [
-    "FORMS",
-    "MOODS",
-    "PALETTE",
-    "SPRITE_SIZE",
-    "Renderer",
-    "RichRenderer",
-    "TerminalRenderer",
-    "format_catalog",
-    "get_renderer",
-    "lookup_form",
-    "mood_for_creature",
-    "rich_is_available",
-    "sprite_grid",
-    "sprite_pixels",
-    "write_sprite_sheets",
+    "DEFAULT_INTERVAL_MS",
+    "FACE_MOODS",
+    "avatar_payload",
+    "boxed_banner",
+    "evolution_banner",
+    "face_frames",
+    "face_mood",
+    "face_text",
+    "format_face_sheet",
+    "normalize_mood",
+    "pet_avatar",
+    "write_face_sheet",
 ]

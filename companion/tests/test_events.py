@@ -47,10 +47,27 @@ class EnqueueTests(unittest.TestCase):
         enqueue_event(queue, _event("level_up", level=2))
         enqueue_event(queue, _event("learned_move", move="Chirp"))
         enqueue_event(queue, _event("evolved", to="Aethling"))
+        enqueue_event(queue, _event("evolve_soon"))
+        enqueue_event(queue, _event("evolve_choice"))
+        enqueue_event(queue, _event("evolving"))
+        enqueue_event(queue, _event("woke"))
         enqueue_event(queue, _event("hungry"))
         enqueue_event(queue, _event("hungry"))
         kinds = [event_kind(m) for m in queue]
-        self.assertEqual(kinds, ["evolved", "level_up", "learned_move", "evolved", "hungry"])
+        self.assertEqual(
+            kinds,
+            [
+                "evolved",
+                "level_up",
+                "learned_move",
+                "evolved",
+                "evolve_soon",
+                "evolve_choice",
+                "evolving",
+                "woke",
+                "hungry",
+            ],
+        )
 
 
 class PacerTests(unittest.TestCase):

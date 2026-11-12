@@ -177,9 +177,34 @@ class TcpRoundTripTests(unittest.TestCase):
                     msg = try_decode_line(line)
                     if msg is not None:
                         seen.append(msg)
-                if any(m.type == "pet.event" for m in seen) and any(m.id == gift.id for m in seen):
+                kinds = [m.payload.get("event") for m in seen if m.type == "pet.event"]
+                if any(k in {"evolve_soon", "evolve_choice"} for k in kinds) and any(m.id == gift.id for m in seen):
                     break
             self.assertTrue(any(m.id == gift.id and m.type == "pet.gift.ok" for m in seen))
+            kinds = [m.payload.get("event") for m in seen if m.type == "pet.event"]
+            self.assertTrue(
+                any(k in {"evolve_soon", "evolve_choice"} for k in kinds),
+                f"expected evolve_soon/evolve_choice, got {kinds}",
+            )
+            # Confirming the choice actually evolves and pushes evolving + evolved.
+            evoreq = Message.request("pet.evolve", {"species": "Wavling"})
+            sock.sendall(evoreq.encode_bytes())
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                try:
+                    chunk = sock.recv(4096)
+                except socket.timeout:
+                    break
+                if not chunk:
+                    break
+                buffer += chunk
+                lines, buffer = split_complete_lines(buffer)
+                for line in lines:
+                    msg = try_decode_line(line)
+                    if msg is not None:
+                        seen.append(msg)
+                if any(m.type == "pet.event" and m.payload.get("event") == "evolved" for m in seen):
+                    break
             self.assertTrue(any(m.type == "pet.event" and m.payload.get("event") == "evolved" for m in seen))
 
 
@@ -379,9 +404,13 @@ class MultiClientTcpTests(unittest.TestCase):
             alpha.sendall(gift.encode_bytes())
             from_alpha = _collect_until(
                 alpha,
-                lambda msgs: any(m.id == gift.id for m in msgs) and any(m.type == "pet.event" for m in msgs),
+                lambda msgs: any(m.id == gift.id for m in msgs)
+                and any(m.type == "pet.event" and event_kind(m) == "evolve_choice" for m in msgs),
             )
-            from_beta = _collect_until(beta, lambda msgs: any(m.type == "pet.event" for m in msgs))
+            from_beta = _collect_until(
+                beta,
+                lambda msgs: any(m.type == "pet.event" and event_kind(m) == "evolve_choice" for m in msgs),
+            )
             gamma.settimeout(0.3)
             try:
                 from_gamma = gamma.recv(4096)
@@ -389,11 +418,24 @@ class MultiClientTcpTests(unittest.TestCase):
                 from_gamma = b""
 
             self.assertTrue(any(m.id == gift.id and m.type == "pet.gift.ok" for m in from_alpha))
-            self.assertTrue(any(m.type == "pet.event" and event_kind(m) == "evolved" for m in from_alpha))
-            self.assertTrue(any(m.type == "pet.event" and event_kind(m) == "evolved" for m in from_beta))
+            self.assertTrue(any(m.type == "pet.event" and event_kind(m) == "evolve_choice" for m in from_alpha))
+            self.assertTrue(any(m.type == "pet.event" and event_kind(m) == "evolve_choice" for m in from_beta))
             # Beta did not send the gift, so it must not see the gift.ok reply.
             self.assertFalse(any(m.id == gift.id for m in from_beta))
             self.assertEqual(from_gamma, b"")
+
+            evoreq = Message.request("pet.evolve", {"species": "Wavling"})
+            alpha.sendall(evoreq.encode_bytes())
+            more_a = _collect_until(
+                alpha,
+                lambda msgs: any(m.type == "pet.event" and event_kind(m) == "evolved" for m in msgs),
+            )
+            more_b = _collect_until(
+                beta,
+                lambda msgs: any(m.type == "pet.event" and event_kind(m) == "evolved" for m in msgs),
+            )
+            self.assertTrue(any(event_kind(m) == "evolved" for m in more_a))
+            self.assertTrue(any(event_kind(m) == "evolved" for m in more_b))
 
 
 class InventorySaveTests(unittest.TestCase):

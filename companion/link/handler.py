@@ -9,9 +9,10 @@ pet can stay in its own units.
 
 from __future__ import annotations
 
+import random
 from typing import Any, Callable
 
-from avatar.sprites import PALETTE, SPRITE_SIZE, sprite_grid
+from avatar.faces import avatar_payload, normalize_mood, pet_avatar
 from discovery.effects import apply_signals
 from discovery.simulated import SimulatedScanner
 from link.protocol import (
@@ -20,13 +21,27 @@ from link.protocol import (
     TYPE_HELLO_OK,
     TYPE_PET_AVATAR,
     TYPE_PET_AVATAR_OK,
+    TYPE_PET_COMBAT_ACTION,
+    TYPE_PET_COMBAT_ACTION_OK,
+    TYPE_PET_COMBAT_END,
+    TYPE_PET_COMBAT_END_OK,
+    TYPE_PET_COMBAT_HIT,
+    TYPE_PET_COMBAT_HIT_OK,
+    TYPE_PET_COMBAT_STATS,
+    TYPE_PET_COMBAT_STATS_OK,
     TYPE_PET_EVENT,
+    TYPE_PET_EVOLVE,
+    TYPE_PET_EVOLVE_OK,
     TYPE_PET_FEED,
     TYPE_PET_FEED_OK,
     TYPE_PET_GIFT,
     TYPE_PET_GIFT_OK,
     TYPE_PET_PLAY,
     TYPE_PET_PLAY_OK,
+    TYPE_PET_REST,
+    TYPE_PET_REST_OK,
+    TYPE_PET_SLEEP,
+    TYPE_PET_SLEEP_OK,
     TYPE_PET_STATUS,
     TYPE_PET_STATUS_OK,
     TYPE_PING,
@@ -34,6 +49,7 @@ from link.protocol import (
     Message,
     new_id,
 )
+from pet.combat import apply_combat_end, apply_hit, perform_action, stats_payload
 from pet.creature import TRAIN_ENERGY_COST, Creature
 from pet.evolution import get_species
 from pet.moves import MOVE_LIBRARY
@@ -73,6 +89,10 @@ def set_need_hunger(creature: Creature, need: float) -> None:
 
 def mood_word(creature: Creature) -> str:
     """Short word derived from protocol needs: content/playful/joyful/hungry/tired/grumpy."""
+    if creature.fainted:
+        return "fainted"
+    if creature.asleep:
+        return "asleep"
     hunger = need_hunger(creature)
     happiness = _clamp(creature.stats.mood)
     energy = _clamp(creature.stats.energy)
@@ -86,6 +106,9 @@ def mood_word(creature: Creature) -> str:
         return "joyful"
     if happiness >= PLAYFUL_AT:
         return "playful"
+    status = creature.evolution_status()
+    if status.get("ready") or float(status.get("progress") or 0) >= 0.90:
+        return "excited"
     return "content"
 
 
@@ -113,80 +136,16 @@ def pet_payload(creature: Creature, frame: int = 0) -> dict[str, Any]:
         "speed": stats.speed,
         "moves": moves,
         "care_mistakes": stats.care_mistakes,
-        "avatar": {
-            "form": creature.species_id,
-            "mood": mood_word(creature),
-            "frame": int(frame) % 2,
-        },
+        "asleep": bool(creature.asleep),
+        "fainted": bool(creature.fainted),
+        "evolution": creature.evolution_status(),
+        "avatar": pet_avatar(creature, frame=frame),
     }
-
-
-# Map a protocol mood word (or a sprite-face name) onto a sprite overlay.
-# The main deck's pet.avatar.ok "mood" field is the protocol word; we still
-# need a face to draw (happy / hungry / sad / neutral).
-_SPRITE_FACE = {
-    "happy": "happy",
-    "joyful": "happy",
-    "playful": "happy",
-    "neutral": "neutral",
-    "content": "neutral",
-    "idle": "neutral",
-    "hungry": "hungry",
-    "tired": "hungry",
-    "sad": "sad",
-    "grumpy": "sad",
-}
-
-
-def sprite_face_for_mood(mood: str) -> str:
-    """Pick a sprite face overlay for a protocol or sprite mood word."""
-    key = mood.strip().lower().replace(" ", "")
-    if key not in _SPRITE_FACE:
-        raise ValueError(f"unknown mood {mood!r}")
-    return _SPRITE_FACE[key]
-
-
-def _rgb_to_hex(color: tuple[int, int, int]) -> str:
-    return f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
 
 
 def encode_avatar(creature: Creature, frame: int = 0, mood: str | None = None) -> dict[str, Any]:
-    """Build a pet.avatar.ok payload from our 16x16 sprite.
-
-    palette[0] is always null (transparent). Later entries are "#rrggbb".
-    rows is a 16x16 grid of palette indexes. form is the species id.
-    mood is the protocol (or override) word echoed back to the deck.
-    """
-    word = mood if mood is not None else mood_word(creature)
-    face = sprite_face_for_mood(word)
-    frame_n = int(frame) % 2
-    form = creature.species_id
-    grid = sprite_grid(form, frame=frame_n, mood=face)
-    # Index 0 is reserved for transparency, matching the main deck's parser.
-    palette: list[str | None] = [None]
-    color_at: dict[tuple[int, int, int], int] = {}
-    rows: list[list[int]] = []
-    for line in grid:
-        indexes: list[int] = []
-        for ch in line:
-            color = PALETTE[ch]
-            if color is None:
-                indexes.append(0)
-                continue
-            if color not in color_at:
-                color_at[color] = len(palette)
-                palette.append(_rgb_to_hex(color))
-            indexes.append(color_at[color])
-        rows.append(indexes)
-    return {
-        "form": form,
-        "mood": word,
-        "frame": frame_n,
-        "width": SPRITE_SIZE,
-        "height": SPRITE_SIZE,
-        "palette": palette,
-        "rows": rows,
-    }
+    """Build a pet.avatar.ok payload: a kaomoji text face, not a pixel grid."""
+    return avatar_payload(creature, frame=frame, mood=mood)
 
 
 def _clean_power(raw: Any) -> int:
@@ -215,6 +174,9 @@ class CompanionHandler:
         self.frame = 0
         self._pending: list[Message] = []
         self._seen: dict[str, Any] = self._snapshot()
+        self.rng: random.Random = random.Random()
+        # Terminal popups (evolve_soon / evolve_choice / evolving / evolved).
+        self.last_popups: list[tuple[str, dict[str, Any]]] = []
 
     def handle(self, message: Message) -> Message:
         """Return the correlated reply. Drain events afterwards if they are on."""
@@ -235,9 +197,24 @@ class CompanionHandler:
             reply = self._gift(message, payload)
         elif typ == TYPE_PET_AVATAR:
             reply = self._avatar(message, payload)
+        elif typ == TYPE_PET_REST:
+            reply = self._rest(message, payload)
+        elif typ == TYPE_PET_SLEEP:
+            reply = self._sleep(message, payload)
+        elif typ == TYPE_PET_COMBAT_STATS:
+            reply = message.reply(TYPE_PET_COMBAT_STATS_OK, stats_payload(self.creature))
+        elif typ == TYPE_PET_COMBAT_ACTION:
+            reply = self._combat_action(message, payload)
+        elif typ == TYPE_PET_COMBAT_HIT:
+            reply = self._combat_hit(message, payload)
+        elif typ == TYPE_PET_COMBAT_END:
+            reply = self._combat_end(message, payload)
+        elif typ == TYPE_PET_EVOLVE:
+            reply = self._evolve(message, payload)
         else:
             reply = message.error("unknown_type", f"unsupported message type: {typ}")
 
+        self._drain_evo_notices()
         self._collect_events()
         return reply
 
@@ -247,13 +224,22 @@ class CompanionHandler:
         self._pending = []
         return events
 
+    def take_popups(self) -> list[tuple[str, dict[str, Any]]]:
+        """Drain boxed-banner events for the local --avatar display."""
+        popups = self.last_popups
+        self.last_popups = []
+        return popups
+
     def tick(self, dt: float) -> list[str]:
         """Advance the creature (and an optional fake scan). Queues events if enabled."""
         log: list[str] = []
         before_moves = list(self.creature.known_move_ids)
         before_level = self.creature.stats.level
         before_species = self.creature.species_id
+        was_asleep = self.creature.asleep
         log.extend(self.creature.tick(dt))
+        if was_asleep and not self.creature.asleep:
+            self._emit_event("woke", {})
         if self.scanner is not None:
             signals = self.scanner.scan()
             new_ids = [sig.id for sig in signals if sig.id not in self.creature.discovered_ids]
@@ -275,6 +261,7 @@ class CompanionHandler:
         self.frame += 1
         # Level / move / evolution can also happen from a scan's XP.
         self._note_growth(before_species, before_level, before_moves)
+        self._drain_evo_notices()
         self._collect_events()
         return log
 
@@ -321,10 +308,10 @@ class CompanionHandler:
         return message.reply(TYPE_HELLO_OK, body)
 
     def _avatar(self, message: Message, payload: dict[str, Any]) -> Message:
-        """Return the 16x16 sprite as palette indexes.
+        """Return the text-face avatar.
 
-        Optional payload fields: frame (0 or 1) and mood (a protocol or
-        sprite-face word). Missing fields use the live pet's frame and mood.
+        Optional payload fields: frame (non-negative int) and mood (a
+        protocol or face word). Missing fields use the live pet's values.
         """
         try:
             frame = _parse_frame(payload.get("frame"), default=self.frame % 2)
@@ -359,6 +346,16 @@ class CompanionHandler:
         if not isinstance(game, str) or not game.strip():
             return message.error("bad_payload", "pet.play needs payload.game as a non-empty string")
         game = game.strip()
+        if self.creature.asleep:
+            return message.reply(
+                TYPE_PET_PLAY_OK,
+                {
+                    "game": game,
+                    "played": False,
+                    "reason": "asleep",
+                    "pet": self.pet_dict(),
+                },
+            )
         if self.creature.stats.energy < TRAIN_ENERGY_COST:
             return message.reply(
                 TYPE_PET_PLAY_OK,
@@ -434,27 +431,11 @@ class CompanionHandler:
                         f"({stage}). it keeps the {name} as a trophy."
                     )
             else:
-                lines = self.creature.advance_evolution()
-                new = self.creature.species
+                # Skip time gates and wait for pet.evolve; do not change form.
+                self.creature.catalyze_evolution()
                 reaction = (
-                    f"the {name} glows... {pet_name} evolved into {new.name} ({new.stage})!"
-                    if lines
-                    else f"{pet_name} cannot evolve further. it keeps the {name} as a trophy."
+                    f"the {name} hums... {pet_name} is ready to choose a new form."
                 )
-                if not lines:
-                    accepted = False
-                else:
-                    previous = get_species(before[4])
-                    self._queue_event(
-                        "evolved",
-                        {
-                            "from": previous.name,
-                            "to": new.name,
-                            "form": new.name,
-                            "stage": new.stage,
-                            "from_stage": previous.stage,
-                        },
-                    )
         else:  # trinket
             self.creature.stats.mood = _clamp(self.creature.stats.mood + 10.0)
             self.creature.stats.clamp()
@@ -533,6 +514,16 @@ class CompanionHandler:
         # evolved / level_up / learned_move / signal_found are queued at the source
         self._seen = now
 
+    def _drain_evo_notices(self) -> None:
+        for kind, detail in self.creature.take_evolution_notices():
+            self._emit_event(kind, detail)
+
+    def _emit_event(self, event: str, detail: dict[str, Any] | None = None) -> None:
+        body = dict(detail or {})
+        if event in {"evolve_soon", "evolve_choice", "evolving", "evolved", "woke"}:
+            self.last_popups.append((event, body))
+        self._queue_event(event, body)
+
     def _queue_event(self, event: str, detail: dict[str, Any] | None = None) -> None:
         if not self.events_enabled:
             return
@@ -548,6 +539,150 @@ class CompanionHandler:
                 payload={"event": event, "detail": body, "pet": self.pet_dict()},
             )
         )
+
+    def _rest(self, message: Message, payload: dict[str, Any]) -> Message:
+        creature = self.creature
+        if creature.energy_is_full() and not creature.needs_hp() and not creature.fainted:
+            return message.reply(
+                TYPE_PET_REST_OK,
+                {
+                    "rested": False,
+                    "reason": "energy is already full",
+                    "energy_delta": 0,
+                    "pet": self.pet_dict(),
+                },
+            )
+        before = creature.stats.energy
+        creature.short_rest()
+        delta = int(round(creature.stats.energy - before))
+        return message.reply(
+            TYPE_PET_REST_OK,
+            {
+                "rested": True,
+                "energy_delta": delta,
+                "pet": self.pet_dict(),
+            },
+        )
+
+    def _sleep(self, message: Message, payload: dict[str, Any]) -> Message:
+        raw = payload.get("on")
+        if isinstance(raw, bool):
+            on = raw
+        elif raw in (0, 1) and not isinstance(raw, bool):
+            on = bool(raw)
+        elif isinstance(raw, str) and raw.strip().lower() in {"true", "false", "1", "0", "on", "off"}:
+            on = raw.strip().lower() in {"true", "1", "on"}
+        else:
+            return message.error("bad_payload", "pet.sleep needs payload.on as a boolean")
+        before = self.creature.asleep
+        lines = self.creature.set_asleep(on)
+        changed = self.creature.asleep != before
+        reason = None
+        if not changed and lines:
+            # "already asleep/awake/fully rested"
+            reason = lines[0]
+        return message.reply(
+            TYPE_PET_SLEEP_OK,
+            {
+                "asleep": bool(self.creature.asleep),
+                "changed": changed,
+                "reason": reason,
+                "pet": self.pet_dict(),
+            },
+        )
+
+    def _combat_action(self, message: Message, payload: dict[str, Any]) -> Message:
+        move = payload.get("move")
+        if move is not None and not isinstance(move, str):
+            return message.error("bad_payload", "pet.combat.action move must be a string")
+        enemy = payload.get("enemy")
+        if enemy is not None and not isinstance(enemy, dict):
+            return message.error("bad_payload", "pet.combat.action enemy must be an object")
+        result = perform_action(self.creature, move, enemy or {}, self.rng)
+        body = {
+            "move": result["move"],
+            "hit": result["hit"],
+            "damage": result["damage"],
+            "effect": result["effect"],
+            "energy_spent": result["energy_spent"],
+            "pet_hp": result["pet_hp"],
+            "reaction": result["reaction"],
+            "pet": self.pet_dict(),
+        }
+        if not result["acted"]:
+            body["acted"] = False
+            body["reason"] = result["reason"]
+        else:
+            body["acted"] = True
+            if result.get("fallback"):
+                body["fallback"] = True
+        return message.reply(TYPE_PET_COMBAT_ACTION_OK, body)
+
+    def _combat_hit(self, message: Message, payload: dict[str, Any]) -> Message:
+        if "heal" not in payload and "damage" not in payload:
+            return message.error("bad_payload", "pet.combat.hit needs payload.damage or payload.heal")
+        result = apply_hit(self.creature, payload)
+        return message.reply(
+            TYPE_PET_COMBAT_HIT_OK,
+            {
+                "damage_taken": result["damage_taken"],
+                "healed": result["healed"],
+                "pet_hp": result["pet_hp"],
+                "fainted": result["fainted"],
+                "pet": self.pet_dict(),
+            },
+        )
+
+    def _combat_end(self, message: Message, payload: dict[str, Any]) -> Message:
+        before_level = self.creature.stats.level
+        before_moves = list(self.creature.known_move_ids)
+        before_species = self.creature.species_id
+        result = apply_combat_end(self.creature, payload)
+        if not result["ok"]:
+            return message.error("bad_payload", result["reason"])
+        self._note_growth(before_species, before_level, before_moves)
+        return message.reply(
+            TYPE_PET_COMBAT_END_OK,
+            {
+                "result": result["result"],
+                "xp_granted": result["xp_granted"],
+                "reaction": result["reaction"],
+                "pet": self.pet_dict(),
+            },
+        )
+
+    def _evolve(self, message: Message, payload: dict[str, Any]) -> Message:
+        species = payload.get("species")
+        if not isinstance(species, str) or not species.strip():
+            return message.error("bad_payload", "pet.evolve needs payload.species as a non-empty string")
+        result = self.creature.evolve_to(species.strip())
+        if result["unknown"]:
+            return message.error("bad_payload", result["reason"])
+        if result["accepted"]:
+            self._emit_event(
+                "evolving",
+                {"from": result["from"], "to": result["to"]},
+            )
+            self._emit_event(
+                "evolved",
+                {
+                    "from": result["from"],
+                    "to": result["to"],
+                    "form": result["to"],
+                    "stage": result.get("to_stage"),
+                    "from_stage": result.get("from_stage"),
+                },
+            )
+        body: dict[str, Any] = {
+            "accepted": result["accepted"],
+            "from": result["from"],
+            "to": result["to"],
+            "reaction": result["reaction"],
+            "pet": self.pet_dict(),
+        }
+        if not result["accepted"]:
+            body["reason"] = result["reason"]
+        return message.reply(TYPE_PET_EVOLVE_OK, body)
 
 
 def _stat_for_game(game: str) -> str:
@@ -566,18 +701,18 @@ def _stat_for_game(game: str) -> str:
 
 
 def _parse_frame(raw: Any, default: int) -> int:
-    """Accept 0 or 1 (or the strings '0'/'1'). Missing -> default."""
+    """Accept a non-negative int (or its string form). Missing -> default."""
     if raw is None:
-        return int(default) % 2
+        return max(0, int(default))
     if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
-        raise ValueError("pet.avatar frame must be 0 or 1")
+        raise ValueError("pet.avatar frame must be a non-negative integer")
     if isinstance(raw, str):
         raw = raw.strip()
-        if raw not in {"0", "1"}:
-            raise ValueError("pet.avatar frame must be 0 or 1")
+        if not raw.isdigit():
+            raise ValueError("pet.avatar frame must be a non-negative integer")
         return int(raw)
-    if int(raw) != raw or int(raw) not in (0, 1):
-        raise ValueError("pet.avatar frame must be 0 or 1")
+    if int(raw) != raw or int(raw) < 0:
+        raise ValueError("pet.avatar frame must be a non-negative integer")
     return int(raw)
 
 
@@ -588,6 +723,6 @@ def _parse_mood_override(raw: Any) -> str | None:
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError("pet.avatar mood must be a non-empty string")
     word = raw.strip()
-    sprite_face_for_mood(word)  # validates
+    normalize_mood(word)  # validates
     return word
 

@@ -36,9 +36,23 @@ TYPE_PET_PLAY_OK = "pet.play.ok"
 TYPE_PET_GIFT = "pet.gift"
 TYPE_PET_GIFT_OK = "pet.gift.ok"
 TYPE_ERROR = "error"
-# 16x16 picture as palette indexes. Optional request fields: frame (0/1), mood.
+# Text-face avatar. Optional request fields: frame (int), mood.
 TYPE_PET_AVATAR = "pet.avatar"
 TYPE_PET_AVATAR_OK = "pet.avatar.ok"
+TYPE_PET_REST = "pet.rest"
+TYPE_PET_REST_OK = "pet.rest.ok"
+TYPE_PET_SLEEP = "pet.sleep"
+TYPE_PET_SLEEP_OK = "pet.sleep.ok"
+TYPE_PET_COMBAT_STATS = "pet.combat.stats"
+TYPE_PET_COMBAT_STATS_OK = "pet.combat.stats.ok"
+TYPE_PET_COMBAT_ACTION = "pet.combat.action"
+TYPE_PET_COMBAT_ACTION_OK = "pet.combat.action.ok"
+TYPE_PET_COMBAT_HIT = "pet.combat.hit"
+TYPE_PET_COMBAT_HIT_OK = "pet.combat.hit.ok"
+TYPE_PET_COMBAT_END = "pet.combat.end"
+TYPE_PET_COMBAT_END_OK = "pet.combat.end.ok"
+TYPE_PET_EVOLVE = "pet.evolve"
+TYPE_PET_EVOLVE_OK = "pet.evolve.ok"
 # Opt-in extension: unsolicited pushes when hello.payload.events is true.
 # Only emitted after the main deck asks for them. detail is a dict.
 TYPE_PET_EVENT = "pet.event"
@@ -50,6 +64,10 @@ EVENT_KINDS = (
     "level_up",
     "learned_move",
     "signal_found",
+    "woke",
+    "evolve_soon",
+    "evolving",
+    "evolve_choice",
 )
 
 # Every valid message must have these three keys.
