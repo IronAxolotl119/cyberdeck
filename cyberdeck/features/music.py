@@ -157,14 +157,16 @@ class MusicPlayer:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._finished: str | None = None  # title, reported once by ui_tick
+        self.quiet = False
 
     @property
     def playing(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def play(self, song: Song, block: bool = False) -> bool:
-        """Start a song. False if the buzzer is busy with something else."""
+    def play(self, song: Song, block: bool = False, quiet: bool = False) -> bool:
+        """Start a song. False if the buzzer is busy. quiet = no "finished" notice."""
         self.stop()
+        self.quiet = quiet
         if not self.hw.buzzer_lock.acquire(blocking=False):
             return False
         self.song, self.position = song, 0
@@ -188,7 +190,7 @@ class MusicPlayer:
         except Exception as exc:  # e.g. a GPIO permission error
             self._finished = f"{song.title} stopped: {exc}"
         else:
-            if not self._stop.is_set():
+            if not self._stop.is_set() and not self.quiet:
                 self._finished = f"♪ finished: {song.title}"
         finally:
             self.current = None

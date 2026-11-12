@@ -122,6 +122,8 @@ class DeckUI:
         self.box = ASCII_BOX
         self.refresh_ms = 250
         self._failed: set[str] = set()  # services whose ui_tick already errored
+        self.started = time.time()  # the key hint shows on the ticker for the first seconds
+        ctx.services.setdefault("unicode", wants_unicode(layout))
 
         # Start background helpers that features asked for (pet alerts…).
         from cyberdeck.features import UI_STARTUP
@@ -389,7 +391,7 @@ class DeckUI:
             return f"» {self.notice[0]}", self.notice[1]
         self.notice = None
         mood = self.ctx.services.get("moods")
-        if mood is not None:
+        if mood is not None and now - self.started > 12:
             try:
                 line = mood.line(self.ctx.sensors.read(), now)
                 if line:

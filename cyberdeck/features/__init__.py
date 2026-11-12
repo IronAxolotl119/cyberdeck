@@ -31,6 +31,12 @@ FEATURES = [
     "hardware",     # gpio led / set / read / beep (sim, gpiozero, sysfs)
     "music",        # chiptune player for the buzzer, songs/ folder
     "petwatch",     # PULSE alerts, pet log, pet sim
+    "boot",         # boot animation (glitch logo, decrypting bars)
+    "visualizer",   # animated bars on the ticker line
+    "moods",        # sassy status lines from moods.ini
+    "mainframe",    # `hack`: the dramatic fake hacking show
+    "typing_game",  # `typehack`: typing-speed challenge + high scores
+    "dungeon",      # ASCII roguelike + loot gifts to PULSE
 ]
 
 

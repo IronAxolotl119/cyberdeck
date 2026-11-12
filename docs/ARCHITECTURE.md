@@ -46,6 +46,13 @@ cyberdeck-main/
       hardware.py       gpio command + shared Hardware (backend, pin names, buzzer lock)
       music.py          song parser, background MusicPlayer, music panel
       petwatch.py       PULSE alerts, pet log, pet sim (hooks into `pet`)
+      boot.py           boot animation Activity (+ `boot` command)
+      visualizer.py     ticker-line bars, driven by the music player or idle sim
+      moods.py          moods.ini rules -> sassy ticker lines
+      mainframe.py      `hack` show Activity
+      typing_game.py    `typehack` rounds, scoring, high scores
+      dungeon.py        roguelike rules (Game), loot bag, gifts, `loot`
+    fx.py               shared effects: block-letter banner, glitch, bars, fake code
     gpio.py             GPIO backends: SimGpio, GpiozeroGpio, SysfsGpio
     activity.py         base class for full-screen modes + the launcher menu
     panes.py            side panels, tabs, and the screen-layout maths
@@ -59,6 +66,7 @@ cyberdeck-main/
     companion.py        pet link (sim + UART stub)
     __main__.py         hook for `python -m cyberdeck`
   songs/                chiptunes for the buzzer (plain text)
+  text/                 editable text for games (typing phrases)
   docs/                 protocol, architecture, UI snapshot
   tests/                unit tests (stdlib unittest)
 ```
@@ -230,6 +238,37 @@ deck:
   live. It exposes `level()` and `pitch()` for the visualizer and reports
   "finished" through `ui_tick`. In headless mode `music play` blocks
   until the song ends.
+
+## The fun layer
+
+All four full-screen modes (boot, hack, typehack, dungeon) are
+`Activity` subclasses. Each keeps its *rules* separate from drawing:
+
+- `BootActivity` and `MainframeActivity` render purely from elapsed
+  time and a seeded `random.Random`, so a test can render "second 2.0"
+  and read the text.
+- `TypingRound` holds one phrase's keystrokes; `summarize()` turns
+  rounds into WPM / accuracy / score; `HighScores` is a small JSON file.
+- `dungeon.Game` is the whole roguelike (map generation, movement,
+  bump-to-fight, monster steps, loot rolls) with no drawing code.
+  `DungeonActivity` only turns `Game.tile()` into coloured rows.
+
+Startup order in the TUI: `app.py` builds the boot activity (unless
+`--no-boot` or `[boot] enabled = no`) and passes it to `run_tui`, which
+runs it before the prompt appears. The boot jingle plays through the
+same `MusicPlayer` as `music play`.
+
+The ticker line is assembled each frame in `tui._ticker_text()`:
+a fresh notice (pet alert, song finished…) wins; otherwise the
+`Moods` service's line (after the first few seconds, which show key
+hints). The right side is `Visualizer.render()`; while it is enabled
+the TUI redraws every `frame_ms` instead of every 250 ms.
+
+**Gifts to PULSE.** `dungeon.gift()` sends a `pet.gift` request with
+the item, checks for an `error` reply, then calls `run_pet_hooks()` so
+the pet log records it. The sim companion's `PetState.gift()` applies
+the effect by item kind (see docs/PROTOCOL.md). Failed deliveries put
+the item back in the loot bag.
 
 ## What each module does
 

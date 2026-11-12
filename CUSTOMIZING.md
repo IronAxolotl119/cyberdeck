@@ -20,6 +20,9 @@ want to. Restart the deck after you change a file.
 | Pet alert thresholds, alert sound| `config/pet.ini` |
 | GPIO pin names, buzzer type      | `config/hardware.ini` |
 | Songs for the buzzer             | `songs/*.txt` |
+| Boot animation, visualizer, games| `config/fx.ini` |
+| The deck's sassy status lines    | `config/moods.ini` |
+| Typing-challenge phrases         | `text/hack_phrases.txt` |
 | Launcher menu entries            | `config/keys.ini` `[launcher]` |
 | Add a command of your own        | `plugins/` (copy `_template.py`) |
 | Built-in commands (help, pet…)   | `cyberdeck/commands.py` |
@@ -268,6 +271,53 @@ an optional octave, an optional `/length` (`1 2 4 8 16 32`), and an
 optional `.` for dotted. Bar lines `|` are ignored. Add a `music` panel
 to `[panes]` to see what is playing. Rename or add `alert.txt` and set
 `sound = alert` in pet.ini to give PULSE its own alert tune.
+
+## Fun stuff
+
+| Command | What it does |
+|---------|--------------|
+| `hack [target]` | Fake "hack the mainframe" show: scrolling code, stage bars, ACCESS GRANTED. Any key exits. |
+| `typehack` | Typing-speed challenge with a trace timer; `typehack scores` for the board. |
+| `dungeon` | ASCII roguelike. Arrows/WASD move, `>` stairs, `g` gifts loot to PULSE, `i` bag, `q` quit. |
+| `loot`, `loot gift <n>`, `pet gift <n>` | Your saved loot; gifts go to PULSE with the `pet.gift` message. |
+| `boot` | Replay the boot animation. |
+| `viz [on\|off]` | The animated bars on the ticker line (they dance to `music play`). |
+| `mood` | What the deck is feeling right now. |
+
+`config/fx.ini` has a section for each:
+
+- `[boot]` `enabled`, `duration`, `glitch` (0–1), `title` (big logo
+  text), `jingle` (a song or `none`). `--no-boot` skips it once.
+- `[visualizer]` `enabled`, `width`, `idle` (liveliness), `frame_ms`
+  (bigger is lighter on the Pi's CPU).
+- `[moods]` `enabled`, `file`, `rotate_seconds`.
+- `[mainframe]` `target`, `duration`.
+- `[typing]` `phrases` file, `rounds`, `time_limit`, `player` name.
+- `[dungeon]` `width`, `height`, `hp`.
+
+### Give the deck a personality (moods.ini)
+
+`config/moods.ini` is a list of moods, checked top to bottom; the first
+one whose `when` is true is shown on the ticker line:
+
+```ini
+[battery_low]
+when = battery < 20        # battery / temp / cpu / mem / wifi with < <= > >=
+role = warn                # color: dim text ok warn alert title
+messages =
+    running on fumes here. {bat}% left.
+    i'd love a charger. no pressure.
+```
+
+`when` can also be `charging`, `pet_alert` (PULSE needs you), or
+`always` (keep one of these last as the default). Placeholders:
+`{bat} {temp} {cpu} {mem} {wifi} {ssid} {host}`. Type `mood reload`
+after editing.
+
+### Typing phrases
+
+`text/hack_phrases.txt`: one phrase per line, `#` for comments. Scores
+are saved in `data/typing_scores.json`.
 
 ## Add your own command
 
