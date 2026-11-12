@@ -120,8 +120,11 @@ Panels are grouped into **tabs** (set in `[tabs]` / `[tab.*]` of
   rate limit (`max_alerts_per_minute`, `burst`). Manual scans have
   their own cooldown. Everything still goes to the journal.
 - **PULSE**: name, species, level, XP, energy, environment mood and
-  buff, the selected move, recently learned moves, and alerts pushed by
-  the companion (`pet.event`). `LINK` = live companion, `LOCAL` =
+  buff (and, when linked, the companion's `busy` 0–1 meter), the
+  selected move (with rank / bonus when `pet.combat.stats` has them),
+  recently learned or strengthened moves, the last discovery reaction,
+  and alerts pushed by the companion (`pet.event`, including
+  `move_strengthened`). `LINK` = live companion, `LOCAL` =
   built-in stand-in.
 - **System**: CPU, memory, temperature (`~` = simulated off-Pi), load,
   uptime, disk, and each scanner's backend and schedule.
@@ -144,7 +147,7 @@ ScanWorker threads ─► ScanResult ─► rules.*Tracker ─► Finding
 | `events.py` | `Finding`, interest levels, `EventBus` |
 | `rules.py` | Wi-Fi / BT / LAN / RFID trackers, XP + move rules, mood |
 | `scanners/` | `base.py` interface + Sim/Real backends per radio |
-| `pet.py` | companion TCP client, local pet, `pet.discovery` (proposal) |
+| `pet.py` | companion TCP client, local pet, `pet.discovery` (see companion/docs/DISCOVERY.md) |
 | `field.py`, `ratelimit.py` | alert filter, cooldown, token bucket |
 | `journal.py` | shared discovery journal |
 | `diag.py` | ping / DNS / interface stats |
@@ -154,17 +157,31 @@ ScanWorker threads ─► ScanResult ─► rules.*Tracker ─► Finding
 
 ## PULSE tie-ins (Digimon side)
 
-- **First sightings earn XP**: `[xp]` sets the base per kind (`wifi`,
-  `bt`, `lan`, `rfid`) plus `interest_bonus` per level above low.
+When the companion is linked, **it** decides XP and moves. The
+dashboard sends `pet.discovery` for each first sighting and treats
+`pet.discovery.ok` as the source of truth (XP, reaction, learned or
+strengthened move, level-up). The full message is specified in
+[companion/docs/DISCOVERY.md](../companion/docs/DISCOVERY.md). The
+`[xp]` rules below are used only when the companion is unlinked, or
+when it answers `unknown_type`.
+
+- **First sightings earn XP**: `[xp]` sets the local-fallback base per
+  kind (`wifi`, `bt`, `lan`, `rfid`) plus `interest_bonus` per level
+  above low. The companion's table is the same (wifi 4/7/10, bt and
+  lan 3/6/9, rfid 8/11/14). Repeats of the same kind+id come back with
+  XP 0 and an "already logged" reaction. A sleeping PULSE still records
+  the find, at half XP and with no move changes.
 - **Moves**: each first sighting has `learn_chance × interest` to teach
   PULSE a move from that scanner's pool (`rules.MOVE_POOL`), or to
-  strengthen one it already knows.
+  strengthen one it already knows (rank capped at 5, +2 power per rank).
 - **Use move** (`u`, or the use-move button) runs a fresh scan of the
   scanner the move belongs to (`Signal Sniff` → Wi-Fi, `Tag Bite` →
   RFID, companion moves are matched by keyword, otherwise all).
-- **Mood/buffs** follow how busy the environment is over
-  `activity_window`: calm (energy regen), curious, buzzing (XP ×1.25),
-  alert (2+ high-interest finds).
+- **Mood/buffs**: while linked, the PULSE panel shows the companion's
+  `environment` (`busy` 0–1 and `buff`: calm, curious, busy airwaves,
+  or bored). Offline, the dashboard's own activity window is used:
+  calm (energy regen), curious, buzzing (XP ×1.25), alert (2+
+  high-interest finds).
 
 ## Hardware hooks (real mode)
 
@@ -220,15 +237,19 @@ XP numbers, the companion address and the button pins.
    route it in `Dashboard.handle_result()`. The journal, XP, mood and
    alerts then work automatically through the event bus.
 
-## Protocol additions (PROPOSAL for the companion)
+## Protocol: `pet.discovery`
 
 The dashboard reuses the existing newline-JSON protocol
 (`docs/PROTOCOL.md`, `cyberdeck/protocol.py`) over TCP
-`127.0.0.1:7777`: `hello` with `"events": true` (plus `"client":
-"dash"`, which the companion may ignore), `pet.status` polling every
-`[companion] poll` seconds, and `pet.event` pushes shown as alerts.
-It proposes one new optional message, **not yet implemented on the
-companion side**:
+`127.0.0.1:7777`: `hello` with `"events": true` and `"client":
+"dash"` (the companion ignores `client` and can serve the deck and the
+dashboard at the same time), `pet.status` polling every `[companion]
+poll` seconds, and `pet.event` pushes shown as alerts (including the
+new `move_strengthened` `{move, rank, bonus}` event).
+
+`pet.discovery` is **implemented** on both sides. The authoritative
+spec is [companion/docs/DISCOVERY.md](../companion/docs/DISCOVERY.md).
+A short copy of the shape:
 
 ### `pet.discovery` → `pet.discovery.ok`
 
@@ -236,25 +257,27 @@ Sent once per **first sighting** (new network, device, host or tag).
 
 ```json
 {"type":"pet.discovery","id":"…","payload":{"kind":"rfid","id":"de:ad:10:ca","interest":3,"event":"unknown_tag","label":"unknown tag"}}
-{"type":"pet.discovery.ok","id":"…","payload":{"xp":14,"level":4,"level_up":false,"learned_move":"Tag Bite","strengthened_move":null,"reaction":"PULSE learned Tag Bite from unknown tag!","pet":{…pet object…}}}
+{"type":"pet.discovery.ok","id":"…","payload":{"xp":14,"level":4,"level_up":false,"learned_move":"Tag Bite","strengthened_move":null,"reaction":"PULSE learned Tag Bite from unknown tag!","pet":{…pet object, including environment…}}}
 ```
 
 | Request field | Meaning |
 |---------------|---------|
 | `kind` | `wifi`, `bt`, `lan`, `rfid` |
 | `id` | BSSID, MAC, IP or tag UID |
-| `interest` | 1 low, 2 medium, 3 high |
+| `interest` | 1 low, 2 medium, 3 high (clamped; default 1) |
 | `event`, `label` | optional: which rule fired, a display name |
 
 | Reply field | Meaning |
 |-------------|---------|
-| `xp` | XP awarded (0 allowed) |
+| `xp` | XP awarded (0 on a repeat) |
 | `learned_move` / `strengthened_move` | move name or `null` |
-| `reaction` | one line shown on the ticker |
-| `level`, `level_up`, `pet` | optional, refresh the PULSE panel |
+| `reaction` | one line shown on the ticker and in the journal |
+| `level`, `level_up`, `pet` | refresh the PULSE panel (`pet` includes `environment`) |
 
-The companion decides XP and moves itself (the dashboard's `[xp]`
-rules are a suggestion). It may also push its usual `level_up` /
-`learned_move` events. An `error` with `unknown_type` makes the
-dashboard stop sending it and fall back to its local XP rules, so the
-addition is backward compatible and `proto` stays `1`.
+The companion decides XP and moves itself. Repeats of the same
+kind+id are not an error: the reply is still `pet.discovery.ok` with
+`xp: 0` and an "already logged" reaction. An `error` with
+`unknown_type` makes the dashboard stop sending it and fall back to
+its local XP rules, so older companions keep working and `proto`
+stays `1`. Other errors (timeout, `bad_payload`) do not invent local
+XP.
