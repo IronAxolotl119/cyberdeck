@@ -23,6 +23,7 @@ from rich.console import Console, ConsoleOptions, Group, RenderResult
 from rich.table import Table
 from rich.text import Text
 
+from .lcd_panel import render_lcd
 from .rows import RowsView, role_style
 from .theme import clip
 
@@ -326,4 +327,5 @@ DECK_PANELS = {
     "music": ("MUSIC", "♪", deck_pane("music"), None),
     "net": ("NET", "⇅", deck_pane("net"), None),
     "output": ("OUTPUT", "▤", render_output, None),
+    "lcd": ("LCD 16x2", "▭", render_lcd, None),
 }

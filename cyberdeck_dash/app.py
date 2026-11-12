@@ -47,7 +47,7 @@ from .sysinfo import SystemInfo
 # points, some tests) they are hidden, and tabs left empty disappear.
 # Keep in sync with DECK_PANELS in ui/deck_panels.py (a test checks).
 DECK_PANEL_KEYS = frozenset({"console", "avatar", "dungeon", "combat", "loot", "notes", "todo", "launcher",
-                             "sky", "music", "net", "output"})
+                             "sky", "music", "net", "output", "lcd"})
 
 SCANNERS = ("wifi", "bt", "lan", "rfid")
 # Panel key -> config section for its scanner interval.
@@ -125,6 +125,21 @@ class Dashboard:
         self.pet = PetAdapter(xp, self.link, random.Random(self.rng.random()))
         self.pet.on_reaction = lambda res: self.bus.publish(TOPIC_PET_REACTION, res)
         self.pet.on_event = lambda ev: self.bus.publish(TOPIC_PET_EVENT, ev)
+
+        # --- the 16x2 LCD (cyberdeck/lcd, config/lcd.ini) ---------------------------
+        # Shared with the deck (ctx.services["lcd"]): the deck feeds it PULSE's
+        # status and events; here we add awareness alerts, discovery
+        # reactions and field mode. threaded=False (tests, snapshots) steps
+        # it with the fake clock through the deck's ui_tick.
+        self.lcd = None
+        if bridge is not None:
+            try:
+                from cyberdeck.lcd import get_lcd
+
+                self.lcd = get_lcd(bridge.ctx, threaded=threaded)
+            except Exception as exc:  # noqa: BLE001 — no LCD is fine
+                self.lcd = None
+                bridge.ctx.notify(f"lcd: {exc}", "warn")
 
         # --- UI state -----------------------------------------------------------------
         # Tabs ("groups"): [(title, [panel keys], columns)]. The first is
@@ -243,6 +258,8 @@ class Dashboard:
             self.link.pump(now)
         for key in keys or []:
             self.handle_key(key, now)
+        if self.lcd is not None:
+            self.lcd.set_field_mode(self.filter.field_mode)
         if self.bridge is not None:
             self.deck_step(now)
         if not self.threaded:
@@ -300,6 +317,8 @@ class Dashboard:
 
     def _on_alert(self, f: Finding) -> None:
         self.alerts.appendleft(f)
+        if self.lcd is not None:
+            self.lcd.awareness_alert(f.kind, f.event, f.label, f.id, f.interest, now=self.now)
         self.log(f"ALERT {f.kind.upper()} {f.event.replace('_', ' ')}: {f.label}", "bad" if f.interest >= HIGH else "warn")
         if self.led:
             self.led.blink()
@@ -312,6 +331,8 @@ class Dashboard:
         """
         reaction = res.get("reaction") or "PULSE reacts"
         self.log(reaction, "accent2")
+        if self.lcd is not None:
+            self.lcd.discovery_reaction(res, now=self.now)
         detail = {
             "xp": res.get("xp", 0),
             "level": res.get("level"),

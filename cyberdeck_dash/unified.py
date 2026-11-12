@@ -43,6 +43,8 @@ def build_dashboard(args, ctx, registry, threaded: bool = True, journal_path=Non
     if getattr(args, "dash_mode", None):
         cfg.raw.set("dash", "mode", args.dash_mode)
     layout = load_layout(ctx.config_dir)
+    # The LCD runs on its own thread live, and on the fake clock in tests/snapshots.
+    ctx.services.setdefault("lcd_options", {}).setdefault("threaded", threaded)
     ctx.services.setdefault("unicode", (layout.use_unicode or "auto").lower() not in {"no", "false", "0", "off", "ascii"})
     bridge = DeckBridge(ctx, registry, prompt=layout.prompt, max_lines=layout.max_output_lines,
                         start_services=start_services)
