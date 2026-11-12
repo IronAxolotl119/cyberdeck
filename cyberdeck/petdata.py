@@ -213,7 +213,7 @@ def _eta(detail: dict[str, Any]) -> str:
     for key, unit in (("eta_hours", "h"), ("eta_minutes", "m"), ("eta_min", "m"), ("eta_seconds", "s"), ("eta_s", "s")):
         value = detail.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return f" (in about {value:g}{unit})"
+            return f" (in about {value:g}{unit})" if value > 0 else " (any moment now)"
     eta = detail.get("eta")
     return f" ({eta})" if isinstance(eta, str) and eta else ""
 
@@ -245,6 +245,10 @@ def _clean_face(text: Any, limit: int = 24) -> str:
     """One printable line, at most `limit` characters."""
     if not isinstance(text, str):
         return ""
+    text = text.strip()
+    # Some companions send a quoted repr like "'(^_^)'": drop the outer quotes.
+    if len(text) > 2 and text[0] == text[-1] and text[0] in "'\"":
+        text = text[1:-1]
     return "".join(c for c in text.replace("\n", " ").replace("\t", " ") if c.isprintable())[:limit].strip()
 
 
