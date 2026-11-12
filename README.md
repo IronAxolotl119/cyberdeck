@@ -134,3 +134,20 @@ Boards exchange newline-delimited JSON objects with three keys:
 `id`. Current types: `hello`, `ping`, `pet.status`, `pet.feed`,
 `pet.play`, plus their `*.ok` replies and `error`. Full rules are
 in [docs/PROTOCOL.md](docs/PROTOCOL.md).
+
+## Rich dashboard (CYBERDECK//DASH)
+
+A second, Rich-powered full-screen dashboard with an **Awareness &
+Diagnostics** tab (Wi-Fi, Bluetooth, LAN map, RFID/NFC, discovery
+journal, ping/DNS/interface diagnostics, checklist) and a **Deck &
+PULSE** tab (field mode, PULSE, system). Simulation-first; real Pi
+backends are picked in `config/dash.ini`. Awareness and logging tools
+for personal use only (passive, own surroundings and own subnet; not a
+skimmer detector).
+
+```bash
+pip install -r requirements-dash.txt
+python3 -m cyberdeck_dash            # q quits, ? shows keys
+```
+
+Full guide: [docs/DASHBOARD.md](docs/DASHBOARD.md).
