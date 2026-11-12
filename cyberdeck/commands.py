@@ -22,6 +22,7 @@ import shlex
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from cyberdeck import __version__
@@ -36,6 +37,12 @@ Handler = Callable[["Context", list[str]], list[str] | None]
 
 # Passed into every command. should_quit / should_clear are flags the
 # UI and headless runner check after the command returns.
+#
+# A few more "requests to the UI" live here too, because commands must
+# not import curses (that keeps them testable in headless mode):
+#   ui_action  — a UI verb such as ":launcher" or ":tab pet"
+#   activity   — a full-screen Activity to run (games, effects, meters)
+#   external   — an argv list to run with the screen suspended (ssh)
 @dataclass
 class Context:
     """Runtime state passed into every command."""
@@ -46,6 +53,38 @@ class Context:
     should_quit: bool = False
     should_clear: bool = False
     clock: Callable[[], float] = field(default=time.time)
+    # Where runtime files (history, notes, scores, cache) are saved.
+    data_dir: Path | None = None
+    # Folder with the INI files (None = the default ./config).
+    config_dir: str | Path | None = None
+    # True inside the full-screen UI, False in headless/script mode.
+    interactive: bool = False
+    ui_action: str | None = None
+    activity: Any = None
+    external: list[str] | None = None
+    # Shared long-lived helpers (GPIO backend, music player, pet watcher…),
+    # created on first use by service().
+    services: dict[str, Any] = field(default_factory=dict)
+    # Short messages for the UI's ticker line: (level, text).
+    notices: list[tuple[str, str]] = field(default_factory=list)
+
+    def service(self, name: str, factory: Callable[[], Any]) -> Any:
+        """Return a shared helper by name, building it once with factory()."""
+        if name not in self.services:
+            self.services[name] = factory()
+        return self.services[name]
+
+    def notify(self, text: str, level: str = "info") -> None:
+        """Queue a short message for the ticker line (level: info/warn/alert)."""
+        self.notices.append((level, text))
+
+    def data_path(self, *parts: str) -> Path:
+        """A path inside the data folder, e.g. ctx.data_path("notes.txt")."""
+        from cyberdeck.config import data_dir
+
+        base = self.data_dir if self.data_dir is not None else data_dir()
+        base.mkdir(parents=True, exist_ok=True)
+        return base.joinpath(*parts)
 
 
 # One registered command: its name, help text, and the function to run.
@@ -58,6 +97,11 @@ class Command:
     summary: str
     usage: str = ""
     aliases: tuple[str, ...] = ()
+    # Words offered by Tab after the command name (e.g. pet -> status, feed).
+    subcommands: tuple[str, ...] = ()
+    # Optional function (ctx, args_so_far) -> candidate words, for dynamic
+    # completion such as song names or ssh hosts.
+    completer: Callable[["Context", list[str]], list[str]] | None = None
 
     def help_line(self) -> str:
         """One padded line used in the help listing."""
@@ -91,6 +135,8 @@ class Registry:
         summary: str,
         usage: str = "",
         aliases: tuple[str, ...] = (),
+        subcommands: tuple[str, ...] = (),
+        completer: Callable[["Context", list[str]], list[str]] | None = None,
     ) -> Callable[[Handler], Handler]:
         """Decorator that registers a function as a named command."""
 
@@ -102,6 +148,8 @@ class Registry:
                     summary=summary,
                     usage=usage or name,
                     aliases=aliases,
+                    subcommands=subcommands,
+                    completer=completer,
                 )
             )
             return fn
@@ -115,6 +163,10 @@ class Registry:
     def names(self) -> list[str]:
         """Official names in the order they were registered."""
         return list(self._canonical)
+
+    def all_names(self) -> list[str]:
+        """Every name and alias (used by Tab completion)."""
+        return sorted(self._commands)
 
     def all(self) -> list[Command]:
         """Unique Command objects in registration order (aliases not repeated)."""
@@ -163,7 +215,12 @@ def build_registry(include_plugins: bool = True) -> Registry:
     reg = Registry()
 
     # help: list every command, or describe one by name.
-    @reg.command("help", "List commands, or describe one.", usage="help [command]")
+    @reg.command(
+        "help",
+        "List commands, or describe one.",
+        usage="help [command]",
+        completer=lambda ctx, args: reg.names(),
+    )
     def cmd_help(ctx: Context, args: list[str]) -> list[str]:
         del ctx
         if args:
@@ -239,9 +296,11 @@ def build_registry(include_plugins: bool = True) -> Registry:
         "pet",
         "Query the companion pet: status, feed, or play.",
         usage="pet [status|feed|play]",
+        subcommands=("status", "feed", "play"),
     )
     def cmd_pet(ctx: Context, args: list[str]) -> list[str]:
         action = (args[0].lower() if args else "status")
+        ctx.services.pop("pet_cache", None)  # make the pet pane re-read soon
         if action in {"status", "st"}:
             reply = ctx.companion.request(TYPE_PET_STATUS, {})
             pet = (reply.payload or {}).get("pet") or {}
@@ -274,6 +333,12 @@ def build_registry(include_plugins: bool = True) -> Registry:
         rtt_ms = (time.perf_counter() - started) * 1000.0
         source = (reply.payload or {}).get("source", "companion")
         return [f"{reply.type}  rtt={rtt_ms:.1f}ms  id={reply.id[:8]}  via {source}"]
+
+    # Feature modules (history, notes, network, games, weather…) each
+    # register their own commands. See cyberdeck/features/__init__.py.
+    from cyberdeck.features import register_features
+
+    register_features(reg)
 
     if include_plugins:
         from cyberdeck.plugins import load_user_commands

@@ -19,7 +19,7 @@ import sys
 from cyberdeck import __app_name__, __version__
 from cyberdeck.commands import Context, build_registry
 from cyberdeck.companion import open_hardware
-from cyberdeck.config import load_layout, load_theme
+from cyberdeck.config import data_dir, load_layout, load_theme
 from cyberdeck.headless import run_headless
 from cyberdeck.tui import run_tui
 
@@ -42,7 +42,13 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 — still start the UI and show the error
         print(f"cyberdeck: companion connect: {exc}", file=sys.stderr)
 
-    ctx = Context(sensors=sensors, companion=companion, mode=mode)
+    ctx = Context(
+        sensors=sensors,
+        companion=companion,
+        mode=mode,
+        data_dir=data_dir(args.data_dir),
+        config_dir=args.config_dir,
+    )
     registry = build_registry(include_plugins=not args.no_plugins)
     theme = load_theme(args.config_dir)
     layout = load_layout(args.config_dir)
@@ -92,6 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--config-dir",
         default=None,
         help="folder with theme.ini and layout.ini (default: ./config)",
+    )
+    parser.add_argument(
+        "--data-dir",
+        default=None,
+        help="folder for history, notes, scores, cache (default: ./data or CYBERDECK_DATA_DIR)",
     )
     parser.add_argument(
         "--no-plugins",

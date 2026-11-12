@@ -1,0 +1,44 @@
+"""features/ — the deck's bigger built-in features, one module each.
+
+commands.py keeps only the core commands (help, status, pet, ping…).
+Everything else lives here so each feature is easy to find, read, and
+switch off. Every module has a register(registry) function that adds
+its commands.
+
+To turn a feature off, remove its name from FEATURES below (or add
+`disabled = name, name` under [features] in config/layout.ini).
+To add a feature of your own, prefer a file in plugins/ — but a new
+module here works too: write register(reg) and list it below.
+"""
+
+from __future__ import annotations
+
+import importlib
+import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cyberdeck.commands import Registry
+
+# Loaded in this order. Each name is a module in this folder.
+FEATURES = [
+    "core_ux",      # history, launcher menu, views/tabs, hotkey list
+]
+
+
+def register_features(reg: "Registry") -> list[str]:
+    """Import every enabled feature module and let it add its commands."""
+    from cyberdeck.config import Settings
+
+    disabled = set(Settings.load("layout.ini").get_list("features", "disabled"))
+    loaded: list[str] = []
+    for name in FEATURES:
+        if name in disabled:
+            continue
+        try:
+            module = importlib.import_module(f"cyberdeck.features.{name}")
+            module.register(reg)
+            loaded.append(name)
+        except Exception as exc:  # one broken feature must not stop the deck
+            print(f"cyberdeck: feature {name} failed to load: {exc}", file=sys.stderr)
+    return loaded

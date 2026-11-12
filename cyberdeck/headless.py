@@ -13,6 +13,7 @@ Use it like:
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from collections.abc import Iterable
 from typing import TextIO
@@ -42,13 +43,35 @@ def run_headless(
             continue
         print(f"> {line}", file=out)
         output = registry.dispatch(line, ctx)
-        if ctx.should_clear:
-            ctx.should_clear = False
+        output += handle_ui_requests(ctx)
         for piece in output:
             print(piece, file=out)
         if ctx.should_quit:
             return 0
     return 0
+
+
+def handle_ui_requests(ctx: Context) -> list[str]:
+    """Do the headless version of anything a command asked the UI to do.
+
+    * clear / UI actions (tabs, layout, launcher) have no screen to act on.
+    * A full-screen Activity prints its headless() text instead.
+    * An external program (ssh) runs directly in this terminal.
+    """
+    lines: list[str] = []
+    ctx.should_clear = False
+    ctx.ui_action = None
+    if ctx.activity is not None:
+        activity, ctx.activity = ctx.activity, None
+        lines.extend(activity.headless())
+    if ctx.external:
+        argv, ctx.external = ctx.external, None
+        try:
+            code = subprocess.call(argv)
+            lines.append(f"[{argv[0]} exited: {code}]")
+        except OSError as exc:
+            lines.append(f"could not start {argv[0]}: {exc}")
+    return lines
 
 
 def _stdin_lines() -> Iterable[str]:

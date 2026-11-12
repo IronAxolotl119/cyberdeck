@@ -72,10 +72,16 @@ def _load_plugin(path: Path) -> Command:
         raise ValueError("plugin must define NAME and a run(ctx, args) function")
 
     aliases = tuple(getattr(module, "ALIASES", ()) or ())
+    # Optional: words Tab should offer after the command name.
+    subcommands = tuple(getattr(module, "SUBCOMMANDS", ()) or ())
+    # Optional: complete(ctx, args) -> list of words, for dynamic Tab completion.
+    completer = getattr(module, "complete", None)
     return Command(
         name=str(name),
         handler=run,
         summary=str(getattr(module, "SUMMARY", "") or f"user command '{name}'"),
         usage=str(getattr(module, "USAGE", "") or name),
         aliases=aliases,
+        subcommands=subcommands,
+        completer=completer if callable(completer) else None,
     )

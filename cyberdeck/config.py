@@ -5,6 +5,15 @@ config/theme.ini and layout text/sizes live in config/layout.ini.
 This module reads those INI files (Python's built-in configparser)
 and hands simple objects to the UI.
 
+Newer features (hotkeys, hosts, pet alerts, hardware pins, effects,
+weather…) each have their own INI file in config/. They all go
+through the small Settings helper at the bottom of this file, which
+reads a file once and returns typed values with safe defaults.
+
+data_dir() is where the deck saves things it writes at runtime:
+command history, notes, todos, the pet log, high scores, and the
+network cache. By default that is ./data (ignored by git).
+
 If a file or a key is missing, the defaults in this file are used
 so a typo cannot prevent the deck from starting. See CUSTOMIZING.md
 for what each setting means.
@@ -32,6 +41,23 @@ def config_dir(override: str | Path | None = None) -> Path:
     if env:
         return Path(env)
     return repo_root() / "config"
+
+
+def data_dir(override: str | Path | None = None) -> Path:
+    """Folder for files the deck writes (history, notes, scores, cache).
+
+    CYBERDECK_DATA_DIR can override it. The folder is created on demand.
+    """
+    if override:
+        path = Path(override)
+    else:
+        env = os.environ.get("CYBERDECK_DATA_DIR")
+        path = Path(env) if env else repo_root() / "data"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass  # read-only disk: features that save will report their own error
+    return path
 
 
 # --- theme (colors) -------------------------------------------------
@@ -132,14 +158,112 @@ def load_layout(directory: str | Path | None = None) -> Layout:
     )
 
 
+# Files that failed to parse, with the reason. The UI shows these as
+# notices at startup so a typo in an INI file is easy to spot.
+CONFIG_ERRORS: dict[str, str] = {}
+
+
+def _new_parser() -> configparser.ConfigParser:
+    """A parser with the deck's INI rules.
+
+    * interpolation=None so values like %H:%M:%S are left alone.
+    * only "=" separates key and value, so labels may contain ":".
+    * keys keep their case (host names, song names, F-keys).
+    * a repeated key keeps the last value instead of failing.
+    """
+    parser = configparser.ConfigParser(interpolation=None, delimiters=("=",), strict=False)
+    parser.optionxform = str  # type: ignore[assignment,method-assign]
+    return parser
+
+
 def _read_ini(path: Path) -> configparser.ConfigParser | None:
     """Load an INI file, or return None if it is missing or unreadable."""
     if not path.is_file():
         return None
-    # interpolation=None so values like %H:%M:%S are left alone.
-    parser = configparser.ConfigParser(interpolation=None)
+    parser = _new_parser()
     try:
         parser.read(path, encoding="utf-8")
-    except (OSError, configparser.Error):
+    except (OSError, configparser.Error) as exc:
+        CONFIG_ERRORS[path.name] = str(exc).splitlines()[0]
         return None
+    CONFIG_ERRORS.pop(path.name, None)
     return parser
+
+
+# --- generic settings for feature INI files -------------------------
+
+class Settings:
+    """Typed, forgiving access to one INI file in config/.
+
+    Example:
+        keys = Settings.load("keys.ini")
+        keys.get_int("launcher", "width", 40)
+
+    A missing file, section, or key returns the default you pass in,
+    and a value that is not a valid number/bool also returns the
+    default, so a typo never stops the deck from starting.
+    """
+
+    def __init__(self, parser: configparser.ConfigParser | None, name: str = "") -> None:
+        self._parser = parser
+        self.name = name
+
+    @classmethod
+    def load(cls, filename: str, directory: str | Path | None = None) -> "Settings":
+        """Read config/<filename> (or the override directory)."""
+        return cls(_read_ini(config_dir(directory) / filename), filename)
+
+    @classmethod
+    def from_text(cls, text: str) -> "Settings":
+        """Build settings from an INI string (handy in tests)."""
+        parser = _new_parser()
+        parser.read_string(text)
+        return cls(parser, "<text>")
+
+    def has_section(self, section: str) -> bool:
+        return bool(self._parser and self._parser.has_section(section))
+
+    def section(self, section: str) -> dict[str, str]:
+        """All key/value pairs of a section, in file order ({} if missing)."""
+        if not self.has_section(section):
+            return {}
+        return {k: _unquote(v) for k, v in self._parser.items(section)}  # type: ignore[union-attr]
+
+    def get_str(self, section: str, key: str, default: str = "") -> str:
+        value = self.section(section).get(key)
+        return default if value is None or value == "" else value
+
+    def get_int(self, section: str, key: str, default: int) -> int:
+        try:
+            return int(self.get_str(section, key, str(default)))
+        except ValueError:
+            return default
+
+    def get_float(self, section: str, key: str, default: float) -> float:
+        try:
+            return float(self.get_str(section, key, str(default)))
+        except ValueError:
+            return default
+
+    def get_bool(self, section: str, key: str, default: bool) -> bool:
+        raw = self.get_str(section, key, "").lower()
+        if raw in {"1", "yes", "true", "on"}:
+            return True
+        if raw in {"0", "no", "false", "off"}:
+            return False
+        return default
+
+    def get_list(self, section: str, key: str, default: list[str] | None = None) -> list[str]:
+        """Comma-separated values, trimmed, empties dropped."""
+        raw = self.get_str(section, key, "")
+        if not raw:
+            return list(default or [])
+        return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _unquote(raw: str) -> str:
+    """Strip one pair of matching quotes so values can keep edge spaces."""
+    raw = raw.strip() if raw else ""
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {'"', "'"}:
+        return raw[1:-1]
+    return raw

@@ -15,6 +15,16 @@ SUMMARY = "Describe what your command does in one short sentence."
 USAGE = "mycommand [args]"
 ALIASES = ()
 
+# Optional: words the Tab key offers after your command name.
+SUBCOMMANDS = ()
+
+
+# Optional: return extra Tab-completion words based on what has been
+# typed so far (args). Delete this function if you do not need it.
+def complete(ctx, args):
+    del ctx, args
+    return []
+
 
 def run(ctx, args):
     """Return a list of text lines to show in the output pane.
@@ -25,6 +35,8 @@ def run(ctx, args):
       ctx.mode                    'sim' or 'real'
       ctx.should_quit = True      leave the app
       ctx.should_clear = True     clear the output pane
+      ctx.data_path("x.txt")      a file in the data/ folder to save things
+      ctx.notify("text", "warn")  flash a message on the ticker line
     """
     del ctx, args
     return ["replace this with your command's output"]

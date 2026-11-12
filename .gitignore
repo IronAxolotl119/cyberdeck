@@ -23,3 +23,6 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# Runtime data written by the deck (history, notes, todos, scores, cache)
+data/
