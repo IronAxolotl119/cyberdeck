@@ -45,7 +45,7 @@ class RenderSnapshot(unittest.TestCase):
         lines = text.splitlines()
         self.assertEqual(len(lines), 30)
         self.assertTrue(all(len(line) <= 100 for line in lines))
-        for needle in ("CYBERDECK//DASH", "AWARENESS & DIAGNOSTICS", "WI-FI", "BLUETOOTH", "LAN MAP",
+        for needle in ("CYBERDECK//MAIN", "AWARENESS & DIAGNOSTICS", "WI-FI", "BLUETOOTH", "LAN MAP",
                        "RFID/NFC", "JOURNAL", "DIAGNOSTICS", "CHECKLIST", "AXOLOTL_NET", "SIM"):
             self.assertIn(needle, text)
 

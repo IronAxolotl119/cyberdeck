@@ -11,6 +11,13 @@ and connects them through the event bus:
 It knows nothing about drawing; ui/screen.py reads its state each frame.
 run() (in __main__.py) calls step() in a loop and hands it the keys.
 Tests call step(now) directly with a fake clock and threaded=False.
+
+The main deck: when started from `python3 -m cyberdeck`, the Dashboard
+also gets a DeckBridge (deck_bridge.py). That brings in the deck's
+command console, dungeon, notes/todo and fun & tools tabs, and the deck's
+companion link becomes the ONLY link (shared_link.py): PULSE XP from
+discoveries and PULSE in the dungeon go over the same connection.
+Key routing for those tabs is in the "main deck" section near the end.
 """
 
 from __future__ import annotations
@@ -35,6 +42,12 @@ from .rules import BtTracker, LanTracker, RfidTracker, WifiTracker, XpRules, act
 from .scanners import ScanResult, Scanner, build_scanners
 from .scanners.rfid import SimRfidScanner
 from .sysinfo import SystemInfo
+
+# Panels that need the main deck (DeckBridge). Without one (old entry
+# points, some tests) they are hidden, and tabs left empty disappear.
+# Keep in sync with DECK_PANELS in ui/deck_panels.py (a test checks).
+DECK_PANEL_KEYS = frozenset({"console", "avatar", "dungeon", "combat", "loot", "notes", "todo", "launcher",
+                             "sky", "music", "net", "output"})
 
 SCANNERS = ("wifi", "bt", "lan", "rfid")
 # Panel key -> config section for its scanner interval.
@@ -62,8 +75,9 @@ class ScanWorker(threading.Thread):
 
 class Dashboard:
     def __init__(self, cfg: DashConfig, mode: str | None = None, seed: int | None = None,
-                 threaded: bool = True, companion: bool | None = None, journal_path=None) -> None:
+                 threaded: bool = True, companion: bool | None = None, journal_path=None, bridge=None) -> None:
         self.cfg = cfg
+        self.bridge = bridge          # the main deck (DeckBridge) or None
         self.mode = mode or cfg.get("dash", "mode")
         self.rng = random.Random(seed)
         self.threaded = threaded
@@ -99,9 +113,15 @@ class Dashboard:
         xp = XpRules({k: cfg.int("xp", k) for k in SCANNERS}, cfg.int("xp", "interest_bonus"),
                      cfg.float("xp", "learn_chance"))
         use_link = cfg.bool("companion", "enabled") if companion is None else companion
-        self.link = (CompanionLink(cfg.get("companion", "host"), cfg.int("companion", "port"),
-                                   cfg.float("companion", "timeout"), cfg.float("companion", "poll"))
-                     if use_link else None)
+        if bridge is not None:
+            # One link for everything: ride on the deck's (sim / tcp / serial).
+            from .shared_link import SharedLink
+
+            self.link = SharedLink(bridge.link, cfg.float("companion", "poll"), threaded=threaded)
+        else:
+            self.link = (CompanionLink(cfg.get("companion", "host"), cfg.int("companion", "port"),
+                                       cfg.float("companion", "timeout"), cfg.float("companion", "poll"))
+                         if use_link else None)
         self.pet = PetAdapter(xp, self.link, random.Random(self.rng.random()))
         self.pet.on_reaction = lambda res: self.bus.publish(TOPIC_PET_REACTION, res)
         self.pet.on_event = lambda ev: self.bus.publish(TOPIC_PET_EVENT, ev)
@@ -110,6 +130,9 @@ class Dashboard:
         # Tabs ("groups"): [(title, [panel keys], columns)]. The first is
         # "Awareness & Diagnostics"; focus is an index inside the current tab.
         self.tabs = cfg.tabs()
+        if bridge is None:
+            self.tabs = [(t, [k for k in keys if k not in DECK_PANEL_KEYS], c) for t, keys, c in self.tabs]
+            self.tabs = [tab for tab in self.tabs if tab[1]] or cfg.tabs()[:1]
         self.tab = 0
         self.focus = 0
         start = cfg.get("dash", "start_panel")
@@ -134,6 +157,13 @@ class Dashboard:
         self.sysinfo: dict = {}
         self._last_slow = 0.0
         self.led = None
+        # Main-deck UI state: selected row per list panel, the last dungeon
+        # run's summary, and when PULSE's combat sheet was last asked for.
+        self.sel: dict[str, int] = {}
+        self.dungeon_last: list[str] = []
+        self._combat_asked = -1e9
+        self._seen_tab = -1
+        self._launcher: list | None = None
         self.now = time.time()          # the step's clock; panels read this
         self.screen_width: int | None = None  # set by the runner; small screens drop extras
         self._baseline: set[str] = set()  # scanners still on their first scan
@@ -209,8 +239,12 @@ class Dashboard:
     def step(self, now: float | None = None, keys: list[str] | None = None) -> None:
         now = time.time() if now is None else now
         self.now = now
+        if self.bridge is not None:
+            self.link.pump(now)
         for key in keys or []:
             self.handle_key(key, now)
+        if self.bridge is not None:
+            self.deck_step(now)
         if not self.threaded:
             for name, sc in self.scanners.items():
                 if now >= self.next_due.get(name, 0):
@@ -407,7 +441,10 @@ class Dashboard:
             if "diag" in keys:
                 items += [("   ⇢ ping a host…", "ping"), ("   ⇢ DNS lookup…", "dns"),
                           ("   ⇢ interface stats", "panel:diag")]
-        items += [("── DECK ACTIONS ──", ""), ("   s  scan everything", "scan"), ("   u  use move", "move"),
+        items += [("── DECK ACTIONS ──", "")]
+        if self.bridge is not None:
+            items += [("   :  command console", "console"), ("   F2 launcher (every deck command)", "launcher")]
+        items += [("   s  scan everything", "scan"), ("   u  use move", "move"),
                   ("   f  field mode on/off", "field"), ("   t  next theme", "theme"), ("   ?  help", "help"),
                   ("   q  quit", "quit")]
         return items
@@ -428,6 +465,10 @@ class Dashboard:
         elif action in ("ping", "dns"):
             self.go_to_panel("diag")
             self.open_prompt(action)
+        elif action == "console":
+            self.go_to_panel("console", zoom=False)
+        elif action == "launcher" and self.bridge is not None:
+            self.bridge.ui_action(":launcher")
         else:
             self.handle_key({"scan": "s", "move": "u", "field": "f", "theme": "t", "help": "?", "quit": "q"}[action], now)
 
@@ -443,6 +484,10 @@ class Dashboard:
             self.prompt = {"kind": "ping", "label": "ping host", "text": self.cfg.get("diag", "ping_default")}
         elif kind == "dns":
             self.prompt = {"kind": "dns", "label": "DNS lookup", "text": self.cfg.get("diag", "dns_default")}
+        elif kind == "note_add":
+            self.prompt = {"kind": kind, "label": "new note", "text": ""}
+        elif kind == "todo_add":
+            self.prompt = {"kind": kind, "label": "new task", "text": ""}
 
     def _submit_prompt(self, p: dict) -> None:
         text = p["text"].strip()
@@ -450,6 +495,8 @@ class Dashboard:
             return
         if p["kind"] == "note":
             self.save_note(p["uid"], text)
+        elif p["kind"] in ("note_add", "todo_add") and self.bridge is not None:
+            self.deck_run(f"{'note' if p['kind'] == 'note_add' else 'todo'} add {text}")
         else:
             self.log(self.diag.start(p["kind"], text), "accent")
 
@@ -467,6 +514,8 @@ class Dashboard:
                 p["text"] = p["text"][:-1]
             elif len(key) == 1 and key.isprintable():
                 p["text"] += key
+            return
+        if self.bridge is not None and self.deck_key(key, now):
             return
         if self.menu_open:
             items = self.menu_items()
@@ -537,3 +586,186 @@ class Dashboard:
             self.open_prompt("ping")
         elif key == "d":
             self.open_prompt("dns")
+
+    # =====================================================================
+    # main deck (only when a DeckBridge is attached)
+    # =====================================================================
+    def deck_step(self, now: float) -> None:
+        """Per-frame deck work: services, jobs, activity, UI requests, notices."""
+        b = self.bridge
+        b.step(now)
+        while b.closed:                         # dungeon run ended, launcher closed…
+            self._activity_closed(b.closed.pop(0))
+        for action in b.ui_requests[:]:
+            b.ui_requests.remove(action)
+            self.deck_ui_action(action)
+        for level, text in b.take_notices():
+            self.log(text, {"warn": "warn", "alert": "bad"}.get(level, "text"))
+        if b.ctx.should_quit:
+            self.running = False
+        # Opening a tab with PULSE's combat sheet asks for fresh stats.
+        if "combat" in self.panels and (self._seen_tab != self.tab or now - self._combat_asked > 15):
+            self._combat_asked = now
+            self.pet._request_combat_stats()
+        self._seen_tab = self.tab
+
+    def _activity_closed(self, activity) -> None:
+        if getattr(activity, "title", "") == "DUNGEON":
+            self.dungeon_last = list(activity.result_lines)
+            self._combat_asked = -1e9          # HP / ranks changed: ask again
+        if activity.result_lines:
+            self.log(activity.result_lines[0], "accent2")
+
+    def deck_ui_action(self, action: str) -> None:
+        """':tab …' / ':layout …' from deck commands, hotkeys and the launcher."""
+        verb, _, arg = action.lstrip(":").partition(" ")
+        verb, arg = verb.lower(), arg.strip().lower()
+        if verb == "tab":
+            if arg in ("", "next"):
+                self.switch_tab(1)
+            elif arg == "prev":
+                self.switch_tab(-1)
+            elif arg in ("console", "output"):
+                self.go_to_panel("console", zoom=False)
+            elif arg == "pet" and any("avatar" in keys for _, keys, _ in self.tabs):
+                self.go_to_panel("pet", zoom=False)
+            elif any(arg in keys for _, keys, _ in self.tabs):
+                self.go_to_panel(arg, zoom=False)
+            elif arg.isdigit() and 1 <= int(arg) <= len(self.tabs):
+                self.tab, self.focus, self.zoomed = int(arg) - 1, 0, False
+            else:
+                for i, (title, _, _) in enumerate(self.tabs):
+                    if arg and arg in (title.lower(), self.cfg.tab_short(title).lower()):
+                        self.tab, self.focus, self.zoomed = i, 0, False
+                        return
+                self.log(f"no tab named {arg}", "warn")
+        elif verb == "layout":
+            self.log("one layout here: [ ] switch tabs, ⏎ zooms a panel", "dim")
+        else:
+            self.log(f"unknown UI action :{verb}", "warn")
+
+    def deck_run(self, line: str, show: bool = True) -> list[str]:
+        """Run a deck command from a panel key; its first line goes on the ticker."""
+        out = self.bridge.run_line(line, remember=False)
+        if show and out:
+            self.log(out[0], "accent")
+        return out
+
+    def run_deck_action(self, action: str, to_console: bool = True) -> None:
+        """A hotkey (keys.ini) or launcher pick: ':ui action' or a command."""
+        if action.startswith(":"):
+            self.bridge.ui_action(action)
+            return
+        if action.endswith("..."):            # "note add ..." = finish typing it yourself
+            self.bridge.set_input(action[:-3].rstrip() + " ")
+            self.go_to_panel("console", zoom=False)
+            return
+        self.deck_run(action)
+        if to_console and self.bridge.activity is None:
+            self.go_to_panel("console", zoom=False)
+
+    def launcher_items(self) -> list:
+        """keys.ini [launcher] entries (cached; restart to reload)."""
+        if self._launcher is None:
+            from cyberdeck.features.core_ux import launcher_items
+
+            self._launcher = launcher_items(self.bridge.ctx, self.bridge.registry) if self.bridge else []
+        return self._launcher
+
+    def clamp_sel(self, name: str, count: int) -> int:
+        """The selected row of a list panel, kept inside 0..count-1."""
+        value = max(0, min(self.sel.get(name, 0), max(0, count - 1)))
+        self.sel[name] = value
+        return value
+
+    def _move_sel(self, name: str, key: str, count: int) -> None:
+        if count:
+            self.sel[name] = (self.clamp_sel(name, count) + (-1 if key == "up" else 1)) % count
+
+    def console_typing(self) -> bool:
+        """True while the Console tile has focus: keys type into the command line."""
+        return (self.bridge is not None and bool(self.panels) and self.panels[self.focus] == "console"
+                and not self.menu_open and self.prompt is None)
+
+    def deck_key(self, key: str, now: float) -> bool:
+        """Keys for the deck's tabs. Returns True if the key was used here."""
+        b = self.bridge
+        if b.activity is not None:              # dungeon, typehack, launcher…: they get every key
+            b.activity_key(key)
+            return True
+        if b.popup() is not None:
+            b.dismiss_popup()                   # a key closes PULSE's pop-up and still works
+        if key in b.hotkeys:                    # F1-F12 / ctrl+letter from keys.ini
+            self.menu_open = False
+            self.run_deck_action(b.hotkeys[key])
+            return True
+        if self.menu_open or self.show_help:
+            return False
+        panel = self.panels[self.focus] if self.panels else ""
+        if panel == "console":
+            if not b.input and key in ("[", "]"):
+                return False                    # empty line: [ ] still switch tabs
+            if not b.input and key == "esc" and self.zoomed:
+                return False
+            return b.console_key(key)
+        if key == ":":
+            self.go_to_panel("console", zoom=False)
+            return True
+        if panel == "notes":
+            from cyberdeck.features.notes import notes
+
+            count = len(notes(b.ctx).read())
+            if key in ("up", "down"):
+                self._move_sel("notes", key, count)
+            elif key in ("a", "n"):
+                self.open_prompt("note_add")
+            elif key in ("x", "delete") and count:
+                self.deck_run(f"note del {self.clamp_sel('notes', count) + 1}")
+            else:
+                return False
+            return True
+        if panel == "todo":
+            from cyberdeck.features.notes import todos
+
+            items = todos(b.ctx).items()
+            n = self.clamp_sel("todo", len(items)) + 1
+            if key in ("up", "down"):
+                self._move_sel("todo", key, len(items))
+            elif key in ("a", "n"):
+                self.open_prompt("todo_add")
+            elif key in (" ", "space", "enter") and items:
+                self.deck_run(f"todo {'undo' if items[n - 1][0] else 'done'} {n}")
+            elif key in ("x", "delete") and items:
+                self.deck_run(f"todo del {n}")
+            elif key == "c":
+                self.deck_run("todo clear")
+            else:
+                return False
+            return True
+        if panel == "loot":
+            from cyberdeck.features.dungeon import loot_bag
+
+            count = len(loot_bag(b.ctx).items())
+            if key in ("up", "down"):
+                self._move_sel("loot", key, count)
+            elif key == "g" and count:
+                self.deck_run(f"loot gift {self.clamp_sel('loot', count) + 1}")
+            elif key in ("x", "delete") and count:
+                self.deck_run(f"loot drop {self.clamp_sel('loot', count) + 1}")
+            else:
+                return False
+            return True
+        if panel == "dungeon" and key in ("enter", " ", "space"):
+            self.deck_run("dungeon", show=False)
+            return True
+        if panel == "launcher":
+            items = self.launcher_items()
+            if key in ("up", "down"):
+                self._move_sel("launcher", key, len(items))
+            elif key == "enter" and items:
+                self.run_deck_action(items[self.clamp_sel("launcher", len(items))].action, to_console=False)
+            else:
+                return False
+            return True
+        return False
+

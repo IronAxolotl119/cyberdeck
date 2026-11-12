@@ -21,11 +21,22 @@ DEFAULT_PATH = REPO_ROOT / "config" / "dash.ini"
 # Used for any section/key missing from dash.ini. Kept as strings so they
 # go through exactly the same parsing as values from the file.
 DEFAULTS: dict[str, dict[str, str]] = {
-    "dash": {"refresh_hz": "2", "theme": "neon", "mode": "sim", "start_panel": "wifi", "glitch": "1"},
-    "tabs": {"order": "awareness, deck"},
-    "tab.awareness": {"title": "Awareness & Diagnostics",
+    "dash": {"refresh_hz": "2", "theme": "neon", "mode": "sim", "start_panel": "wifi", "glitch": "1",
+             "title": "CYBERDECK//MAIN"},
+    "tabs": {"order": "awareness, deck, console, dungeon, notes, fun"},
+    "tab.awareness": {"title": "Awareness & Diagnostics", "short": "Awareness",
                       "panels": "wifi, bt, lan, rfid, journal, diag, checklist", "columns": "3"},
-    "tab.deck": {"title": "Deck & PULSE", "panels": "field, pet, system", "columns": "3", "detail": "yes"},
+    "tab.deck": {"title": "Deck & PULSE", "short": "PULSE", "panels": "field, pet, system", "columns": "3",
+                 "detail": "yes"},
+    # The main deck's features (need `python3 -m cyberdeck`; hidden otherwise).
+    "tab.console": {"title": "Console", "panels": "console, avatar", "columns": "2", "ratios": "7, 3",
+                    "detail": "yes"},
+    "tab.dungeon": {"title": "Dungeon", "panels": "dungeon, combat, loot", "columns": "3", "ratios": "4, 4, 3",
+                    "detail": "yes"},
+    "tab.notes": {"title": "Notes & Todo", "short": "Notes", "panels": "notes, todo", "columns": "2",
+                  "detail": "yes"},
+    "tab.fun": {"title": "Fun & Tools", "short": "Fun", "panels": "launcher, sky, music, net, output",
+                "columns": "3", "detail": "yes"},
     "diag": {"backend": "auto", "ping_default": "192.168.1.1", "dns_default": "github.com"},
     "theme.neon": {
         "accent": "#00f0ff", "accent2": "#ff2bd6", "text": "#c8d3f5", "dim": "#5a6688",
@@ -120,6 +131,26 @@ class DashConfig:
             if self.raw.has_section(sec) and self.raw.get(sec, "title", fallback=key).strip() == title:
                 return self.raw.get(sec, "detail", fallback="no").strip().lower() in ("1", "yes", "true", "on")
         return False
+
+    def _tab_section(self, title: str) -> str | None:
+        for key in self.list("tabs", "order"):
+            sec = f"tab.{key}"
+            if self.raw.has_section(sec) and self.raw.get(sec, "title", fallback=key).strip() == title:
+                return sec
+        return None
+
+    def tab_ratios(self, title: str) -> list[int]:
+        """Relative tile widths in a row, e.g. 'ratios = 7, 3' (empty = all equal)."""
+        sec = self._tab_section(title)
+        if not sec:
+            return []
+        return [int(x) for x in split_list(self.raw.get(sec, "ratios", fallback="")) if x.isdigit() and int(x) > 0]
+
+    def tab_short(self, title: str) -> str:
+        """Short name for the tab bar when the tab is not the current one."""
+        sec = self._tab_section(title)
+        short = self.raw.get(sec, "short", fallback="").strip() if sec else ""
+        return short or title
 
     def tabs(self) -> list[tuple[str, list[str], int]]:
         """[(title, panel keys, columns)] in [tabs] order."""

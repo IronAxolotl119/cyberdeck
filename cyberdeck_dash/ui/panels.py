@@ -403,3 +403,9 @@ PANELS = {
     "pet": ("PULSE", "◆", render_pet, None),
     "system": ("SYSTEM", "▣", render_system, None),
 }
+
+# The main deck's panels (console, dungeon, notes, fun & tools…) live in
+# deck_panels.py; they join the same registry so tabs can mix both kinds.
+from .deck_panels import DECK_PANELS  # noqa: E402  (after PANELS on purpose)
+
+PANELS.update(DECK_PANELS)
