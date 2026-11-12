@@ -54,6 +54,8 @@ cyberdeck-main/
       dungeon.py        roguelike rules (Game), loot bag, gifts, `loot`
       weather.py        weather / sun / moon commands, ASCII icons, sky panel
       iss.py            ISS passes, position, TLE fallback, pass alerts
+    link.py             companion link over TCP or UART: background thread, ids, events, reconnect
+    petdata.py          tolerant pet payload parsing, event text, avatar colours
     netcache.py         cached web downloads with offline fallback (data/cache/)
     world.py            world.ini settings, timezone display, background refresher
     astro.py            sun and moon maths, sidereal time, look angles
@@ -69,8 +71,9 @@ cyberdeck-main/
     config.py           reads the INI files (theme, layout, Settings helper)
     protocol.py         encode/decode newline-delimited JSON messages
     sensors.py          CPU temp / battery / wifi (sim + Pi stub)
-    companion.py        pet link (sim + UART stub)
+    companion.py        simulated pet (PetState) + the CompanionLink interface
     __main__.py         hook for `python -m cyberdeck`
+  tools/fake_companion.py  reference pet server (TCP or serial) for testing
   songs/                chiptunes for the buzzer (plain text)
   text/                 editable text: typing phrases, fallback ISS orbit
   docs/                 protocol, architecture, UI snapshot
@@ -107,8 +110,9 @@ Here is the path of a command such as `pet feed`:
    of JSON. In simulation mode, `SimCompanionLink` does not write
    to a serial port: it ticks the fake pet's needs forward, runs
    the same handler a real companion would, and returns a reply
-   `Message` with the *same id*. Later, `SerialCompanionLink` will
-   write that line to UART and wait for the matching reply.
+   `Message` with the *same id*. With `--link tcp` or `--link serial`,
+   `StreamCompanionLink` writes the line to the wire and waits for the
+   reply with that id. A background thread reads the wire.
 
 6. **The command turns the reply into text.** The handler reads
    the `pet` object out of the reply payload and formats a few
@@ -134,7 +138,7 @@ runner acts on it after the handler returns.
   commands.py  (Registry → handler)
         │  ctx.companion.request(...)
         ▼
-  companion.py  (SimCompanionLink or SerialCompanionLink)
+  companion.py / link.py  (SimCompanionLink or StreamCompanionLink)
         │  Message.encode / decode
         ▼
   protocol.py   ←── (later) UART to the other Pi
@@ -249,6 +253,30 @@ with no I/O, and the network is optional.
 - Times are kept in UTC internally and shown in `[location] timezone`
   with `zoneinfo`. If that zone is missing, the device's own zone is used.
 
+## The companion link
+
+`app.py` picks the link from `--link` (or `CYBERDECK_LINK`, or
+`[link] mode` in hardware.ini):
+
+- `sim`: `SimCompanionLink`, the pet inside this process.
+- `tcp` / `serial`: `link.StreamCompanionLink` over a `TcpTransport`
+  or `SerialTransport`.
+
+`StreamCompanionLink` runs one daemon thread that owns the wire. It
+handles connect and hello (with backoff), reads and splits lines,
+matches replies to waiting requests by `id`, queues `pet.event`
+pushes, and polls `pet.status` (which is also the heartbeat). Callers
+write under a lock and wait on an Event for at most `timeout`. If the
+link is down, a request fails at once with `CompanionError`.
+
+The UI never waits on the wire for drawing:
+
+- `cached_pet()` uses `pet_snapshot()`, the link's latest pet.
+- `PetWatcher` drains pushed events every 0.5 s.
+- The avatar is fetched on a short background thread.
+
+Only a command you type (`pet feed`) can wait, at most `timeout` (1.5 s).
+
 ## Pet alerts, GPIO, and music
 
 - **Extending `pet`.** `commands.py` keeps two small hook tables:
@@ -313,7 +341,9 @@ the item back in the loot bag.
 Startup only. Parses `--mode`, `--headless`, `--script`, and friends,
 opens hardware, loads config and commands, then hands off to the TUI
 or the headless runner. Environment variables `CYBERDECK_MODE` and
-`CYBERDECK_SERIAL` are also read here (and in `open_hardware`).
+`CYBERDECK_LINK` and `CYBERDECK_SERIAL` are also read here. `--link`,
+`--host`, `--port`, `--device`/`--serial` and `--baud` override
+`[link]` in hardware.ini.
 
 ### `tui.py`
 
@@ -363,19 +393,21 @@ what is not there yet.
 `CompanionLink.request()` is how commands talk to the pet.
 `SimCompanionLink` plus `PetState` is the fake companion (needs
 change over time; feed and play change them immediately).
-`SerialCompanionLink` is a stub that stays unlinked and explains
-itself if you call it. `open_hardware(mode)` picks the pair.
+The sim pet also pushes `pet.event`s (when hello asks), levels up,
+learns moves, and draws an avatar. The real links are in `link.py`
+(see "The companion link" above), and `link.open_link()` picks one.
 
 ## Hardware modes
 
-| Mode   | How to choose              | Sensors        | Companion              |
-|--------|----------------------------|----------------|------------------------|
-| `sim`  | default, or `--mode sim`   | `SimSensors`   | `SimCompanionLink`     |
-| `real` | `--mode real`              | `PiSensors`    | `SerialCompanionLink`  |
+`--mode` picks the sensors and `--link` picks the companion. They are
+independent:
 
-`CYBERDECK_MODE=real` has the same effect as `--mode real`.
-Real mode is selectable now so the UI can show a down link; the
-UART backend is not implemented yet.
+| Flag | Choices | Default |
+|------|---------|---------|
+| `--mode` (or `CYBERDECK_MODE`) | `sim` = `SimSensors`, `real` = `PiSensors` | `sim` |
+| `--link` (or `CYBERDECK_LINK`, `[link] mode`) | `sim`, `tcp`, `serial` | `sim` |
+
+On two Pis: `python3 -m cyberdeck --mode real --link serial`.
 
 ## Tests
 

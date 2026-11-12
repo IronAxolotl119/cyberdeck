@@ -19,6 +19,7 @@ want to. Restart the deck after you change a file.
 | Wifi backend, timeouts, ssh opts | `config/network.ini` |
 | Pet alert thresholds, alert sound| `config/pet.ini` |
 | GPIO pin names, buzzer type      | `config/hardware.ini` |
+| Companion link (sim / tcp / serial) | `config/hardware.ini` `[link]` (see docs/TESTING_TWO_BOARDS.md) |
 | Songs for the buzzer             | `songs/*.txt` |
 | Boot animation, visualizer, games| `config/fx.ini` |
 | The deck's sassy status lines    | `config/moods.ini` |

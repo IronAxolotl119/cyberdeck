@@ -53,6 +53,15 @@ CUSTOMIZING.md          how to change colors, layout, and commands
 tests/                  unit tests
 ```
 
+## Deck + pet on one computer
+
+```bash
+python3 tools/fake_companion.py          # terminal 1: the pet (TCP 127.0.0.1:7777)
+python3 -m cyberdeck --link tcp          # terminal 2: the deck
+```
+
+Serial and two-Pi setups: [docs/TESTING_TWO_BOARDS.md](docs/TESTING_TWO_BOARDS.md).
+
 ## What it can do
 
 Type `help` for everything, or press F2 for the launcher menu.
@@ -79,9 +88,8 @@ and new commands are just Python files dropped into `plugins/`.
 
 Next steps after this scaffold:
 
-1. **Real UART link** — implement `SerialCompanionLink` (115200 8N1,
-   newline-delimited JSON as in `docs/PROTOCOL.md`) and talk to the
-   companion board's firmware.
+1. **Real UART link** — done in `cyberdeck/link.py`; still to verify on
+   two real Pis (docs/TESTING_TWO_BOARDS.md part C).
 2. **Pi deployment** — run this package on the main Pi Zero 2 W,
    point `--mode real` at the live sysfs sensors and the serial
    port, and confirm the curses UI on the deck's own screen.
