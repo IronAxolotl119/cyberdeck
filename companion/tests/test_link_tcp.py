@@ -11,6 +11,7 @@ import threading
 import time
 import unittest
 
+from link.events import event_kind
 from link.handler import CompanionHandler, need_hunger
 from link.protocol import Message, split_complete_lines, try_decode_line
 from link.transport import TcpServer, UartServer
@@ -296,6 +297,103 @@ class SocatPtyTests(unittest.TestCase):
                 proc.kill()
             if server_thread is not None:
                 server_thread.join(timeout=2)
+
+
+
+def _collect_until(sock: socket.socket, predicate, timeout: float = 2.0):
+    """Read messages from sock until predicate(messages) is true or we time out."""
+    sock.settimeout(timeout)
+    buffer = b""
+    seen = []
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            chunk = sock.recv(4096)
+        except socket.timeout:
+            break
+        if not chunk:
+            break
+        buffer += chunk
+        lines, buffer = split_complete_lines(buffer)
+        for line in lines:
+            msg = try_decode_line(line)
+            if msg is not None:
+                seen.append(msg)
+        if predicate(seen):
+            break
+    return seen
+
+
+class MultiClientTcpTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.handler = CompanionHandler(Creature(name="Pulse", stats=Stats(hunger=50, mood=70, energy=80)))
+        self.lock = threading.Lock()
+        self.stop = threading.Event()
+        # interval 0 so events flush in the same select turn as the reply.
+        self.server = TcpServer(self.handler, self.lock, host="127.0.0.1", port=0, event_interval=0.0)
+        self.server.start()
+        self.port = self.server.port
+        self.thread = threading.Thread(target=self.server.serve_forever, args=(self.stop,), daemon=True)
+        self.thread.start()
+
+    def tearDown(self) -> None:
+        self.stop.set()
+        self.server.close()
+        self.thread.join(timeout=2)
+
+    def test_two_clients_at_once_and_replies_stay_private(self) -> None:
+        with socket.create_connection(("127.0.0.1", self.port), timeout=2) as alpha, \
+             socket.create_connection(("127.0.0.1", self.port), timeout=2) as beta:
+            hello_a = _send_recv(alpha, "hello", {"role": "main", "proto": 1, "events": True})
+            hello_b = _send_recv(beta, "hello", {"role": "main", "proto": 1, "events": False})
+            self.assertEqual(hello_a.type, "hello.ok")
+            self.assertTrue(hello_a.payload.get("events") is True)
+            self.assertEqual(hello_b.type, "hello.ok")
+            self.assertFalse(bool(hello_b.payload.get("events")))
+
+            pong = _send_recv(beta, "ping", {})
+            self.assertEqual(pong.type, "pong")
+            # Alpha must not receive beta's pong (or any reply).
+            alpha.settimeout(0.2)
+            try:
+                stray = alpha.recv(4096)
+            except socket.timeout:
+                stray = b""
+            self.assertEqual(stray, b"")
+
+            # Both can ask for status at the same time.
+            status_a = _send_recv(alpha, "pet.status", {})
+            status_b = _send_recv(beta, "pet.status", {})
+            self.assertEqual(status_a.payload["pet"]["species"], "Chirplet")
+            self.assertEqual(status_b.payload["pet"]["species"], "Chirplet")
+
+    def test_events_go_to_every_opted_in_client_only(self) -> None:
+        with socket.create_connection(("127.0.0.1", self.port), timeout=2) as alpha, \
+             socket.create_connection(("127.0.0.1", self.port), timeout=2) as beta, \
+             socket.create_connection(("127.0.0.1", self.port), timeout=2) as gamma:
+            _send_recv(alpha, "hello", {"role": "main", "proto": 1, "events": True})
+            _send_recv(beta, "hello", {"role": "main", "proto": 1, "events": True})
+            _send_recv(gamma, "hello", {"role": "main", "proto": 1, "events": False})
+
+            gift = Message.request("pet.gift", {"item": {"name": "evo chip", "kind": "evolve"}})
+            alpha.sendall(gift.encode_bytes())
+            from_alpha = _collect_until(
+                alpha,
+                lambda msgs: any(m.id == gift.id for m in msgs) and any(m.type == "pet.event" for m in msgs),
+            )
+            from_beta = _collect_until(beta, lambda msgs: any(m.type == "pet.event" for m in msgs))
+            gamma.settimeout(0.3)
+            try:
+                from_gamma = gamma.recv(4096)
+            except socket.timeout:
+                from_gamma = b""
+
+            self.assertTrue(any(m.id == gift.id and m.type == "pet.gift.ok" for m in from_alpha))
+            self.assertTrue(any(m.type == "pet.event" and event_kind(m) == "evolved" for m in from_alpha))
+            self.assertTrue(any(m.type == "pet.event" and event_kind(m) == "evolved" for m in from_beta))
+            # Beta did not send the gift, so it must not see the gift.ok reply.
+            self.assertFalse(any(m.id == gift.id for m in from_beta))
+            self.assertEqual(from_gamma, b"")
 
 
 class InventorySaveTests(unittest.TestCase):

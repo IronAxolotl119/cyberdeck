@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from pet.creature import Creature
-from pet.evolution import choose_evolution, get_species
+from pet.evolution import choose_evolution, choose_next_form, get_species, FINAL_STAGE, STAGES
 from pet.stats import Stats
 
 
@@ -68,10 +68,65 @@ class EvolutionTableTests(unittest.TestCase):
         pet = _wavling_ready(care_mistakes=0, mood=20)
         self.assertEqual(choose_evolution(pet.species_id, pet.stats).id, "staticore")
 
-    def test_rookies_have_no_further_evolution(self) -> None:
-        stats = Stats(age=100, level=20, xp=999, mood=100)
+    def test_young_rookies_do_not_evolve_naturally(self) -> None:
+        stats = Stats(age=30, level=4, xp=50, mood=80)
         self.assertIsNone(choose_evolution("aethling", stats))
         self.assertIsNone(choose_evolution("staticore", stats))
+        # An evolve gift still advances, skipping the time gates.
+        self.assertEqual(choose_next_form("aethling", stats).id, "luminode")
+        self.assertEqual(choose_next_form("staticore", stats).id, "voltshard")
+
+    def test_cared_for_aethling_becomes_luminode(self) -> None:
+        stats = Stats(age=48, level=5, xp=80, mood=80, hunger=80, energy=80)
+        self.assertEqual(choose_evolution("aethling", stats).id, "luminode")
+        pet = Creature(name="Care", species_id="aethling", stats=stats, known_move_ids=["chirp"])
+        events = pet._check_evolution()
+        self.assertEqual(pet.species_id, "luminode")
+        self.assertEqual(pet.species.stage, "champion")
+        self.assertTrue(any("Luminode" in line for line in events))
+
+    def test_discovery_forks_aethling_to_hexwave(self) -> None:
+        stats = Stats(age=48, level=5, xp=80, mood=80, hunger=80, energy=80)
+        # Same care, but three unique signals take the discovery branch.
+        self.assertEqual(choose_evolution("aethling", stats, discovered=3).id, "hexwave")
+        self.assertEqual(choose_next_form("aethling", stats, discovered=3).id, "hexwave")
+        self.assertEqual(choose_next_form("aethling", stats, discovered=2).id, "luminode")
+
+    def test_discovery_forks_staticore_to_jammeron(self) -> None:
+        stats = Stats(age=48, level=5, xp=80, mood=20, care_mistakes=5, hunger=80, energy=80)
+        self.assertEqual(choose_evolution("staticore", stats).id, "voltshard")
+        self.assertEqual(choose_evolution("staticore", stats, discovered=3).id, "jammeron")
+
+    def test_later_stages_follow_each_fork_to_mega(self) -> None:
+        ready = Stats(age=200, level=20, xp=999, mood=80, hunger=80, energy=80)
+        path = [
+            ("luminode", "aurorion", "ultimate"),
+            ("aurorion", "aethernova", "mega"),
+            ("hexwave", "resonarch", "ultimate"),
+            ("resonarch", "signumega", "mega"),
+            ("voltshard", "stormbit", "ultimate"),
+            ("stormbit", "nullstorm", "mega"),
+            ("jammeron", "blackout", "ultimate"),
+            ("blackout", "voidstatic", "mega"),
+        ]
+        for current, nxt, stage in path:
+            chosen = choose_evolution(current, ready)
+            self.assertIsNotNone(chosen, msg=current)
+            self.assertEqual(chosen.id, nxt)
+            self.assertEqual(chosen.stage, stage)
+
+    def test_megas_have_no_further_evolution(self) -> None:
+        stats = Stats(age=999, level=99, xp=9999, mood=100)
+        for species_id in ("aethernova", "signumega", "nullstorm", "voidstatic"):
+            self.assertEqual(get_species(species_id).stage, FINAL_STAGE)
+            self.assertIsNone(choose_evolution(species_id, stats))
+            self.assertIsNone(choose_next_form(species_id, stats))
+
+    def test_every_species_uses_a_known_stage(self) -> None:
+        from pet.evolution import SPECIES
+
+        for species in SPECIES.values():
+            self.assertIn(species.stage, STAGES)
 
 
 if __name__ == "__main__":

@@ -200,13 +200,39 @@ class GiftTests(unittest.TestCase):
         self.assertEqual(second.payload["pet"]["stage"], "rookie")
 
     def test_evolve_at_final_form_is_rejected(self) -> None:
-        handler = CompanionHandler(Creature(species_id="aethling", stats=Stats(mood=80)))
+        handler = CompanionHandler(Creature(species_id="aethernova", stats=Stats(mood=80)))
         reply = handler.handle(_req("pet.gift", {"item": {"name": "evo chip", "kind": "evolve"}}))
         self.assertEqual(reply.type, TYPE_PET_GIFT_OK)
         self.assertFalse(reply.payload["accepted"])
         self.assertIsNone(reply.payload["effects"]["stage"])
         self.assertEqual(reply.payload["pet"]["gifts"], 0)
-        self.assertIn("trophy", reply.payload["reaction"])
+        self.assertIn("mega", reply.payload["reaction"])
+
+    def test_evolve_gifts_reach_mega_on_the_care_line(self) -> None:
+        handler = _handler(mood=70, care_mistakes=0)
+        expected = ["wavling", "aethling", "luminode", "aurorion", "aethernova"]
+        stages = ["in-training", "rookie", "champion", "ultimate", "mega"]
+        for species_id, stage in zip(expected, stages, strict=True):
+            reply = handler.handle(_req("pet.gift", {"item": {"name": "evo chip", "kind": "evolve"}}))
+            self.assertTrue(reply.payload["accepted"], msg=species_id)
+            self.assertEqual(handler.creature.species_id, species_id)
+            self.assertEqual(reply.payload["pet"]["stage"], stage)
+        refused = handler.handle(_req("pet.gift", {"item": {"name": "evo chip", "kind": "evolve"}}))
+        self.assertFalse(refused.payload["accepted"])
+        self.assertEqual(handler.creature.species_id, "aethernova")
+
+    def test_evolve_gift_honours_the_discovery_branch(self) -> None:
+        handler = CompanionHandler(
+            Creature(
+                species_id="aethling",
+                stats=Stats(mood=80, care_mistakes=0),
+                discovered_ids={"wifi-1", "wifi-2", "bt-1"},
+            )
+        )
+        reply = handler.handle(_req("pet.gift", {"item": {"name": "evo chip", "kind": "evolve"}}))
+        self.assertTrue(reply.payload["accepted"])
+        self.assertEqual(handler.creature.species_id, "hexwave")
+        self.assertEqual(reply.payload["pet"]["stage"], "champion")
 
     def test_neglected_wavling_evolves_to_staticore(self) -> None:
         handler = CompanionHandler(

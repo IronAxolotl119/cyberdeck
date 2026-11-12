@@ -5,15 +5,26 @@ Raspberry Pi Zero 2 W (512 MB RAM). This repository is the foundation: a small,
 standard-library-only Python 3 project you can run and test on a regular
 computer before any hardware is involved.
 
-The creature grows from a baby into an in-training form, then branches into one
-of two rookie forms depending on how you care for it and how its stats develop.
-It also "discovers" the world by scanning for nearby signals. For now those
-scans are fake and fully seeded, so the game is deterministic and safe to test.
-Later, the same `Scanner` interface can be backed by real Wi-Fi and Bluetooth
-lookups on the Pi.
+The creature grows from a baby into an in-training form, then branches through
+rookie, champion, ultimate, and mega. Care, combat stats, and how many unique
+signals it has discovered all steer the forks. It also "discovers" the world by
+scanning for nearby signals. For now those scans are fake and fully seeded, so
+the game is deterministic and safe to test. Later, the same `Scanner` interface
+can be backed by real Wi-Fi and Bluetooth lookups on the Pi.
 
 No Digimon names or official evolution lines are used. The species here
-(Chirplet, Wavling, Aethling, and Staticore) are original to this project.
+are original to this project:
+
+```text
+Chirplet (baby)
+  -> Wavling (in-training)
+       -> Aethling (rookie, well cared for)
+            -> Luminode (champion) -> Aurorion (ultimate) -> Aethernova (mega)
+            -> Hexwave  (champion, many discoveries) -> Resonarch -> Signumega
+       -> Staticore (rookie, neglected or trained hard)
+            -> Voltshard (champion) -> Stormbit (ultimate) -> Nullstorm (mega)
+            -> Jammeron  (champion, many discoveries) -> Blackout -> Voidstatic
+```
 
 ## Goals
 
@@ -125,11 +136,15 @@ Still from this directory, using only the standard library:
 python3 -m unittest discover -s tests -v
 ```
 
-All tests should pass. They cover time passing (`tick`), both rookie evolution
-branches, learning moves from levels and from discovery events, a save/load
-round trip, protocol encode/decode, every link handler type and error code,
-event gating, a TCP round trip, and (when `socat` is installed) a UART
-exchange over a PTY pair.
+All tests should pass. They cover time passing (`tick`), the evolution
+branches through mega (care, combat, and discovery forks), learning moves
+from levels and from discovery events, a save/load round trip, protocol
+encode/decode, every link handler type and error code, event gating,
+coalescing and pacing of `pet.event` pushes, a TCP round trip including two
+clients at once, and (when `socat` is installed) a UART exchange over a PTY
+pair. If a checkout of the main cyberdeck is next to this repo (or
+`CYBERDECK_MAIN` points at one) and that tree has the TCP client, one extra
+test drives our companion with the deck's own `StreamCompanionLink`.
 
 ## Linking with the main deck
 
@@ -142,7 +157,10 @@ On this repo (the pet board, or a regular computer for testing):
 
 ```bash
 # TCP, default 127.0.0.1:7777. Autosave is optional.
+# Several decks can connect at once. --event-interval paces pet.event
+# pushes (default 0.5s; 0 sends immediately).
 python3 companion.py --tcp 127.0.0.1:7777 --save ./save.json
+python3 companion.py --tcp 127.0.0.1:7777 --event-interval 0.5
 
 # Same, with a terminal avatar and a slower/faster clock
 python3 companion.py --tcp 127.0.0.1:7777 --avatar --ascii --tick-seconds 1 --dt 0.05
@@ -158,30 +176,58 @@ python3 companion.py --serial /dev/serial0
 The live companion does not auto-feed: the main deck takes care of PULSE
 through `pet.feed`, `pet.play`, and `pet.gift`.
 
-The main deck's UART client is still a stub in the current scaffold, and it
-has no TCP client yet. Until that lands, a scripted client in this repo can
-exercise a running server (it will use the main repo's encoder if
-`/workspace/cyberdeck-main` is importable):
+The main deck now has a real TCP (and serial) client. Start this companion
+first, then point the deck at it. Both sides need Python 3.10 or newer; the
+deck is stdlib-only for TCP/headless (curses for the full-screen UI;
+`pyserial` is optional for `--link serial`).
 
 ```bash
-# Terminal A
+# Terminal A — from this repo
 python3 companion.py --tcp 127.0.0.1:7777
 
-# Terminal B
+# Terminal B — from the main cyberdeck repo
+# Seed a loot bag first if you want to try `pet gift`:
+#   mkdir -p /tmp/cyberdeck-data
+#   printf '%s\n' '[{"name":"glitch berry","kind":"food","power":20,"rarity":"common"},{"name":"evo chip","kind":"evolve","power":0,"rarity":"legendary"}]' > /tmp/cyberdeck-data/loot.json
+python3 -m cyberdeck --link tcp --host 127.0.0.1 --port 7777 --headless \
+  --data-dir /tmp/cyberdeck-data \
+  --script 'link' \
+  --script 'pet status' \
+  --script 'pet feed ration' \
+  --script 'pet play spar' \
+  --script 'pet gift 1' \
+  --script 'pet gift 1' \
+  --script 'pet status' \
+  --script 'quit'
+```
+
+`--host` and `--port` default to 127.0.0.1 and 7777, so
+`python3 -m cyberdeck --link tcp --headless` is enough for a typed session.
+Headless mode understands `pet status`, `pet feed [item]`, `pet play [game]`,
+and `pet gift <n|name>` (gift needs `data/loot.json`). There is not yet a
+headless `pet avatar` command — the TUI fetches `pet.avatar` itself. The
+scripted client in this repo is still useful as a fallback:
+
+```bash
 python3 scripts/link_smoke.py 127.0.0.1:7777
 ```
 
-When the deck's serial link is implemented, start this process with
-`--serial` (or `--serial /dev/ttyAMA0` if you want the deck's default path)
-and start the deck with `--mode real`. Both sides honor `CYBERDECK_SERIAL`.
+For UART on two boards, start this process with `--serial` (default
+`$CYBERDECK_SERIAL` or `/dev/serial0`) and start the deck with
+`--link serial`. Both sides honor `CYBERDECK_SERIAL`.
 
 A note on units: the protocol reports hunger as a *need* (0 = full, 100 =
 starving), so feeding lowers it. Internally this sim stores the opposite
 meter (0 = starving, 100 = stuffed). `link/handler.py` is the only place
-that conversion happens. Species names stay ours (Chirplet, Wavling,
-Aethling, Staticore) and stages are `baby` / `in-training` / `rookie`. An
-`evolve` gift advances one of those forms using our care/mood branch rules;
-it is rejected (`accepted: false`) at a final rookie form.
+that conversion happens. Species names stay ours (see the tree at the top)
+and stages are `baby` / `in-training` / `rookie` / `champion` / `ultimate`
+/ `mega`. An `evolve` gift advances one stage using our care / mood /
+discovery branch rules; it is rejected (`accepted: false`) only at mega.
+The TCP server accepts several clients at once: each has its own buffer and
+events flag, replies go only to the requester, and `pet.event` is pushed to
+every client that opted in, at most one event per `--event-interval`.
+Duplicate hungry / tired / sad events are coalesced while they are still
+queued; evolved / level_up / learned_move are never dropped.
 
 The pet object in status / feed / play / gift / event replies includes the
 optional extras the main deck understands: `level`, `xp`, `hp`, `max_hp`,
@@ -216,7 +262,7 @@ signal_found). Without that flag we stay request/reply only.
 ## Roadmap
 
 1. **Core simulation** (this repo). Stats, a tick loop, one evolution line with
-   a two-way rookie branch, fake Wi-Fi/Bluetooth scans, JSON saves, and a
+   a branching line through mega, fake Wi-Fi/Bluetooth scans, JSON saves, and a
    protocol link to the main deck.
 2. **Custom UI from scratch.** A simple, hand-drawn interface that talks
    directly to a small screen. No Raspberry Pi desktop environment and no

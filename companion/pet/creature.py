@@ -12,6 +12,7 @@ from pet.evolution import (
     STARTER_SPECIES_ID,
     Species,
     choose_evolution,
+    choose_next_form,
     get_species,
 )
 from pet.moves import MOVE_LIBRARY, get_move, moves_for_level
@@ -232,37 +233,33 @@ class Creature:
 
     def _check_evolution(self) -> list[str]:
         """Evolve if a rule matches, applying the new form's stat bonuses once."""
-        nxt = choose_evolution(self.species_id, self.stats)
+        nxt = choose_evolution(
+            self.species_id, self.stats, discovered=len(self.discovered_ids)
+        )
         if nxt is None:
             return []
         return self._evolve_into(nxt)
 
     def next_form_id(self) -> str | None:
-        """The species id this pet would grow into next, or None at a final form.
+        """The species id this pet would grow into next, or None at mega.
 
         If age/level/XP already satisfy a table rule, that rule wins. Otherwise
-        the branch still follows the same care/mood gates used by evolution.py
-        (well-cared-for Wavling -> Aethling, otherwise Staticore). Used by
-        the link-layer evolve gift, which may catalyze a form change before
-        the usual time gates have been met.
+        the branch still follows the same care/mood/discovery gates used by
+        evolution.py (for example a well-cared-for Wavling -> Aethling, or an
+        Aethling with many discoveries -> Hexwave). Used by the link-layer
+        evolve gift, which may catalyze a form change before the usual time
+        gates have been met. Only mega (a form with no outgoing rule) returns
+        None.
         """
-        if self.species.stage == "rookie":
-            return None
-        chosen = choose_evolution(self.species_id, self.stats)
-        if chosen is not None:
-            return chosen.id
-        if self.species_id == "chirplet":
-            return "wavling"
-        if self.species_id == "wavling":
-            if self.stats.care_mistakes <= 2 and self.stats.mood >= 50:
-                return "aethling"
-            return "staticore"
-        return None
+        chosen = choose_next_form(
+            self.species_id, self.stats, discovered=len(self.discovered_ids)
+        )
+        return chosen.id if chosen is not None else None
 
     def advance_evolution(self) -> list[str]:
         """Grow into the next form now, choosing the branch via our rules.
 
-        Returns an empty list if the pet is already at a final rookie form.
+        Returns an empty list if the pet is already at a final mega form.
         """
         target_id = self.next_form_id()
         if target_id is None or target_id == self.species_id:

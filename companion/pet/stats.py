@@ -30,7 +30,7 @@ class Stats:
     are what the caretaker actions (feed, train, rest) are for. Age is
     measured in simulated hours. XP raises level; too many care mistakes
     (leaving the pet starving or exhausted) steers evolution toward the
-    harsher rookie form.
+    harsher combat line (Staticore and what follows).
     """
 
     hp: int = 20

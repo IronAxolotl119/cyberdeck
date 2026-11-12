@@ -10,7 +10,7 @@ Each form has two idle frames (a tiny antenna/tail/sparkle wiggle; the face
 stays put) plus mood overlays (happy, hungry/tired, sad) that paint over
 the face. Neutral is the default face overlay.
 
-Form ids match pet.evolution.SPECIES (chirplet, wavling, aethling, staticore).
+Form ids match pet.evolution.SPECIES (every form from Chirplet through the mega stage).
 """
 
 from __future__ import annotations
@@ -49,6 +49,11 @@ PALETTE: dict[str, tuple[int, int, int] | None] = {
     "v": (70, 28, 120),
     "z": (255, 80, 200),
     "r": (255, 70, 80),
+    # Luminode / Aurorion / Aethernova — pale gold and sky
+    "q": (248, 220, 120),
+    "x": (120, 200, 255),
+    # Hexwave / Resonarch / Signumega — indigo
+    "j": (60, 90, 200),
 }
 
 # Canonical mood names. "tired" is an alias of "hungry".
@@ -525,6 +530,590 @@ _STATICORE_FACES = {
 }
 
 
+
+def _blank_rows() -> list[str]:
+    return ["." * SPRITE_SIZE for _ in range(SPRITE_SIZE)]
+
+
+def _face_overlays(
+    eye_row: int,
+    mouth_row: int,
+    left: int,
+    right: int,
+    *,
+    blush: str = "c",
+    tear: str = "t",
+) -> dict[str, tuple[str, ...]]:
+    """Build the four mood overlays for a face whose eyes sit at (eye_row, left/right)."""
+
+    def stamp(pairs: list[tuple[int, int, str]]) -> tuple[str, ...]:
+        rows = [list(row) for row in _blank_rows()]
+        for r, c, ch in pairs:
+            if 0 <= r < SPRITE_SIZE and 0 <= c < SPRITE_SIZE:
+                rows[r][c] = ch
+        return tuple("".join(row) for row in rows)
+
+    mid = (left + right) // 2
+    return {
+        "neutral": stamp(
+            [
+                (eye_row, left, "e"),
+                (eye_row, left + 1, "p"),
+                (eye_row, right, "e"),
+                (eye_row, right + 1, "p"),
+                (mouth_row, mid, "k"),
+                (mouth_row, mid + 1, "k"),
+            ]
+        ),
+        "happy": stamp(
+            [
+                (eye_row, left - 1, blush),
+                (eye_row, left, "e"),
+                (eye_row, right + 1, "e"),
+                (eye_row, right + 2, blush),
+                (eye_row + 1, left, "k"),
+                (eye_row + 1, right + 1, "k"),
+                (mouth_row, mid - 1, "k"),
+                (mouth_row, mid + 2, "k"),
+                (mouth_row + 1, mid, "k"),
+                (mouth_row + 1, mid + 1, "k"),
+            ]
+        ),
+        "hungry": stamp(
+            [
+                (eye_row - 1, left, "t"),
+                (eye_row - 1, right + 1, "t"),
+                (eye_row, left, "k"),
+                (eye_row, right + 1, "k"),
+                (mouth_row, mid - 1, "k"),
+                (mouth_row, mid, "w"),
+                (mouth_row, mid + 1, "k"),
+            ]
+        ),
+        "sad": stamp(
+            [
+                (eye_row - 1, left, "k"),
+                (eye_row - 1, right + 1, "k"),
+                (eye_row, left, "e"),
+                (eye_row, left + 1, "p"),
+                (eye_row, right, "e"),
+                (eye_row, right + 1, "p"),
+                (eye_row, right + 2, tear),
+                (eye_row + 1, right + 1, tear),
+                (mouth_row, mid, "k"),
+                (mouth_row + 1, mid - 1, "k"),
+                (mouth_row + 1, mid + 1, "k"),
+            ]
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Luminode (champion, care): a bright relay node with twin sky orbs.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_LUMINODE_F0 = (
+    "......x..x......",
+    ".....kq..qk.....",
+    "....kqhffhqk....",
+    "...kqfhhhhfqk...",
+    "...kqhwhhhhqk...",
+    "..kkqhhhhhhfqk..",
+    "..kqfhhhhhhfqk..",
+    "..kqfhhhhhhfqk..",
+    "...kqfhhhhfqk.x.",
+    "...kkqfffqkk.x..",
+    "....kqgqgk.x....",
+    ".....kg..gk.....",
+    ".....k....k.....",
+    "......k..k......",
+    ".......kk.......",
+    "................",
+)
+_LUMINODE_F1 = (
+    ".....x....x.....",
+    "......kqqk......",
+    "....kqhffhqk....",
+    "...kqfhhhhfqk...",
+    "...kqhhwhhhqk...",
+    "..kkqhhhhhhfqk..",
+    "..kqfhhhhhhfqk..",
+    "..kqfhhhhhhfqk..",
+    "..xkqfhhhhfqk...",
+    "...kkqfffqkk....",
+    "....xkqgqgk.....",
+    ".....kg..gk.....",
+    ".....k....k.....",
+    "......k..k......",
+    "......k..k......",
+    "................",
+)
+_LUMINODE_FACES = _face_overlays(6, 8, 5, 9, blush="c")
+
+# ---------------------------------------------------------------------------
+# Hexwave (champion, discovery): a six-phase scanner with an indigo ring.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_HEXWAVE_F0 = (
+    ".......j........",
+    ".....kkjkk......",
+    "...kkmllllmk....",
+    "..kjmllllllmk...",
+    "..kmljxllllmk...",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "...kmllllllmk.b.",
+    "....kkmlmkk.j...",
+    "...j..kmk..b....",
+    ".........b.j....",
+    "........j.......",
+    ".......b.b......",
+    "................",
+    "................",
+)
+_HEXWAVE_F1 = (
+    "........j.......",
+    ".....kkjkk......",
+    "...kkmllllmk....",
+    "..kjmlllxllmk...",
+    "..kmljlllllmk...",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "...kmllllllmkb..",
+    "....kkmlmkkj....",
+    "......kmk..b.j..",
+    ".........j.b....",
+    "........b.......",
+    ".......j.j......",
+    "................",
+    "................",
+)
+_HEXWAVE_FACES = _face_overlays(6, 8, 5, 9, blush="b")
+
+# ---------------------------------------------------------------------------
+# Voltshard (champion, combat): a jagged voltage shard with leaping sparks.
+# Face sits on rows 5 (eyes) and 7 (mouth).
+# ---------------------------------------------------------------------------
+_VOLTSHARD_F0 = (
+    "y.r...k......r.y",
+    "...kkvvvvvkk....",
+    "..kvuyyvuuyvk...",
+    ".kkvuuuuuuuvkk..",
+    ".kvuuwuuuuuuvk.r",
+    ".kvuuuuuuuuvkk..",
+    ".kvuuuuuuuuvvk..",
+    ".kvuuuuuuuuvk...",
+    "..kvuuuuuuuvk.y.",
+    "..kkvuvvuvkk....",
+    ".r..kkykk...z...",
+    "..k...y...k..r..",
+    "yk.........k..y.",
+    "..k..r....k.....",
+    "....y........r..",
+    "................",
+)
+_VOLTSHARD_F1 = (
+    "r.y....k.....y.r",
+    "...kkvvvvvkk..y.",
+    "..kvvuuyuuvvk...",
+    ".kkvuuuuuuuvkk..",
+    "rkvuuuuwuuuuvk..",
+    ".kvuuuuuuuuvkk..",
+    ".kvuuuuuuuuvvk..",
+    ".kvuuuuuuuuvk.y.",
+    "..kvuuuuuuuvk...",
+    "..kkvuvvuvkk.r..",
+    "....kkykk....z..",
+    "y.k.....y.k....r",
+    ".k.........k....",
+    "r.k.......k..y..",
+    "......r....y....",
+    "................",
+)
+_VOLTSHARD_FACES = _face_overlays(5, 7, 5, 9, blush="z", tear="r")
+
+# ---------------------------------------------------------------------------
+# Jammeron (champion, discovery on the hard path): a dish-backed jammer.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_JAMMERON_F0 = (
+    "......dddd......",
+    "....ddvvvvdd....",
+    "...dvuuuuuuvd...",
+    "..dkvuuuuuuvkd..",
+    "..kvuuuwuuuuvk..",
+    ".dkvuuuuuuuuvkd.",
+    ".dkvuuuuuuuuvkd.",
+    "..kvuuuuuuuuvk..",
+    "..dkvuuuuuuvkd..",
+    "...dkvvvvvkd....",
+    "....dkkkkkd.....",
+    "....k.....k.....",
+    "...k.......k....",
+    "..z.........z...",
+    "................",
+    "................",
+)
+_JAMMERON_F1 = (
+    ".....d.dd.d.....",
+    "....ddvvvvdd....",
+    "...dvuuuuuuvd...",
+    "..dkvuuuuuuvkd..",
+    "..kvuuuuwuuuvk..",
+    ".dkvuuuuuuuuvkd.",
+    ".dkvuuuuuuuuvkd.",
+    "..kvuuuuuuuuvk..",
+    "..dkvuuuuuuvkd..",
+    "...dkvvvvvkd....",
+    "....dkkkkkd.....",
+    "....k.....k.....",
+    "...k.......k....",
+    "...z.......z....",
+    "................",
+    "................",
+)
+_JAMMERON_FACES = _face_overlays(6, 8, 5, 9, blush="z", tear="r")
+
+# ---------------------------------------------------------------------------
+# Aurorion (ultimate, care): aurora wings around a gold core.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_AURORION_F0 = (
+    "x.i........i.x..",
+    ".x.iqq....qqi.x.",
+    "..kqhffffhqk.x..",
+    ".xkqfhhhhhfqk...",
+    "..kqhwhhhhhqk.i.",
+    ".kkqfhhhhhhfqk..",
+    ".kqfhhhhhhhhqk..",
+    ".kqfhhhhhhhhqk..",
+    "..kqfhhhhhfqk.x.",
+    "i.kkqffffqkk.i..",
+    "..x.kqgqgk.x....",
+    "....kg...gk.....",
+    "x...k.....k...x.",
+    ".....k...k......",
+    "......k.k.......",
+    "................",
+)
+_AURORION_F1 = (
+    ".x.i......i.x...",
+    "x.i.qq....qq.ix.",
+    "..kqhffffhqk....",
+    "..kqfhhhhhfqkx..",
+    "i.kqhhwhhhhqk...",
+    ".kkqfhhhhhhfqk..",
+    ".kqfhhhhhhhhqk..",
+    ".kqfhhhhhhhhqk..",
+    "x.kqfhhhhhfqk...",
+    "..kkqffffqkk.xi.",
+    "....kqgqgk.x.i..",
+    "....kg...gk.....",
+    ".x..k.....k..x..",
+    ".....k...k......",
+    ".......k........",
+    "................",
+)
+_AURORION_FACES = _face_overlays(6, 8, 5, 9, blush="c")
+
+# ---------------------------------------------------------------------------
+# Resonarch (ultimate, discovery): a crowned resonance form.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_RESONARCH_F0 = (
+    "....j.b.j.b.....",
+    ".....kjbjk......",
+    "...kkmllllmkj...",
+    "..kjmlllhllmk...",
+    "..kmljwlhllmk...",
+    ".jkmllllllllmkj.",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "...kmllllllmk.b.",
+    "j...kkmlmkk..j..",
+    "...b..kmk..b....",
+    ".........j......",
+    "....j...j...b...",
+    "................",
+    "................",
+    "................",
+)
+_RESONARCH_F1 = (
+    ".....b.j.b.j....",
+    ".....kjbjk......",
+    "...kkmllllmk....",
+    "j.kjmllhlhlmk...",
+    "..kmljlwlhlmk.j.",
+    ".jkmllllllllmk..",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "...kmllllllmkb..",
+    "....kkmlmkk.j.b.",
+    "......kmk..b....",
+    "....b.....j.....",
+    "......j...j.....",
+    "................",
+    "................",
+    "................",
+)
+_RESONARCH_FACES = _face_overlays(6, 8, 5, 9, blush="b")
+
+# ---------------------------------------------------------------------------
+# Stormbit (ultimate, combat): a storm-cloud body with leaping bolts.
+# Face sits on rows 5 (eyes) and 7 (mouth).
+# ---------------------------------------------------------------------------
+_STORMBIT_F0 = (
+    "y.....kk.....r.y",
+    "...kkvvvvvvkk...",
+    "..kvuuuuvuuuvk..",
+    ".kkvuuuuuuuuvkk.",
+    "rkvuuuwuuuuuuvk.",
+    ".kvuuuuuuuuuvkk.",
+    ".kvuuuuuuuuuuvk.",
+    ".kkvuuuuuuuuvk..",
+    "..kkvuvvuvvkk.y.",
+    "y.r.kkkkkk...z..",
+    "..y...r...y..r..",
+    "r..k.....k...y..",
+    "....y.r.y.......",
+    "..r.......r.....",
+    "y.............y.",
+    "................",
+)
+_STORMBIT_F1 = (
+    "r.y...kk....y..r",
+    "...kkvvvvvvkk...",
+    "..kvuuuvuuuuvk..",
+    ".kkvuuuuuuuuvkk.",
+    ".kvuuuuwuuuuuvkr",
+    ".kvuuuuuuuuuvkk.",
+    ".kvuuuuuuuuuuvk.",
+    ".kkvuuuuuuuuvk..",
+    "y.kkvuvvuvvkk...",
+    "..z.kkkkkk.r..y.",
+    "....y...r...y...",
+    "y..k.....k..r...",
+    "......y.r.y.....",
+    "....r.......r...",
+    ".r.............y",
+    "................",
+)
+_STORMBIT_FACES = _face_overlays(5, 7, 5, 9, blush="z", tear="r")
+
+# ---------------------------------------------------------------------------
+# Blackout (ultimate, jammer line): an eclipse disc with a dark core.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_BLACKOUT_F0 = (
+    "......dddd......",
+    "....ddvvvvdd....",
+    "...dvvuuuuuvd...",
+    "..dkuuuuuuuukd..",
+    "..kvuuuwuuuuvk..",
+    ".dkvuuuuuuuuvkd.",
+    ".dkuuuuuuuuuukd.",
+    "..kvuuuuuuuuvk..",
+    "..dkuuuuuuuukd..",
+    "...dvvuuuuvvd...",
+    "....ddvvvvdd....",
+    "......dddd......",
+    "....z......z....",
+    "................",
+    "................",
+    "................",
+)
+_BLACKOUT_F1 = (
+    "......dddd......",
+    "....ddvvvvdd....",
+    "...dvvuuuuuvd...",
+    "..dkuuuuuuuukd..",
+    "..kvuuuuwuuuvk..",
+    ".dkvuuuuuuuuvkd.",
+    ".dkuuuuuuuuuukd.",
+    "..kvuuuuuuuuvk..",
+    "..dkuuuuuuuukd..",
+    "...dvvuuuuvvd...",
+    "....ddvvvvdd....",
+    "......dddd......",
+    ".....z....z.....",
+    "................",
+    "................",
+    "................",
+)
+_BLACKOUT_FACES = _face_overlays(6, 8, 5, 9, blush="z", tear="r")
+
+# ---------------------------------------------------------------------------
+# Aethernova (mega, care): a nova burst of clear aether.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_AETHERNOVA_F0 = (
+    "x...i..q..i...x.",
+    ".x.iqffffffqi.x.",
+    "i.kqhhhhhhhhqk.i",
+    ".kqfhhhhhhhhfqk.",
+    "xkqhwhhhhhhhhqkx",
+    ".kqfhhhhhhhhhfqk",
+    "kqfhhhhhhhhhhfqk",
+    "kqfhhhhhhhhhhfqk",
+    "xkqfhhhhhhhhfqkx",
+    ".kkqffffffqkk.i.",
+    "i.x.kqgqqgk.x.i.",
+    "x....kg..gk....x",
+    "....xk....kx....",
+    ".....k....k.....",
+    "......k..k......",
+    ".......kk.......",
+)
+_AETHERNOVA_F1 = (
+    ".x..i.q.q.i..x..",
+    "x.i.qffffffq.ix.",
+    ".ikqhhhhhhhhqki.",
+    ".kqfhhhhhhhhfqk.",
+    ".kqhhwhhhhhhhqk.",
+    "xkqfhhhhhhhhhfqx",
+    "kqfhhhhhhhhhhfqk",
+    "kqfhhhhhhhhhhfqk",
+    ".kqfhhhhhhhhfqk.",
+    "ixkkqffffffqkkxi",
+    "...x.kqgqqgk.x..",
+    ".x...kg..gk...x.",
+    "....xk....kx....",
+    ".....k....k.....",
+    "......k..k......",
+    "......k..k......",
+)
+_AETHERNOVA_FACES = _face_overlays(6, 8, 5, 9, blush="c")
+
+# ---------------------------------------------------------------------------
+# Signumega (mega, discovery): a towering sigil of the airwaves.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_SIGNUMEGA_F0 = (
+    "......jbj.......",
+    "....jkkjkkj.....",
+    "...kjmllllmjk...",
+    "..kjmlllhlllmk..",
+    "..kmljwlhhllmk..",
+    "j.kmllllllllmk.j",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "b.kmllllllllmk.b",
+    "...kkmllllmkk...",
+    "j...kkmlmkk...j.",
+    ".....k.k.k......",
+    "....j.....j.....",
+    "...b.......b....",
+    "................",
+    "................",
+)
+_SIGNUMEGA_F1 = (
+    ".....j.b.j......",
+    "....jkkjkkj.....",
+    "...kjmllllmjk...",
+    "..kjmllhlhllmk..",
+    "..kmljlwlhllmk..",
+    ".jkmllllllllmkj.",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "..kmllllllllmk..",
+    "b..kkmllllmkk.b.",
+    "....kkmlmkk....j",
+    "j....k.k.k......",
+    ".....j...j......",
+    "....b.....b.....",
+    "................",
+    "................",
+)
+_SIGNUMEGA_FACES = _face_overlays(6, 8, 5, 9, blush="b")
+
+# ---------------------------------------------------------------------------
+# Nullstorm (mega, combat): a total static storm.
+# Face sits on rows 5 (eyes) and 7 (mouth).
+# ---------------------------------------------------------------------------
+_NULLSTORM_F0 = (
+    "y.r.z.kk.z.r.y.r",
+    "r..kkvvvvvvkk..y",
+    "..kvuyyvuuyuuvk.",
+    ".kkvuuuuuuuuuvkk",
+    "ykvuuuwwuuuuuuvk",
+    ".kvuuuuuuuuuuvkk",
+    "rkvuuuuuuuuuuuvk",
+    ".kkvuuuuuuuuuvk.",
+    "y.kkvuvvuvvkk.r.",
+    "..r.kkkykkk.z.y.",
+    "y.r.y.r.y.r.y.r.",
+    "r..k.......k..y.",
+    "..y..r.y.r..y...",
+    "r....y...y....r.",
+    "y.r.........r.y.",
+    "................",
+)
+_NULLSTORM_F1 = (
+    "r.y.z..kk..z.y.r",
+    "y..kkvvvvvvkk..r",
+    "..kvuuyvuuyuvvk.",
+    ".kkvuuuuuuuuuvkk",
+    ".kvuuuuwuuuuuuvk",
+    ".kvuuuuuuuuuuvkk",
+    ".kvuuuuuuuuuuuvk",
+    ".kkvuuuuuuuuuvk.",
+    "r.kkvuvvuvvkk.y.",
+    "..z.kkkykkk.r...",
+    ".r.y.r.y.r.y.r.y",
+    "y..k.......k..r.",
+    "...y.r.y.r..y...",
+    ".r....y...y....r",
+    "..y.r.........y.",
+    "................",
+)
+_NULLSTORM_FACES = _face_overlays(5, 7, 5, 9, blush="z", tear="r")
+
+# ---------------------------------------------------------------------------
+# Voidstatic (mega, jammer line): a hole punched through the noise.
+# Face sits on rows 6 (eyes) and 8 (mouth).
+# ---------------------------------------------------------------------------
+_VOIDSTATIC_F0 = (
+    "z.....dddd....z.",
+    "....ddvvvvdd..r.",
+    "...dv......vd...",
+    "..dk.uuuuuu.kd..",
+    "..k.uuuwuuuu.k..",
+    ".dk.uuuuuuuu.kd.",
+    ".dk.uuuuuuuu.kd.",
+    "..k.uuuuuuuu.k..",
+    "..dk.uuuuuu.kd..",
+    "...dv......vd...",
+    "r...ddvvvvdd....",
+    "z.....dddd....z.",
+    "....z......z....",
+    "..r..........r..",
+    "................",
+    "................",
+)
+_VOIDSTATIC_F1 = (
+    ".z....dddd...z..",
+    "r...ddvvvvdd....",
+    "...dv......vd...",
+    "..dk.uuuuuu.kd..",
+    "..k.uuuuwuuu.k..",
+    ".dk.uuuuuuuu.kd.",
+    ".dk.uuuuuuuu.kd.",
+    "..k.uuuuuuuu.k..",
+    "..dk.uuuuuu.kd..",
+    "...dv......vd...",
+    "....ddvvvvdd...r",
+    "..z...dddd....z.",
+    ".....z....z.....",
+    "....r......r....",
+    "................",
+    "................",
+)
+_VOIDSTATIC_FACES = _face_overlays(6, 8, 5, 9, blush="z", tear="r")
+
+
+
 def _validate_grid(label: str, rows: tuple[str, ...] | list[str]) -> None:
     """Raise ValueError if a grid is not 16x16 or uses an unknown character."""
     if len(rows) != SPRITE_SIZE:
@@ -576,6 +1165,78 @@ FORMS: dict[str, dict] = {
         "name": "Staticore",
         "frames": (_STATICORE_F0, _STATICORE_F1),
         "faces": _STATICORE_FACES,
+    },
+    "luminode": {
+        "id": "luminode",
+        "name": "Luminode",
+        "frames": (_LUMINODE_F0, _LUMINODE_F1),
+        "faces": _LUMINODE_FACES,
+    },
+    "hexwave": {
+        "id": "hexwave",
+        "name": "Hexwave",
+        "frames": (_HEXWAVE_F0, _HEXWAVE_F1),
+        "faces": _HEXWAVE_FACES,
+    },
+    "voltshard": {
+        "id": "voltshard",
+        "name": "Voltshard",
+        "frames": (_VOLTSHARD_F0, _VOLTSHARD_F1),
+        "faces": _VOLTSHARD_FACES,
+    },
+    "jammeron": {
+        "id": "jammeron",
+        "name": "Jammeron",
+        "frames": (_JAMMERON_F0, _JAMMERON_F1),
+        "faces": _JAMMERON_FACES,
+    },
+    "aurorion": {
+        "id": "aurorion",
+        "name": "Aurorion",
+        "frames": (_AURORION_F0, _AURORION_F1),
+        "faces": _AURORION_FACES,
+    },
+    "resonarch": {
+        "id": "resonarch",
+        "name": "Resonarch",
+        "frames": (_RESONARCH_F0, _RESONARCH_F1),
+        "faces": _RESONARCH_FACES,
+    },
+    "stormbit": {
+        "id": "stormbit",
+        "name": "Stormbit",
+        "frames": (_STORMBIT_F0, _STORMBIT_F1),
+        "faces": _STORMBIT_FACES,
+    },
+    "blackout": {
+        "id": "blackout",
+        "name": "Blackout",
+        "frames": (_BLACKOUT_F0, _BLACKOUT_F1),
+        "faces": _BLACKOUT_FACES,
+    },
+    "aethernova": {
+        "id": "aethernova",
+        "name": "Aethernova",
+        "frames": (_AETHERNOVA_F0, _AETHERNOVA_F1),
+        "faces": _AETHERNOVA_FACES,
+    },
+    "signumega": {
+        "id": "signumega",
+        "name": "Signumega",
+        "frames": (_SIGNUMEGA_F0, _SIGNUMEGA_F1),
+        "faces": _SIGNUMEGA_FACES,
+    },
+    "nullstorm": {
+        "id": "nullstorm",
+        "name": "Nullstorm",
+        "frames": (_NULLSTORM_F0, _NULLSTORM_F1),
+        "faces": _NULLSTORM_FACES,
+    },
+    "voidstatic": {
+        "id": "voidstatic",
+        "name": "Voidstatic",
+        "frames": (_VOIDSTATIC_F0, _VOIDSTATIC_F1),
+        "faces": _VOIDSTATIC_FACES,
     },
 }
 
@@ -634,7 +1295,16 @@ def lookup_form(name: str) -> dict:
 
 def list_forms() -> list[str]:
     """Species ids in a stable, evolution-friendly order."""
-    return ["chirplet", "wavling", "aethling", "staticore"]
+    try:
+        from pet.evolution import forms_in_evolution_order
+
+        ordered = [sid for sid in forms_in_evolution_order() if sid in FORMS]
+        for form_id in FORMS:
+            if form_id not in ordered:
+                ordered.append(form_id)
+        return ordered
+    except ImportError:
+        return list(FORMS)
 
 
 def composite_grid(base: tuple[str, ...] | list[str], overlay: tuple[str, ...] | list[str]) -> list[str]:

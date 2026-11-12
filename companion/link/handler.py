@@ -301,10 +301,15 @@ class CompanionHandler:
                 f"protocol version {proto_n} is not compatible with {PROTO_VERSION}",
             )
         want_events = bool(payload.get("events"))
-        self.events_enabled = want_events
-        # Snapshot now so we don't immediately flood the new client with
-        # "already hungry" events for a state that existed before hello.
-        self._seen = self._snapshot()
+        # Opting in turns events on. Opting out of *this* hello must not
+        # silence other TCP clients that already asked for pushes; the
+        # server sets events_enabled from the live sessions after handle().
+        if want_events:
+            # Only snapshot when events first start, so a second client
+            # saying hello does not wipe the first client's pending needs.
+            if not self.events_enabled:
+                self._seen = self._snapshot()
+            self.events_enabled = True
         body: dict[str, Any] = {
             "role": "companion",
             "proto": PROTO_VERSION,
@@ -420,10 +425,14 @@ class CompanionHandler:
         elif kind == "evolve":
             if self.creature.next_form_id() is None:
                 accepted = False
-                reaction = (
-                    f"{pet_name} is already a {self.creature.species.name} "
-                    f"({self.creature.species.stage}). it keeps the {name} as a trophy."
-                )
+                stage = self.creature.species.stage
+                if stage == "mega":
+                    reaction = f"{pet_name} is already mega — it hands the {name} back."
+                else:
+                    reaction = (
+                        f"{pet_name} is already a {self.creature.species.name} "
+                        f"({stage}). it keeps the {name} as a trophy."
+                    )
             else:
                 lines = self.creature.advance_evolution()
                 new = self.creature.species

@@ -74,6 +74,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ascii", action="store_true", help="Plain-ASCII avatar (no ANSI color).")
     parser.add_argument("--rich", action="store_true", help="Use the optional 'rich' package if installed.")
     parser.add_argument("--source", type=str, default="sim", help="source field in hello.ok (default sim).")
+    parser.add_argument(
+        "--event-interval",
+        type=float,
+        default=0.5,
+        help="Wall-clock seconds between outgoing pet.event pushes (default 0.5). 0 sends immediately.",
+    )
     return parser.parse_args(argv)
 
 
@@ -102,6 +108,9 @@ def run(args: argparse.Namespace) -> int:
         return 2
     if args.tick_seconds <= 0 or args.dt < 0:
         print("--tick-seconds must be > 0 and --dt must be >= 0", file=sys.stderr)
+        return 2
+    if args.event_interval < 0:
+        print("--event-interval must be >= 0", file=sys.stderr)
         return 2
 
     use_serial = args.serial is not None
@@ -156,15 +165,22 @@ def run(args: argparse.Namespace) -> int:
     tick_thread = threading.Thread(target=ticker, name="pet-tick", daemon=True)
     server: TcpServer | UartServer
     if use_serial:
-        server = UartServer(handler, lock, path=port_path)
+        server = UartServer(
+            handler, lock, path=port_path, event_interval=args.event_interval
+        )
     else:
-        server = TcpServer(handler, lock, host=host, port=port)
+        server = TcpServer(
+            handler, lock, host=host, port=port, event_interval=args.event_interval
+        )
         server.start()
         endpoint = f"TCP {host}:{server.port}"
 
     print("Cyberdeck Pet — companion link")
     print(f"{endpoint}  ({origin})")
-    print(f"tick every {args.tick_seconds:g}s, dt={args.dt:g} sim hours")
+    print(
+        f"tick every {args.tick_seconds:g}s, dt={args.dt:g} sim hours, "
+        f"event interval {args.event_interval:g}s"
+    )
     print(creature.summary())
     print("Waiting for the main deck. Ctrl-C to stop.")
 

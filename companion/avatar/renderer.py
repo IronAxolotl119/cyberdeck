@@ -252,30 +252,25 @@ SHEET_MOODS: tuple[tuple[str, str], ...] = (
 
 
 def format_catalog(ascii_mode: bool = False, use_rich: bool = False, include_frame1: bool = True) -> str:
-    """All forms and moods arranged side by side as a multi-line string."""
+    """All forms and moods, grouped by evolution stage, as a multi-line string."""
     forms = list_forms()
-    col_width = SPRITE_SIZE + SHEET_GAP
     renderer = get_renderer(ascii_mode=ascii_mode, use_rich=use_rich and not ascii_mode)
+
+    stage_order = ("baby", "in-training", "rookie", "champion", "ultimate", "mega")
+    groups: dict[str, list[str]] = {stage: [] for stage in stage_order}
+    other: list[str] = []
+    for form_id in forms:
+        stage = _stage_for(form_id)
+        if stage in groups:
+            groups[stage].append(form_id)
+        else:
+            other.append(form_id)
 
     sections: list[str] = []
     sections.append("Cyberdeck Pet — sprite catalog")
     sections.append("Each form has two idle frames; moods are a face overlay.")
+    sections.append("Forms are grouped by stage so later evolutions stay readable.")
     sections.append("")
-
-    # Column headers, padded to the same cell width the sprites will occupy.
-    # In half-block mode one pixel column == one character; same in ASCII.
-    names = []
-    stages = []
-    for form_id in forms:
-        record = lookup_form(form_id)
-        names.append(record["name"].center(SPRITE_SIZE))
-        # Stage label is filled in from the form name only if evolution is
-        # importable; otherwise just the id.
-        stage = _stage_for(form_id)
-        stages.append(stage.center(SPRITE_SIZE))
-    gap = " " * SHEET_GAP
-    sections.append(gap.join(names).rstrip())
-    sections.append(gap.join(stages).rstrip())
 
     rows_spec: list[tuple[str, int, str]] = [
         (mood, 0, title) for mood, title in SHEET_MOODS
@@ -283,15 +278,41 @@ def format_catalog(ascii_mode: bool = False, use_rich: bool = False, include_fra
     if include_frame1:
         rows_spec.append(("neutral", 1, "neutral (idle frame 1)"))
 
-    for mood, frame, title in rows_spec:
-        canvas = _blank(col_width * len(forms) - SHEET_GAP, SPRITE_SIZE)
-        for index, form_id in enumerate(forms):
-            blit(canvas, sprite_pixels(form_id, frame=frame, mood=mood), index * col_width, 0)
-        sections.append("")
-        sections.append(title)
-        sections.append(renderer.render(canvas))
+    first_section = True
+    for stage in list(stage_order) + ["other"]:
+        chunk = other if stage == "other" else groups[stage]
+        if not chunk:
+            continue
+        if not first_section:
+            sections.append("")
+        first_section = False
+        label = stage if stage != "other" else "other"
+        sections.append(f"— {label} —")
+        sections.extend(_catalog_block(chunk, renderer, rows_spec))
 
     return "\n".join(sections).rstrip() + "\n"
+
+
+def _catalog_block(
+    forms: list[str],
+    renderer,
+    rows_spec: list[tuple[str, int, str]],
+) -> list[str]:
+    """One stage's column headers plus the mood/frame rows."""
+    col_width = SPRITE_SIZE + SHEET_GAP
+    names = [lookup_form(form_id)["name"].center(SPRITE_SIZE) for form_id in forms]
+    stages = [_stage_for(form_id).center(SPRITE_SIZE) for form_id in forms]
+    gap = " " * SHEET_GAP
+    out = [gap.join(names).rstrip(), gap.join(stages).rstrip()]
+    for mood, frame, title in rows_spec:
+        width = col_width * len(forms) - SHEET_GAP
+        canvas = _blank(max(1, width), SPRITE_SIZE)
+        for index, form_id in enumerate(forms):
+            blit(canvas, sprite_pixels(form_id, frame=frame, mood=mood), index * col_width, 0)
+        out.append("")
+        out.append(title)
+        out.append(renderer.render(canvas))
+    return out
 
 
 def _stage_for(form_id: str) -> str:
