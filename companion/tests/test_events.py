@@ -46,6 +46,7 @@ class EnqueueTests(unittest.TestCase):
         enqueue_event(queue, _event("evolved", to="Wavling"))
         enqueue_event(queue, _event("level_up", level=2))
         enqueue_event(queue, _event("learned_move", move="Chirp"))
+        enqueue_event(queue, _event("move_strengthened", move="Tag Bite", rank=1, bonus=2))
         enqueue_event(queue, _event("evolved", to="Aethling"))
         enqueue_event(queue, _event("evolve_soon"))
         enqueue_event(queue, _event("evolve_choice"))
@@ -60,6 +61,7 @@ class EnqueueTests(unittest.TestCase):
                 "evolved",
                 "level_up",
                 "learned_move",
+                "move_strengthened",
                 "evolved",
                 "evolve_soon",
                 "evolve_choice",

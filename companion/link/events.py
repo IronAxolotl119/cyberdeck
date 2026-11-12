@@ -7,7 +7,7 @@ still want the wire to stay calm:
   * send at most one pet.event per interval (default 0.5 s of wall clock)
   * while a need event (hungry / tired / sad) is still waiting, a later
     duplicate of the same kind replaces it (latest pet snapshot wins)
-  * evolved / level_up / learned_move / woke / evolve_soon / evolving / evolve_choice are never dropped or merged
+  * evolved / level_up / learned_move / move_strengthened / woke / evolve_soon / evolving / evolve_choice are never dropped or merged
 
 Each TCP client has its own queue and its own pacer, so two decks can be
 opted in at once without sharing a send timer.
@@ -28,7 +28,7 @@ DEFAULT_EVENT_INTERVAL = 0.5
 NEED_EVENT_KINDS = frozenset({"hungry", "tired", "sad"})
 
 # Growth events are unique moments and must not be coalesced or discarded.
-KEEP_EVENT_KINDS = frozenset({"evolved", "level_up", "learned_move", "woke", "evolve_soon", "evolving", "evolve_choice"})
+KEEP_EVENT_KINDS = frozenset({"evolved", "level_up", "learned_move", "move_strengthened", "woke", "evolve_soon", "evolving", "evolve_choice"})
 
 Clock = Callable[[], float]
 T = TypeVar("T")

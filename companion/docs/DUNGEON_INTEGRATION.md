@@ -111,9 +111,15 @@ This is a deliberate design choice:
 
 ```json
 {"hp":32,"max_hp":32,"attack":6,"defense":5,"speed":7,"level":1,
- "moves":[{"name":"Chirp","power":8,"accuracy":95,"energy_cost":4,"kind":"electric","effect":null}],
+ "moves":[{"name":"Chirp","power":8,"accuracy":95,"energy_cost":4,"kind":"electric","effect":null,"rank":0,"bonus":0}],
  "fainted":false,"asleep":false,"guarding":false}
 ```
+
+Each move includes `rank` (0–5) and `bonus` (rank × 2). `power` is the
+effective value (`base + bonus`). Strengthen ranks come from dashboard
+finds (`docs/DISCOVERY.md`) and are used when the pet attacks.
+`speed` may also include a temporary +1 environment buff when the air
+has been busy.
 
 `pet.combat.action {move, enemy}` → `pet.combat.action.ok`:
 
@@ -208,3 +214,18 @@ confirm.
 
 These growth events (`evolve_soon`, `evolve_choice`, `evolving`,
 `evolved`, plus `woke`) are never dropped by event pacing.
+
+## Dashboard discoveries
+
+New devices and tags found by the Rich dashboard are reported with
+`pet.discovery`. First sightings grant PULSE XP (scaled by kind and
+interest) and may teach or strengthen a kind-themed move. Repeats of the
+same `kind`+`id` return `xp: 0` and a gentle reaction, not an error.
+`pet.status` includes `environment: {busy, buff}`: a busy window gives a
+small temporary mood/speed buff, and a long quiet stretch makes the pet
+bored. Hello may include a `client` field (ignored) so the dashboard and
+the main deck can share one companion connection.
+
+Full request/reply shape, XP table, move pools, and rank rules:
+[`docs/DISCOVERY.md`](DISCOVERY.md).
+

@@ -53,7 +53,8 @@ cyberdeck-pet/
 ├── discovery/           How the pet notices the world around it
 │   ├── base.py          Signal + abstract Scanner interface
 │   ├── simulated.py     Seeded fake Wi-Fi / Bluetooth scans (no real radio)
-│   └── effects.py       Turns signals into XP, mood, or learned moves
+│   ├── effects.py       Turns signals into XP, mood, or learned moves
+│   └── sighting.py      Dashboard pet.discovery: XP, ranks, environment
 ├── avatar/              Kaomoji-style text faces (no images)
 │   └── faces.py         Moods, 2–4 animation frames, stage accents, banners
 ├── link/                Talks to the main cyberdeck (docs/PROTOCOL.md)
@@ -65,6 +66,7 @@ cyberdeck-pet/
 ├── scripts/link_smoke.py  Tiny scripted client for a running companion
 ├── docs/faces/sheet.txt Catalog of every mood and stage accent
 ├── docs/DUNGEON_INTEGRATION.md  Rest, sleep, combat, and evolution protocol
+├── docs/DISCOVERY.md           pet.discovery, move ranks, environment mood
 ├── tests/               unittest (standard library) coverage
 ├── README.md
 └── .gitignore
@@ -305,16 +307,22 @@ Other messages this companion speaks, all documented in
 - `pet.combat.stats` / `pet.combat.action` / `pet.combat.hit` /
   `pet.combat.end` for the dungeon companion API
 - `pet.evolve {species}` as described above
+- `pet.discovery {kind, id, interest, event?, label?}` → `pet.discovery.ok`
+  (PULSE XP and a chance to learn or strengthen a move from a dashboard
+  find; see `docs/DISCOVERY.md`)
 
 If the main deck's `hello` payload includes `"events": true`, we echo that
 in `hello.ok` and may then push `{type:"pet.event", id:<new>,
 payload:{event, detail, pet}}` for hungry / tired / sad / evolved /
-level_up / learned_move / signal_found / woke / evolve_soon / evolving /
-evolve_choice. `detail` is a dict (empty for the need events and woke;
+level_up / learned_move / move_strengthened / signal_found / woke /
+evolve_soon / evolving / evolve_choice. `detail` is a dict (empty for the
+need events and woke;
 `from`/`to`/`form`/`stage`/`from_stage` for evolved; `from`/`to` for
 evolving; `from`/`to_candidates`/`next_stage`/`eta_hours` for evolve_soon;
 `from`/`next_stage`/`choices` for evolve_choice; `level` for level_up;
-`move` for learned_move; `ssid`/`name`/`kind`/`rssi` for signal_found).
+`move` for learned_move; `move`/`rank`/`bonus` for move_strengthened;
+`ssid`/`name`/`kind`/`rssi` for signal_found).
+A hello may also include `client` (for example `"dash"`); it is ignored.
 Without that flag we stay request/reply only.
 
 ## Roadmap

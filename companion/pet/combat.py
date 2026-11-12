@@ -15,7 +15,9 @@ Damage formulas (integers throughout, documented so both sides agree):
   Outgoing damage (only if the move hits)
       If the move's effect is "guard": damage = 0, and the pet raises a
       guard flag that halves the *next* incoming hit.
-      Otherwise: damage = max(1, move.power + pet.attack - enemy.defense)
+      Otherwise: damage = max(1, effective_power + pet.attack - enemy.defense)
+      where effective_power is the move's base power plus its saved rank
+      bonus (2 points per strengthen rank, capped at rank 5).
 
   Incoming hit (pet.combat.hit, field "damage")
       taken = max(0, damage - pet.defense // 4)
@@ -44,15 +46,26 @@ def clamp_int(value: int, lo: int, hi: int) -> int:
     return lo if value < lo else hi if value > hi else value
 
 
-def move_payload(move: Move) -> dict[str, Any]:
-    """One move as advertised by pet.combat.stats."""
+def move_payload(move: Move, creature: Creature | None = None) -> dict[str, Any]:
+    """One move as advertised by pet.combat.stats.
+
+    When a creature is given, power is the effective (ranked) value and
+    rank / bonus are included so the dungeon can show the boost.
+    """
+    rank = 0
+    power = int(move.power)
+    if creature is not None:
+        rank = creature.move_rank(move.id)
+        power = creature.effective_power(move)
     return {
         "name": move.name,
-        "power": move.power,
+        "power": power,
         "accuracy": move.accuracy,
         "energy_cost": move.energy_cost,
         "kind": move.kind,
         "effect": move.effect,
+        "rank": rank,
+        "bonus": power - int(move.power),
     }
 
 
@@ -63,13 +76,14 @@ def stats_payload(creature: Creature) -> dict[str, Any]:
     for move_id in creature.known_move_ids:
         move = MOVE_LIBRARY.get(move_id)
         if move is not None:
-            moves.append(move_payload(move))
+            moves.append(move_payload(move, creature))
+    _mood, speed_bonus = creature.environment_bonuses()
     return {
         "hp": stats.hp,
         "max_hp": stats.max_hp,
         "attack": stats.attack,
         "defense": stats.defense,
-        "speed": stats.speed,
+        "speed": stats.speed + speed_bonus,
         "level": stats.level,
         "moves": moves,
         "fainted": creature.fainted,
@@ -134,10 +148,16 @@ def outgoing_accuracy(move: Move, pet_speed: int, enemy_speed: int) -> int:
     return clamp_int(int(move.accuracy) + (int(pet_speed) - int(enemy_speed)) // 2, 5, 100)
 
 
-def outgoing_damage(move: Move, pet_attack: int, enemy_defense: int) -> int:
+def outgoing_damage(
+    move: Move,
+    pet_attack: int,
+    enemy_defense: int,
+    power: int | None = None,
+) -> int:
     if move.effect == "guard":
         return 0
-    return max(1, int(move.power) + int(pet_attack) - int(enemy_defense))
+    used = int(move.power) if power is None else int(power)
+    return max(1, used + int(pet_attack) - int(enemy_defense))
 
 
 def incoming_taken(raw_damage: int, defense: int, guarding: bool) -> int:
@@ -174,9 +194,11 @@ def perform_action(
         }
 
     foe = parse_enemy(enemy)
-    chance = outgoing_accuracy(move, creature.stats.speed, foe["speed"])
+    _mood, speed_bonus = creature.environment_bonuses()
+    chance = outgoing_accuracy(move, creature.stats.speed + speed_bonus, foe["speed"])
     hit = rng.randint(1, 100) <= chance
-    damage = outgoing_damage(move, creature.stats.attack, foe["defense"]) if hit else 0
+    power = creature.effective_power(move)
+    damage = outgoing_damage(move, creature.stats.attack, foe["defense"], power=power) if hit else 0
     if move.effect == "guard":
         creature.guarding = True
         hit = True

@@ -438,6 +438,62 @@ class MultiClientTcpTests(unittest.TestCase):
             self.assertTrue(any(event_kind(m) == "evolved" for m in more_b))
 
 
+    def test_deck_and_dashboard_connected_at_once(self) -> None:
+        """The main deck and the Rich dashboard can share one companion."""
+        with socket.create_connection(("127.0.0.1", self.port), timeout=2) as deck, \
+             socket.create_connection(("127.0.0.1", self.port), timeout=2) as dash:
+            hello_deck = _send_recv(deck, "hello", {"role": "main", "proto": 1, "events": True, "client": "main"})
+            hello_dash = _send_recv(dash, "hello", {"role": "main", "proto": 1, "events": True, "client": "dash"})
+            self.assertEqual(hello_deck.type, "hello.ok")
+            self.assertEqual(hello_dash.type, "hello.ok")
+            self.assertTrue(hello_deck.payload.get("events") is True)
+            self.assertTrue(hello_dash.payload.get("events") is True)
+            self.assertNotIn("client", hello_dash.payload)
+
+            # Dashboard reports a find; the deck can still ask for status.
+            found = _send_recv(
+                dash,
+                "pet.discovery",
+                {"kind": "wifi", "id": "aa:bb:cc:dd:ee:ff", "interest": 2, "label": "cafe"},
+            )
+            self.assertEqual(found.type, "pet.discovery.ok")
+            self.assertGreaterEqual(found.payload["xp"], 0)
+            self.assertIn("pet", found.payload)
+            self.assertIn("environment", found.payload["pet"])
+
+            status = _send_recv(deck, "pet.status", {})
+            self.assertEqual(status.type, "pet.status.ok")
+            self.assertEqual(status.payload["pet"]["xp"], found.payload["pet"]["xp"])
+            self.assertIn("environment", status.payload["pet"])
+
+            # The deck must not receive the dashboard's discovery reply as its own.
+            deck.settimeout(0.2)
+            stray = b""
+            try:
+                # Drain any events (allowed) but there must be no pet.discovery.ok.
+                leftover = deck.recv(8192)
+                stray = leftover
+            except socket.timeout:
+                leftover = b""
+            if leftover:
+                from link.protocol import split_complete_lines, try_decode_line
+                text = leftover.decode("utf-8")
+                lines, _ = split_complete_lines(text)
+                types = []
+                for line in lines:
+                    msg = try_decode_line(line)
+                    if msg is not None:
+                        types.append(msg.type)
+                self.assertNotIn("pet.discovery.ok", types)
+                # Events may have been pushed to the opted-in deck.
+                for typ in types:
+                    self.assertIn(typ, {"pet.event"})
+
+            # A follow-up ping on the dashboard socket still works.
+            pong = _send_recv(dash, "ping", {})
+            self.assertEqual(pong.type, "pong")
+
+
 class InventorySaveTests(unittest.TestCase):
     def test_gifts_survive_save_round_trip(self) -> None:
         handler = CompanionHandler(Creature(stats=Stats(hunger=50, mood=50, energy=80)))
@@ -449,6 +505,8 @@ class InventorySaveTests(unittest.TestCase):
             loaded = load_creature(path)
         self.assertEqual(loaded.inventory, ["token"])
         self.assertEqual(need_hunger(loaded), need_hunger(handler.creature))
+
+
 
 
 if __name__ == "__main__":

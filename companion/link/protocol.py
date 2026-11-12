@@ -53,6 +53,8 @@ TYPE_PET_COMBAT_END = "pet.combat.end"
 TYPE_PET_COMBAT_END_OK = "pet.combat.end.ok"
 TYPE_PET_EVOLVE = "pet.evolve"
 TYPE_PET_EVOLVE_OK = "pet.evolve.ok"
+TYPE_PET_DISCOVERY = "pet.discovery"
+TYPE_PET_DISCOVERY_OK = "pet.discovery.ok"
 # Opt-in extension: unsolicited pushes when hello.payload.events is true.
 # Only emitted after the main deck asks for them. detail is a dict.
 TYPE_PET_EVENT = "pet.event"
@@ -68,6 +70,7 @@ EVENT_KINDS = (
     "evolve_soon",
     "evolving",
     "evolve_choice",
+    "move_strengthened",
 )
 
 # Every valid message must have these three keys.

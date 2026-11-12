@@ -95,6 +95,8 @@ class Creature:
         evolution_ready_override: bool = False,
         evolve_soon_announced: bool = False,
         evolve_choice_announced: bool = False,
+        sighting_keys: set[str] | None = None,
+        move_ranks: dict[str, int] | None = None,
     ) -> None:
         self.name = name
         self.species_id = species_id
@@ -117,6 +119,15 @@ class Creature:
         self.evolve_choice_announced = bool(evolve_choice_announced)
         # Protocol notices drained by the link handler (kind, detail).
         self._evo_notices: list[tuple[str, dict]] = []
+        # Dashboard first-sightings (kind:id) and per-move strengthen ranks.
+        self.sighting_keys: set[str] = set(sighting_keys or [])
+        self.move_ranks: dict[str, int] = {
+            str(k): int(v) for k, v in (move_ranks or {}).items()
+        }
+        # Rolling window of first-finds for the environment busy meter
+        # (monotonic timestamps; not persisted).
+        self._recent_sightings: list[tuple[float, int]] = []
+        self._last_find_at: float | None = None
         if known_move_ids is None:
             # Brand-new pets start with every move their current level unlocks
             # (for a level-1 Chirplet that is just Chirp).
@@ -301,6 +312,64 @@ class Creature:
         self.known_move_ids.append(move_id)
         return [f"{self.name} learned {move.name}!"]
 
+    def unique_discovery_count(self) -> int:
+        """Scanner signals plus unique dashboard kind+id sightings."""
+        return len(self.discovered_ids) + len(self.sighting_keys)
+
+    def note_sighting(self, stamp: float, interest: int) -> None:
+        """Record a first dashboard find in the rolling environment window."""
+        from discovery.sighting import ACTIVITY_WINDOW
+
+        self._recent_sightings.append((float(stamp), int(interest)))
+        self._last_find_at = float(stamp)
+        keep = ACTIVITY_WINDOW * 2
+        self._recent_sightings = [
+            (ts, value) for ts, value in self._recent_sightings if stamp - ts <= keep
+        ]
+
+    def move_rank(self, move_id: str) -> int:
+        """Saved strengthen rank for a move (0 if never boosted)."""
+        try:
+            return max(0, int(self.move_ranks.get(move_id, 0)))
+        except (TypeError, ValueError):
+            return 0
+
+    def strengthen_move(self, move_id: str) -> int:
+        """Bump a move's power rank by one, capped. Returns the new rank."""
+        from discovery.sighting import MAX_RANK
+
+        new_rank = min(MAX_RANK, self.move_rank(move_id) + 1)
+        self.move_ranks[move_id] = new_rank
+        return new_rank
+
+    def effective_power(self, move) -> int:
+        """Base power plus the saved rank bonus."""
+        from discovery.sighting import effective_power as _effective
+
+        return _effective(move.power, self.move_rank(move.id))
+
+    def environment(self, now: float | None = None) -> dict:
+        """pet.status.environment: busy 0-1 and a short buff label."""
+        from discovery.sighting import environment_state
+
+        state = environment_state(
+            self._recent_sightings,
+            now=now,
+            last_find_at=self._last_find_at,
+        )
+        return {"busy": state["busy"], "buff": state["buff"]}
+
+    def environment_bonuses(self, now: float | None = None) -> tuple[int, int]:
+        """Temporary (mood_bonus, speed_bonus) from the environment window."""
+        from discovery.sighting import environment_state
+
+        state = environment_state(
+            self._recent_sightings,
+            now=now,
+            last_find_at=self._last_find_at,
+        )
+        return int(state["mood_bonus"]), int(state["speed_bonus"])
+
     def known_moves(self):
         """Move objects for every id in known_move_ids, skipping unknowns."""
         result = []
@@ -326,7 +395,7 @@ class Creature:
         return _evolution_status(
             self.species_id,
             self.stats,
-            discovered=len(self.discovered_ids),
+            discovered=self.unique_discovery_count(),
             ready_override=self.evolution_ready_override,
         )
 
@@ -389,7 +458,7 @@ class Creature:
     def next_form_id(self) -> str | None:
         """Preferred next species id (care/stat/discovery), or None at mega."""
         chosen = choose_next_form(
-            self.species_id, self.stats, discovered=len(self.discovered_ids)
+            self.species_id, self.stats, discovered=self.unique_discovery_count()
         )
         return chosen.id if chosen is not None else None
 
@@ -532,6 +601,8 @@ class Creature:
             "evolution_ready_override": self.evolution_ready_override,
             "evolve_soon_announced": self.evolve_soon_announced,
             "evolve_choice_announced": self.evolve_choice_announced,
+            "sighting_keys": sorted(self.sighting_keys),
+            "move_ranks": {k: int(v) for k, v in sorted(self.move_ranks.items())},
         }
 
     @classmethod
@@ -549,4 +620,6 @@ class Creature:
             evolution_ready_override=bool(data.get("evolution_ready_override", False)),
             evolve_soon_announced=bool(data.get("evolve_soon_announced", False)),
             evolve_choice_announced=bool(data.get("evolve_choice_announced", False)),
+            sighting_keys=set(data.get("sighting_keys") or []),
+            move_ranks=dict(data.get("move_ranks") or {}),
         )

@@ -30,6 +30,8 @@ from link.protocol import (
     TYPE_PET_COMBAT_STATS,
     TYPE_PET_COMBAT_STATS_OK,
     TYPE_PET_EVENT,
+    TYPE_PET_DISCOVERY,
+    TYPE_PET_DISCOVERY_OK,
     TYPE_PET_EVOLVE,
     TYPE_PET_EVOLVE_OK,
     TYPE_PET_FEED,
@@ -94,7 +96,8 @@ def mood_word(creature: Creature) -> str:
     if creature.asleep:
         return "asleep"
     hunger = need_hunger(creature)
-    happiness = _clamp(creature.stats.mood)
+    mood_bonus, _speed = creature.environment_bonuses()
+    happiness = _clamp(creature.stats.mood + mood_bonus)
     energy = _clamp(creature.stats.energy)
     if hunger >= HUNGRY_AT:
         return "hungry"
@@ -109,6 +112,9 @@ def mood_word(creature: Creature) -> str:
     status = creature.evolution_status()
     if status.get("ready") or float(status.get("progress") or 0) >= 0.90:
         return "excited"
+    env = creature.environment()
+    if str(env.get("buff") or "").startswith("bored"):
+        return "bored"
     return "content"
 
 
@@ -116,12 +122,13 @@ def pet_payload(creature: Creature, frame: int = 0) -> dict[str, Any]:
     """The pet object attached to status / feed / play / gift / event replies."""
     stats = creature.stats
     moves = [MOVE_LIBRARY[mid].name if mid in MOVE_LIBRARY else mid for mid in creature.known_move_ids]
+    mood_bonus, speed_bonus = creature.environment_bonuses()
     return {
         "name": PET_NAME,
         "species": creature.species.name,
         "stage": creature.species.stage,
         "hunger": int(round(need_hunger(creature))),
-        "happiness": int(round(_clamp(stats.mood))),
+        "happiness": int(round(_clamp(stats.mood + mood_bonus))),
         "energy": int(round(_clamp(stats.energy))),
         "mood": mood_word(creature),
         "age_hours": round(float(stats.age), 2),
@@ -133,13 +140,14 @@ def pet_payload(creature: Creature, frame: int = 0) -> dict[str, Any]:
         "max_hp": stats.max_hp,
         "attack": stats.attack,
         "defense": stats.defense,
-        "speed": stats.speed,
+        "speed": stats.speed + speed_bonus,
         "moves": moves,
         "care_mistakes": stats.care_mistakes,
         "asleep": bool(creature.asleep),
         "fainted": bool(creature.fainted),
         "evolution": creature.evolution_status(),
         "avatar": pet_avatar(creature, frame=frame),
+        "environment": creature.environment(),
     }
 
 
@@ -211,6 +219,8 @@ class CompanionHandler:
             reply = self._combat_end(message, payload)
         elif typ == TYPE_PET_EVOLVE:
             reply = self._evolve(message, payload)
+        elif typ == TYPE_PET_DISCOVERY:
+            reply = self._discovery(message, payload)
         else:
             reply = message.error("unknown_type", f"unsupported message type: {typ}")
 
@@ -288,6 +298,7 @@ class CompanionHandler:
                 f"protocol version {proto_n} is not compatible with {PROTO_VERSION}",
             )
         want_events = bool(payload.get("events"))
+        # Extra hello fields such as "client": "dash" | "main" are ignored.
         # Opting in turns events on. Opting out of *this* hello must not
         # silence other TCP clients that already asked for pushes; the
         # server sets events_enabled from the live sessions after handle().
@@ -461,6 +472,64 @@ class CompanionHandler:
             },
         )
 
+    def _discovery(self, message: Message, payload: dict[str, Any]) -> Message:
+        """pet.discovery: a dashboard first-find (or a gentle repeat)."""
+        from discovery.sighting import DISCOVERY_KINDS, apply_sighting
+
+        kind_raw = payload.get("kind")
+        ident_raw = payload.get("id")
+        if not isinstance(kind_raw, str) or not kind_raw.strip():
+            return message.error("bad_payload", "kind is required")
+        kind = kind_raw.strip().lower()
+        if kind not in DISCOVERY_KINDS:
+            return message.error("bad_payload", f"unknown discovery kind: {kind}")
+        if ident_raw is None or (isinstance(ident_raw, str) and not ident_raw.strip()):
+            return message.error("bad_payload", "id is required")
+        ident = str(ident_raw).strip()
+        if not ident:
+            return message.error("bad_payload", "id is required")
+
+        event = payload.get("event")
+        label = payload.get("label")
+        event_s = str(event) if event is not None and str(event).strip() else None
+        label_s = str(label) if label is not None and str(label).strip() else None
+
+        before_species = self.creature.species_id
+        before_level = self.creature.stats.level
+        before_moves = list(self.creature.known_move_ids)
+        before_ranks = dict(self.creature.move_ranks)
+
+        result = apply_sighting(
+            self.creature,
+            kind=kind,
+            ident=ident,
+            interest=payload.get("interest", 1),
+            event=event_s,
+            label=label_s,
+            rng=self.rng,
+        )
+        self._note_growth(before_species, before_level, before_moves)
+        for move_id, rank in self.creature.move_ranks.items():
+            if int(rank) > int(before_ranks.get(move_id, 0)):
+                move = MOVE_LIBRARY.get(move_id)
+                name = move.name if move is not None else move_id
+                bonus = (self.creature.effective_power(move) - move.power) if move is not None else 0
+                self._queue_event(
+                    "move_strengthened",
+                    {"move": name, "rank": int(rank), "bonus": int(bonus)},
+                )
+
+        body = {
+            "xp": int(result["xp"]),
+            "learned_move": result["learned_move"],
+            "strengthened_move": result["strengthened_move"],
+            "reaction": result["reaction"],
+            "level": int(result["level"]),
+            "level_up": bool(result["level_up"]),
+            "pet": self.pet_dict(),
+        }
+        return message.reply(TYPE_PET_DISCOVERY_OK, body)
+
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
@@ -511,7 +580,7 @@ class CompanionHandler:
             self._queue_event("tired", {})
         if now["sad"] and not prev.get("sad"):
             self._queue_event("sad", {})
-        # evolved / level_up / learned_move / signal_found are queued at the source
+        # evolved / level_up / learned_move / move_strengthened / signal_found are queued at the source
         self._seen = now
 
     def _drain_evo_notices(self) -> None:
