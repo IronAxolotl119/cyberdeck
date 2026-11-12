@@ -115,7 +115,7 @@ Useful flags:
 
 Avatars are small kaomoji-style text faces (about 1–3 lines), not images
 or pixel grids. Each mood has 2–4 frames that blink, glance, or bounce a
-little, and a stage accent wraps the face (`'...'` for baby, `~...~` for
+little, and a stage accent wraps the face (none for baby, `~...~` for
 in-training, `[...]` rookie, `{...}` champion, `<...>` ultimate, `«...»`
 mega; `--ascii` uses `*` for mega). Faces change with mood and stats:
 happy, content, hungry, tired, sleeping, sad, angry, hurt, fainted,
@@ -284,7 +284,7 @@ fainted, and excited when those states apply.
 {"type":"pet.avatar","id":"...","payload":{"frame":0,"mood":"playful"}}
 {"type":"pet.avatar.ok","id":"...","payload":{
   "style":"face","mood":"happy","frame":0,"interval_ms":450,
-  "frames":["'(^_^)'","'(^o^)'","'(^_^)'","'(^v^)'"]
+  "frames":["(^_^)","(^o^)","(^_^)","(^v^)"]
 }}
 ```
 

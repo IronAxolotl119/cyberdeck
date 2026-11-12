@@ -116,7 +116,7 @@ _ASCII_FACES: dict[str, list[str]] = {
 
 # (left, right) wrappers per evolution stage.
 _ACCENTS: dict[str, tuple[str, str]] = {
-    "baby": ("'", "'"),
+    "baby": ("", ""),  # no wrapper — quotes looked like part of the face
     "in-training": ("~", "~"),
     "rookie": ("[", "]"),
     "champion": ("{", "}"),
@@ -125,7 +125,7 @@ _ACCENTS: dict[str, tuple[str, str]] = {
 }
 
 _ASCII_ACCENTS: dict[str, tuple[str, str]] = {
-    "baby": ("'", "'"),
+    "baby": ("", ""),  # no wrapper — quotes looked like part of the face
     "in-training": ("~", "~"),
     "rookie": ("[", "]"),
     "champion": ("{", "}"),

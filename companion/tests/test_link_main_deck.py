@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -169,8 +170,13 @@ class MainDeckTcpClientTests(unittest.TestCase):
         self.assertIsNone(evo.payload["effects"]["stage"])
         self.assertTrue(evo.payload["pet"]["evolution"]["ready"])
 
-        events = self.link.drain_events()
+        events = list(self.link.drain_events())
+        deadline = time.monotonic() + 1.5
         kinds = [m.payload.get("event") for m in events if m.type == "pet.event"]
+        while "evolve_choice" not in kinds and time.monotonic() < deadline:
+            time.sleep(0.05)
+            events.extend(self.link.drain_events())
+            kinds = [m.payload.get("event") for m in events if m.type == "pet.event"]
         self.assertIn("evolve_choice", kinds, f"expected evolve_choice, got {kinds}")
         choice = next(m for m in events if m.type == "pet.event" and m.payload.get("event") == "evolve_choice")
         self.assertEqual(choice.payload["detail"]["from"], "Chirplet")

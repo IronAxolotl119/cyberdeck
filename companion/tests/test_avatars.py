@@ -30,7 +30,9 @@ class FaceCatalogTests(unittest.TestCase):
 
     def test_stage_accents_wrap_the_face(self) -> None:
         baby = face_text("content", "baby", frame=0)
-        self.assertTrue(baby.startswith("'") and baby.endswith("'"))
+        self.assertEqual(baby, "(-_-)")
+        self.assertNotIn("'", baby)
+        self.assertNotIn('"', baby)
         rookie = face_text("content", "rookie", frame=0)
         self.assertTrue(rookie.startswith("[") and rookie.endswith("]"))
         mega = face_text("content", "mega", frame=0)
@@ -68,6 +70,31 @@ class FaceCatalogTests(unittest.TestCase):
         compact = pet_avatar(pet, frame=1)
         self.assertEqual(compact["style"], "face")
         self.assertEqual(compact["text"], body["frames"][1])
+
+    def test_no_frame_contains_quote_characters(self) -> None:
+        """Baby (and every other stage) must not wrap or embed ' or "."""
+        from pet.evolution import STAGES
+
+        for ascii_mode in (False, True):
+            for mood in FACE_MOODS:
+                for stage in STAGES:
+                    for frame in face_frames(mood, stage, ascii_mode=ascii_mode):
+                        self.assertNotIn("'", frame, msg=(mood, stage, ascii_mode, frame))
+                        self.assertNotIn('"', frame, msg=(mood, stage, ascii_mode, frame))
+            # Also the compact pet.avatar text and the full payload frames.
+            from pet.creature import Creature
+            from pet.stats import Stats
+            from avatar.faces import avatar_payload, pet_avatar
+
+            pet = Creature(stats=Stats(hunger=80, energy=80, mood=90))
+            self.assertEqual(pet.species.stage, "baby")
+            compact = pet_avatar(pet, frame=0, ascii_mode=ascii_mode)
+            self.assertNotIn("'", compact["text"])
+            self.assertNotIn('"', compact["text"])
+            body = avatar_payload(pet, frame=0, ascii_mode=ascii_mode)
+            for frame in body["frames"]:
+                self.assertNotIn("'", frame)
+                self.assertNotIn('"', frame)
 
     def test_sheet_lists_moods_and_stages(self) -> None:
         sheet = format_face_sheet()
