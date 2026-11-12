@@ -83,6 +83,7 @@ def level_char(level: float, unicode: bool = True) -> str:
 
 # Pieces for fake code. Everything is made up and harmless.
 _FUNCS = ["decrypt", "inject", "bypass", "spoof", "tunnel", "overflow", "handshake", "mutate", "exfil", "ghost"]
+_DOING = ["decrypting", "injecting", "bypassing", "spoofing", "tunneling", "mutating", "probing", "ghosting"]
 _THINGS = ["firewall", "kernel", "packet", "token", "cipher", "socket", "daemon", "payload", "proxy", "node"]
 _TEMPLATES = [
     "{f}_{t}(0x{h4}, {n});",
@@ -90,7 +91,7 @@ _TEMPLATES = [
     "mov eax, 0x{h8}   ; {f} {t}",
     "for (int i = 0; i < {n}; i++) {t}[i] ^= 0x{h2};",
     "#define {T}_KEY 0x{h8}",
-    ">> {f}ing {t} @ 10.{n}.{m}.{k} ... ok",
+    ">> {g} {t} @ 10.{n}.{m}.{k} ... ok",
     "push 0x{h4}; call {f}_{t}",
     "{t}_buf[{n}] = ({f}_t*) malloc(0x{h4});",
     "while (!{t}->ready) {f}_{t}(--retries);",
@@ -105,7 +106,7 @@ def fake_code_line(rng: random.Random) -> str:
 
     t = rng.choice(_THINGS)
     return rng.choice(_TEMPLATES).format(
-        f=rng.choice(_FUNCS), t=t, T=t.upper(), h2=hx(2), h4=hx(4), h8=hx(8),
+        f=rng.choice(_FUNCS), g=rng.choice(_DOING), t=t, T=t.upper(), h2=hx(2), h4=hx(4), h8=hx(8),
         n=rng.randint(2, 254), m=rng.randint(0, 254), k=rng.randint(1, 254))
 
 
