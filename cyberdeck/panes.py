@@ -61,7 +61,7 @@ class PaneSettings:
     side: list[str] = field(default_factory=lambda: ["pet", "system"])
     side_width: int = 30
     min_split_cols: int = 72            # narrower screens fall back to tabs
-    tabs: list[str] = field(default_factory=lambda: ["output", "pet", "system", "net", "todo"])
+    tabs: list[str] = field(default_factory=lambda: ["output", "pet", "system", "net", "todo", "music"])
     ticker: bool = True                 # the mood / notification line
     hints: bool = True                  # hotkey hints on the bottom frame
     pet_refresh: float = 3.0            # seconds between pet pane updates
@@ -179,14 +179,7 @@ def level_role(value: float | None, warn: float, alert: float, higher_is_worse: 
 # --- built-in panes -------------------------------------------------------
 
 def cached_pet(ctx: "Context", max_age: float = 3.0) -> dict[str, Any] | None:
-    """Latest pet payload, asking the companion at most every max_age seconds.
-
-    If a pet watcher service is running (pet alerts), its latest snapshot is
-    used instead so the pane and the alerts agree.
-    """
-    watcher = ctx.services.get("petwatch")
-    if watcher is not None and getattr(watcher, "latest", None):
-        return watcher.latest
+    """Latest pet payload, asking the companion at most every max_age seconds."""
     cache = ctx.services.setdefault("pet_cache", {"at": 0.0, "pet": None})
     now = time.monotonic()
     if cache["pet"] is None or now - cache["at"] >= max_age:

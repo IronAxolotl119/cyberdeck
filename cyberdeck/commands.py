@@ -35,6 +35,24 @@ from cyberdeck.sensors import SystemSensors
 Handler = Callable[["Context", list[str]], list[str] | None]
 
 
+# Extra `pet <action>` handlers that feature modules add (pet log, pet gift…).
+# A handler gets (ctx, args) exactly like a command, args[0] is the action.
+PET_ACTIONS: dict[str, Handler] = {}
+
+# Functions called after the companion answers a pet action, as
+# hook(ctx, action, reply_payload). The pet event log uses this.
+PET_HOOKS: list[Callable[["Context", str, dict], None]] = []
+
+
+def run_pet_hooks(ctx: "Context", action: str, payload: dict) -> None:
+    """Tell every listener that a pet action happened. Errors are ignored."""
+    for hook in PET_HOOKS:
+        try:
+            hook(ctx, action, payload)
+        except Exception:
+            pass
+
+
 # Passed into every command. should_quit / should_clear are flags the
 # UI and headless runner check after the command returns.
 #
@@ -295,8 +313,9 @@ def build_registry(include_plugins: bool = True) -> Registry:
     @reg.command(
         "pet",
         "Query the companion pet: status, feed, or play.",
-        usage="pet [status|feed|play]",
+        usage="pet [status|feed|play|…]",
         subcommands=("status", "feed", "play"),
+        completer=lambda ctx, args: list(PET_ACTIONS) if not args else [],
     )
     def cmd_pet(ctx: Context, args: list[str]) -> list[str]:
         action = (args[0].lower() if args else "status")
@@ -310,6 +329,7 @@ def build_registry(include_plugins: bool = True) -> Registry:
             reply = ctx.companion.request(TYPE_PET_FEED, {"item": item})
             payload = reply.payload or {}
             pet = payload.get("pet") or {}
+            run_pet_hooks(ctx, "feed", payload)
             delta = payload.get("hunger_delta", "?")
             header = f"fed {payload.get('item', item)}  hunger {delta:+}" if isinstance(delta, int) else f"fed {item}"
             return [header, *_format_pet(pet)]
@@ -318,11 +338,15 @@ def build_registry(include_plugins: bool = True) -> Registry:
             reply = ctx.companion.request(TYPE_PET_PLAY, {"game": game})
             payload = reply.payload or {}
             pet = payload.get("pet") or {}
+            run_pet_hooks(ctx, "play", payload)
             if payload.get("played") is False:
                 reason = payload.get("reason", "not now")
                 return [f"PULSE sits this one out ({reason}).", *_format_pet(pet)]
             return [f"played {payload.get('game', game)}", *_format_pet(pet)]
-        return [f"usage: pet [status|feed [item]|play [game]]  (unknown action: {action})"]
+        if action in PET_ACTIONS:
+            return PET_ACTIONS[action](ctx, args) or []
+        extra = "|".join(PET_ACTIONS)
+        return [f"usage: pet [status|feed [item]|play [game]{'|' + extra if extra else ''}]  (unknown action: {action})"]
 
     # ping: send a ping and show how quickly the companion answered.
     @reg.command("ping", "Ping the companion board, or a host: ping <name|address>.",

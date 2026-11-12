@@ -121,6 +121,16 @@ class DeckUI:
         self.attrs: dict[str, int] = {}
         self.box = ASCII_BOX
         self.refresh_ms = 250
+        self._failed: set[str] = set()  # services whose ui_tick already errored
+
+        # Start background helpers that features asked for (pet alerts…).
+        from cyberdeck.features import UI_STARTUP
+
+        for start in UI_STARTUP:
+            try:
+                start(ctx)
+            except Exception as exc:
+                ctx.notify(f"startup: {exc}", "warn")
 
     # --- main loop ------------------------------------------------------
 
@@ -154,13 +164,14 @@ class DeckUI:
     def _tick_services(self) -> None:
         """Let background helpers (pet alerts, music…) do a little work."""
         now = time.time()
-        for service in list(self.ctx.services.values()):
+        for name, service in list(self.ctx.services.items()):
             tick = getattr(service, "ui_tick", None)
-            if callable(tick):
+            if callable(tick) and name not in self._failed:
                 try:
                     tick(self.ctx, now)
                 except Exception as exc:  # keep the deck alive, report once
-                    self.ctx.notify(f"{type(service).__name__}: {exc}", "warn")
+                    self._failed.add(name)
+                    self.ctx.notify(f"{name} stopped: {exc}", "warn")
 
     # --- setup ------------------------------------------------------------
 
@@ -309,6 +320,18 @@ class DeckUI:
         mem = f"MEM {reading.mem_percent:.0f}%" if reading.mem_percent is not None else "MEM --"
         status = (f" {reading.temp_label()}  {cpu}  {mem}  {reading.battery_label()}  "
                   f"{reading.wifi_label()}  {self.ctx.companion.link_label()}")
+        width = max(0, cols - 2)
+        # Badges from services (e.g. "! HUNGRY" from pet alerts) go on the right.
+        badges = self._badges()
+        if badges:
+            text, role = badges[0]
+            badge = f" {text} "
+            attr_b = self.attrs.get(role, self.attrs["warn"])
+            if role == "alert" and int(time.time() * 2) % 2:
+                attr_b |= curses.A_REVERSE  # flash
+            status = status[: max(0, width - len(badge))]
+            _safe_add(stdscr, geo.status_row, 1 + width - len(badge), badge, attr_b)
+            width -= len(badge)
         attr = self.attrs["status"]
         if reading.cpu_temp_c is not None and reading.cpu_temp_c >= 70:
             attr = self.attrs["alert"]
@@ -316,8 +339,21 @@ class DeckUI:
             attr = self.attrs["warn"]
         elif self.ctx.companion.is_linked():
             attr = self.attrs["ok"]
-        width = max(0, cols - 2)
         _safe_add(stdscr, geo.status_row, 1, status[:width].ljust(width), attr)
+
+    def _badges(self) -> list[tuple[str, str]]:
+        """Collect status_badge() results from services (pet alerts, music…)."""
+        out = []
+        for service in list(self.ctx.services.values()):
+            badge = getattr(service, "status_badge", None)
+            if callable(badge):
+                try:
+                    result = badge()
+                except Exception:
+                    result = None
+                if result:
+                    out.append(result)
+        return out
 
     def _draw_ticker(self, stdscr, cols: int, geo: ScreenLayout) -> None:
         """Notices (or the deck's mood) on the left, the visualizer on the right."""
@@ -335,6 +371,7 @@ class DeckUI:
                 viz_text = ""
         left_w = max(0, width - len(viz_text) - (1 if viz_text else 0))
         text, role = self._ticker_text(now)
+        role = {"info": "text"}.get(role, role)
         attr = self.attrs.get(role, self.attrs["dim"])
         if role == "alert" and int(now * 2) % 2:
             attr |= curses.A_REVERSE  # flash alerts
@@ -573,6 +610,9 @@ class DeckUI:
                 self.tab = (self.tab - 1) % len(tabs)
             elif arg in tabs:
                 self.tab = tabs.index(arg)
+            elif arg in PANES:  # a panel not listed in [panes] tabs: add it for this run
+                self.panes.tabs.append(arg)
+                self.tab = self._tabs().index(arg)
             elif arg.isdigit() and 1 <= int(arg) <= len(tabs):
                 self.tab = int(arg) - 1
             else:

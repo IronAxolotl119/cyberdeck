@@ -28,7 +28,15 @@ FEATURES = [
     "netcheck",     # net hosts / ping / port / check (homelab)
     "netinfo",      # net info screen and the live "net" panel
     "ssh",          # ssh shortcuts from hosts.ini
+    "hardware",     # gpio led / set / read / beep (sim, gpiozero, sysfs)
+    "music",        # chiptune player for the buzzer, songs/ folder
+    "petwatch",     # PULSE alerts, pet log, pet sim
 ]
+
+
+# Functions a feature wants called once when the full-screen UI starts,
+# as fn(ctx). Used to start background helpers (pet alerts, visualizer…).
+UI_STARTUP: list = []
 
 
 def register_features(reg: "Registry") -> list[str]:
