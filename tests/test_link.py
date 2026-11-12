@@ -106,8 +106,18 @@ class PetDataTests(unittest.TestCase):
         self.assertEqual(petdata.event_notice({"event": "danced", "detail": "x"})[1], "info")
 
     def test_avatar_parsing(self):
+        # Current companions: an animated text face.
+        face = petdata.parse_face({"style": "face", "mood": "happy", "frame": 1,
+                                   "frames": ["'(^_^)'", "(^o^)", "(^v^)"], "interval_ms": 450})
+        self.assertEqual(face.frames, ("(^_^)", "(^o^)", "(^v^)"))     # stray repr quotes dropped
+        self.assertEqual((face.interval_ms, face.mood, face.at(0.5)), (450, "happy", "(^o^)"))
+        self.assertIsNone(petdata.parse_avatar({"style": "face", "frames": ["(^_^)"]}))
+        for bad in (None, {}, {"style": "face", "frames": []}, {"frames": [1, None]}):
+            self.assertIsNone(petdata.parse_face(bad))
+        # Older companions: the 16x16 sprite, kept only as a fallback.
         good = {"form": "chirplet", "palette": [None, "#ff0000", "0f0", "nonsense"],
                 "rows": [[0, 1], [2, 3], [9, True]]}
+        self.assertIsNone(petdata.parse_face(good))
         av = petdata.parse_avatar(good)
         self.assertEqual(av.pixel(1, 0), (255, 0, 0))
         self.assertEqual(av.pixel(0, 1), (0, 255, 0))

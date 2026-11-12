@@ -141,20 +141,32 @@ class SimPetTests(unittest.TestCase):
         pet.tick(60 * 10)          # 10 minutes asleep: +80
         self.assertFalse(pet.asleep)
         self.assertEqual(pet.events[-1], ("woke", {"reason": "rested"}))
-        self.assertEqual(pet.sleep(True)["reason"], "not tired")
+        pet.hp = pet.max_hp
+        refused = pet.sleep(True)
+        self.assertEqual((refused["changed"], refused["reason"]), (False, "PULSE is already fully rested"))
+        pet.energy = 50
+        self.assertEqual(pet.sleep(True)["changed"], True)
+        pet.sleep(False)                                 # woken by hand: no 'woke' push
+        self.assertNotEqual(pet.events[-1], ("woke", {"reason": "woken"}))
 
     def test_rest(self):
         pet = PetState(energy=50, hp=10)
         reply = pet.rest()
-        self.assertEqual((reply["rested"], reply["energy_delta"]), (True, 25))
-        self.assertGreater(pet.hp, 10)
+        self.assertEqual((reply["rested"], reply["energy_delta"]), (True, 20))
+        self.assertEqual(pet.hp, 16)
         pet.energy = 100
-        self.assertEqual(pet.rest()["reason"], "not tired")
+        self.assertTrue(pet.rest()["rested"])           # still missing HP: may rest
+        pet.hp = pet.max_hp
+        self.assertEqual(pet.rest()["reason"], "energy is already full")
+        pet.hp = 0
+        self.assertTrue(pet.rest()["rested"])           # a fainted pet is never stuck
 
     def test_evolution_tree_and_events(self):
         pet = PetState(stage="rookie", happiness=95, hunger=0, evolution_speed=100)
-        pet.tick(3600 * 0.3)                        # 30 stage-hours of 36: 83%
+        pet.tick(3600 * 0.33)                       # 33 stage-hours of 36: 92%
         self.assertEqual([e for e, _ in pet.events if e.startswith("evolve")], ["evolve_soon"])
+        soon = next(d for e, d in pet.events if e == "evolve_soon")
+        self.assertEqual(set(soon), {"from", "to_candidates", "next_stage", "eta_hours", "progress"})
         self.assertEqual(pet.evolve("Aethlance")["reason"], "not ready")
         pet.tick(3600 * 0.1)
         kinds = [e for e, _ in pet.events if e.startswith("evolve")]
@@ -166,6 +178,7 @@ class SimPetTests(unittest.TestCase):
         self.assertFalse(refused["accepted"])
         self.assertIn("3+ unique discoveries", refused["reason"])
         self.assertIsNone(pet.evolve("Nonsensemon"))
+        pet.happiness = 90                          # the Aethlance branch wants a happy pet
         ok = pet.evolve("aethlance")
         self.assertTrue(ok["accepted"])
         self.assertEqual([e for e, _ in pet.events][-2:], ["evolving", "evolved"])
@@ -188,17 +201,35 @@ class SimPetTests(unittest.TestCase):
 
     def test_combat_messages(self):
         link = sim_link(energy=5)
-        stats = petdata.combat_stats(link.request("pet.combat.stats", {}).payload)
+        raw = link.request("pet.combat.stats", {}).payload
+        self.assertEqual({"fainted", "asleep", "guarding"} <= set(raw), True)
+        stats = petdata.combat_stats(raw)
         self.assertEqual([m.name for m in stats.moves], ["peck", "static zap", "wave dash"])
-        tired = link.request("pet.combat.action", {"move": "wave dash", "enemy": {"name": "bug", "hp": 3}}).payload
-        self.assertEqual((tired["hit"], tired["energy_spent"], tired["effect"]), (False, 0, "tired"))
-        self.assertEqual(link.request("pet.combat.action", {"move": "laser"}).payload["code"], "bad_payload")
+        self.assertAlmostEqual(stats.moves[0].accuracy, 0.95)     # sent as 0-100
+        # Too expensive (or unknown) -> the pet's fallback: Guard here (it knows no Chirp).
+        for move in ("wave dash", "laser"):
+            body = link.request("pet.combat.action", {"move": move, "enemy": {"name": "bug", "hp": 3}}).payload
+            self.assertEqual((body["acted"], body["fallback"], body["move"], body["effect"], body["energy_spent"]),
+                             (True, True, "Guard", "guard", 0), move)
+        self.assertEqual(link.request("pet.combat.action", {"move": 5}).payload["code"], "bad_payload")
+        own = link.request("pet.combat.action", {"enemy": {"name": "bug"}}).payload      # pet picks
+        self.assertEqual((own["acted"], own["move"]), (True, "static zap"))
+        guarded = link.request("pet.combat.hit", {"damage": 8}).payload
+        self.assertEqual(guarded["damage_taken"], (8 - 6 // 4) // 2)                   # Guard halves it
         hit = link.request("pet.combat.hit", {"damage": 100}).payload
         self.assertTrue(hit["fainted"])
-        self.assertEqual(link.request("pet.combat.heal", {"amount": 5}).payload["pet_hp"], 5)
-        end = link.request("pet.combat.end", {"result": "won", "xp": 200, "enemies": ["bug"]}).payload
-        self.assertGreaterEqual(end["level_ups"], 1)
-        self.assertIn("signal burst", end["learned_moves"])
+        down = link.request("pet.combat.action", {"move": "peck"}).payload
+        self.assertEqual((down["acted"], down["reason"]), (False, "fainted"))
+        healed = link.request("pet.combat.hit", {"heal": 5}).payload
+        self.assertEqual((healed["healed"], healed["pet_hp"], healed["fainted"]), (5, 5, False))
+        self.assertEqual(link.request("pet.combat.hit", {"damage": -3}).payload["pet_hp"], 8)
+        self.assertEqual(link.request("pet.combat.hit", {}).payload["code"], "bad_payload")
+        self.assertEqual(link.request("pet.combat.end", {"result": "won"}).payload["code"], "bad_payload")
+        end = link.request("pet.combat.end", {"result": "win", "xp": 200, "enemies": ["bug"]}).payload
+        self.assertEqual((end["result"], end["xp_granted"]), ("win", 200))
+        kinds = [m.payload["event"] for m in link.drain_events()]
+        self.assertIn("level_up", kinds)
+        self.assertIn("learned_move", kinds)
 
 
 class CommandTests(unittest.TestCase):
@@ -211,7 +242,7 @@ class CommandTests(unittest.TestCase):
 
     def test_rest_and_sleep(self):
         self.ctx.companion.pet.energy = 30
-        self.assertIn("energy +25 → 55", self.run_cmd("pet rest")[0])
+        self.assertIn("energy +20 → 50", self.run_cmd("pet rest")[0])
         self.assertIn("falls asleep", self.run_cmd("pet sleep")[0])
         self.assertIn("asleep zZ", self.run_cmd("pet status")[0])
         self.assertIn("(asleep)", self.run_cmd("pet rest")[0])
@@ -342,7 +373,7 @@ class PopupTests(unittest.TestCase):
             petwatch.get_watcher(ctx).pushed(ctx, time.time())
             queue = ctx.services.get("popups")
             count = len(queue.waiting) if queue else 0
-            self.assertEqual(count, expected + (1 if interactive else 0))   # + evolve_choice
+            self.assertEqual(count, expected + (2 if interactive else 0))   # + evolve_soon, evolve_choice
 
     def test_config_toggle(self):
         cfg = write_config({"pet.ini": "[popups]\nenabled = no\nseconds = 3\n"})
@@ -393,13 +424,22 @@ class DungeonCombatTests(unittest.TestCase):
         g.pet_choose(-1)                                 # hold back
         self.assertIn("holds back", "\n".join(g.messages))
 
-    def test_auto_mode_and_energy(self):
+    def test_auto_mode_lets_the_pet_pick_and_tracks_energy(self):
         g, ally, _ = self.game(energy=6)
         self.put_monster_next_to_you(g)
-        self.assertEqual(ally.auto_move().name, "static zap")   # 5 energy: best it can afford
         g.wait()
-        self.assertEqual(ally.energy, 1)
-        self.assertEqual(ally.auto_move().name, "peck")
+        self.assertIn("static zap", "\n".join(g.messages))    # 5 energy: the best it can afford
+        self.assertEqual(ally.energy, 1)                       # copied from the pet object
+        g.wait()
+        self.assertIn("peck", "\n".join(g.messages))
+
+    def test_unaffordable_pick_falls_back(self):
+        g, ally, _ = self.game(mode="ask", energy=3)
+        self.put_monster_next_to_you(g)
+        g.wait()
+        g.pet_choose(2)                                        # wave dash costs 8
+        self.assertIn("(can't use wave dash)", "\n".join(g.messages))
+        self.assertEqual(ally.energy, 3)
 
     def test_enemy_hits_pulse_and_faints_then_kit_revives(self):
         g, ally, _ = self.game(chance=1.0, hp=3, max_hp=28)
@@ -424,8 +464,8 @@ class DungeonCombatTests(unittest.TestCase):
         self.assertNotIn(m, g.monsters)
         self.assertEqual(ally.defeated, ["worm"])
         lines = g.finish()
-        self.assertIn("level up", lines[0])
-        self.assertEqual(g.end_payload["result"], "won")
+        self.assertTrue(lines[0].startswith("PULSE: +5 xp — PULSE cheers!"), lines)
+        self.assertEqual(g.end_payload["result"], "win")
         self.assertIn("level_up", [e.payload["event"] for e in link.drain_events()])
         self.assertIsNone(ally.end("won", 5))            # only one pet.combat.end per run
 
@@ -526,13 +566,15 @@ class FakeCompanionEndToEnd(unittest.TestCase):
 
 
 class RealCompanionEndToEnd(unittest.TestCase):
-    """companion/companion.py (not ours: run as-is, never edited).
+    """companion/companion.py (not ours: run as-is, never edited), over TCP.
 
-    Checks whatever it supports today. When it gains pet.rest / sleep /
-    evolve / combat these assertions switch to the full flow by themselves.
+    The full flow from companion/docs/DUNGEON_INTEGRATION.md: rest, sleep,
+    text faces, an evo chip -> evolve_choice -> pet evolve -> evolving /
+    evolved, and a dungeon fight (stats, action, hit, heal, end). If a
+    future companion drops a message, the deck's polite fallback is checked.
     """
 
-    def test_real_companion(self):
+    def setUp(self):
         from test_link import fast, free_port, wait_for
 
         from cyberdeck.link import StreamCompanionLink, TcpTransport
@@ -541,51 +583,102 @@ class RealCompanionEndToEnd(unittest.TestCase):
         if not script.exists():
             self.skipTest("no companion/ checkout")
         port = free_port()
-        proc = subprocess.Popen([sys.executable, str(script), "--tcp", f"127.0.0.1:{port}", "--tick-seconds", "0.2"],
-                                cwd=str(script.parent), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        link = StreamCompanionLink(lambda: TcpTransport("127.0.0.1", port), fast(port=port))
-        try:
-            import socket
+        self.proc = subprocess.Popen([sys.executable, str(script), "--tcp", f"127.0.0.1:{port}",
+                                      "--event-interval", "0"],
+                                     cwd=str(script.parent), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        import socket
 
-            def listening():
-                try:
-                    socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
-                    return True
-                except OSError:
-                    return False
-
-            self.assertTrue(wait_for(listening, 10), "companion did not start")
-            link.connect()
-            self.assertTrue(link.is_linked(), link.reason)
-            ctx = make_ctx()
-            ctx.companion = link
-            reg = build_registry(include_plugins=False)
-            self.assertIn("PULSE", reg.dispatch("pet status", ctx)[0])
-            avatar = reg.dispatch("pet avatar", ctx)
-            self.assertTrue("frame 1:" in avatar[1] or "sprite" in avatar[0], avatar[:2])
-            supports = lambda typ: link.request(typ, {}).payload.get("code") != "unknown_type"
-            for typ, line in (("pet.rest", "pet rest"), ("pet.sleep", "pet sleep off")):
-                out = reg.dispatch(line, ctx)[0]
-                if supports(typ):
-                    self.assertNotIn("does not support", out)
-                else:
-                    self.assertIn("does not support", out)
-            ally = PulseAlly(link.request)
-            if supports("pet.combat.stats"):
-                self.assertTrue(ally.join(), ally.note)
-            else:
-                self.assertFalse(ally.join())
-                self.assertIn("can't fight", ally.note)
-                g = Game(rng=random.Random(1), ally=ally)
-                g.wait()                                 # solo game still works
-                self.assertEqual(g.finish(), [])
-        finally:
-            link.close()
-            proc.terminate()
+        def listening():
             try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+                socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+                return True
+            except OSError:
+                return False
+
+        self.assertTrue(wait_for(listening, 10), "companion did not start")
+        self.link = StreamCompanionLink(lambda: TcpTransport("127.0.0.1", port), fast(port=port))
+        self.link.connect()
+        self.assertTrue(self.link.is_linked(), self.link.reason)
+        self.ctx = make_ctx()
+        self.ctx.companion = self.link
+        self.reg = build_registry(include_plugins=False)
+        self.events: list = []
+
+    def tearDown(self):
+        self.link.close()
+        self.proc.terminate()
+        try:
+            self.proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+
+    def supports(self, typ: str) -> bool:
+        return self.link.request(typ, {}).payload.get("code") != "unknown_type"
+
+    def wait_event(self, kind: str, seconds: float = 5.0) -> dict:
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            self.events += [m.payload for m in self.link.drain_events()]
+            for event in self.events:
+                if event["event"] == kind:
+                    return event
+            time.sleep(0.05)
+        self.fail(f"no {kind} event; got {[e['event'] for e in self.events]}")
+
+    def test_care_faces_and_evolution(self):
+        run = lambda line: self.reg.dispatch(line, self.ctx)
+        self.assertIn("PULSE", run("pet status")[0])
+        avatar = run("pet avatar")
+        self.assertIn("frame(s) every", avatar[0])
+        self.assertNotIn("'", avatar[1])                         # quotes stripped
+        if not self.supports("pet.rest"):
+            self.assertIn("does not support", run("pet rest")[0])
+            return
+        self.assertTrue(run("pet rest")[0].startswith("PULSE"))
+        self.assertTrue(run("pet sleep off")[0].startswith("PULSE"))
+        run("loot add evo chip")
+        self.assertIn("evo chip", run("pet gift 1")[0])
+        soon, choice = self.wait_event("evolve_soon"), self.wait_event("evolve_choice")
+        self.assertIn("next_stage", soon["detail"])
+        picks = [c for c in petdata.evolution_choices(choice["detail"]["choices"]) if c["available"]]
+        self.assertTrue(picks)
+        evolve = run("pet evolve")
+        self.assertIn("ready!", evolve[0])
+        out = run(f"pet evolve {picks[0]['species']}")
+        self.assertNotIn("did not evolve", out[0])
+        self.wait_event("evolving")
+        evolved = self.wait_event("evolved")
+        self.assertIn(picks[0]["species"].lower(), str(evolved["detail"]).lower())
+        self.assertIn(picks[0]["species"], run("pet status")[0])
+        self.assertIn("bad_payload", str(self.link.request("pet.evolve", {"species": "Nonsensemon"}).payload))
+
+    def test_dungeon_fight(self):
+        ally = PulseAlly(self.link.request)
+        if not self.supports("pet.combat.stats"):
+            self.assertFalse(ally.join())
+            self.assertIn("can't fight", ally.note)
+            return
+        self.reg.dispatch("pet sleep off", self.ctx)
+        self.assertTrue(ally.join(), ally.note)
+        self.assertIsNotNone(ally.energy)                         # read from the pet object
+        self.assertTrue(ally.moves)
+        g = Game(rng=random.Random(2), ally=ally, pulse_moves="ask", pulse_target_chance=1.0)
+        g.monsters = [dungeon.Monster("worm", "w", g.px + 1, g.py, 60, 4, 1)]
+        g.grid[g.py][g.px + 1] = dungeon.FLOOR
+        g.wait()
+        self.assertIsNotNone(g.awaiting)
+        g.pet_choose(0)
+        self.assertLess(g.monsters[0].hp if g.monsters else 0, 60 + 1)
+        self.assertTrue(any("PULSE" in m for m in g.messages))
+        g.wait()
+        g.pet_choose(None)                                        # let the pet pick
+        hp = ally.hp
+        healed = ally.heal(5)
+        self.assertIsNotNone(healed, ally.note)
+        self.assertGreaterEqual(ally.hp, hp)
+        lines = g.finish()
+        self.assertTrue(lines[0].startswith("PULSE: +"), lines)
+        self.assertIn(g.end_payload["result"], {"win", "flee"})
 
 
 if __name__ == "__main__":
