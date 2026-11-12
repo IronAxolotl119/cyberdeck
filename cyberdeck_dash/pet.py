@@ -4,10 +4,11 @@ In plain English: if the companion program (companion/companion.py) is
 running, the dashboard talks to it with the same newline-JSON protocol
 the main deck uses (docs/PROTOCOL.md, reusing cyberdeck/protocol.py). It
 asks for pet.status every few seconds, shows pet.event pushes as alerts,
-and reports each first-time discovery with the PROPOSED `pet.discovery`
-message (docs/DASHBOARD.md). If the companion is offline, or does not
-know pet.discovery yet, a small local pet applies the same XP rules so
-the Digimon tie-ins still work.
+and reports each first-time discovery with `pet.discovery` (specified in
+companion/docs/DISCOVERY.md). The companion's reply is the source of
+truth for XP, reactions, learned or strengthened moves, and level-ups.
+If the companion is unlinked, or answers unknown_type, a small local pet
+applies the same XP rules so the Digimon tie-ins still work.
 
 Threading: all socket work happens on one background thread. The UI only
 calls non-blocking methods and drains results each frame (drain()).
@@ -29,8 +30,11 @@ from cyberdeck.protocol import Message, ProtocolError, decode_buffer
 from .events import Finding
 from .rules import XpRules
 
-TYPE_DISCOVERY = "pet.discovery"        # PROPOSED, see docs/DASHBOARD.md
+TYPE_DISCOVERY = "pet.discovery"        # companion/docs/DISCOVERY.md
 TYPE_DISCOVERY_OK = "pet.discovery.ok"
+TYPE_COMBAT_STATS = "pet.combat.stats"
+TYPE_COMBAT_STATS_OK = "pet.combat.stats.ok"
+MAX_MOVE_RANK = 5                       # matches the companion's cap
 
 
 # ===========================================================================
@@ -68,7 +72,7 @@ class LocalPet:
 
 def apply_discovery(pet: LocalPet, f: Finding, rules: XpRules, rng: random.Random,
                     xp_mult: float = 1.0) -> dict[str, Any] | None:
-    """Local version of the proposed pet.discovery reply. None if no XP."""
+    """Local fallback version of a pet.discovery.ok body. None if no XP."""
     xp = int(round(rules.xp_for(f) * xp_mult))
     if xp <= 0:
         return None
@@ -82,7 +86,7 @@ def apply_discovery(pet: LocalPet, f: Finding, rules: XpRules, rng: random.Rando
         result["learned_move"] = roll[1]
         result["reaction"] = f"{pet.name} learned {roll[1]} from {label}!"
     elif roll:
-        pet.moves[roll[1]] = pet.moves.get(roll[1], 1) + 1
+        pet.moves[roll[1]] = min(MAX_MOVE_RANK, pet.moves.get(roll[1], 1) + 1)
         result["strengthened_move"] = roll[1]
         result["reaction"] = f"{pet.name}'s {roll[1]} grew stronger (lv {pet.moves[roll[1]]})"
     else:
@@ -90,6 +94,23 @@ def apply_discovery(pet: LocalPet, f: Finding, rules: XpRules, rng: random.Rando
     if leveled:
         result["reaction"] += f"  LEVEL {pet.level}!"
     return result
+
+
+def env_mood_from_buff(buff: str) -> str:
+    """Map the companion's environment.buff label to a short mood word.
+
+    The PULSE panel uses this for the face when the companion is linked.
+    """
+    low = (buff or "").lower()
+    if low.startswith("busy"):
+        return "buzzing"
+    if low.startswith("curious"):
+        return "curious"
+    if low.startswith("bored"):
+        return "bored"
+    if low.startswith("alert"):
+        return "alert"
+    return "calm"
 
 
 # ===========================================================================
@@ -196,8 +217,11 @@ class PetAdapter:
         self.rng = rng or random.Random()
         self.local = LocalPet()
         self.discovery_supported: bool | None = None   # None = not asked yet
+        self.combat_supported: bool | None = None
+        self.combat: dict[str, Any] = {}               # last pet.combat.stats.ok (ranks)
         self.recent_moves: deque[str] = deque(maxlen=6)  # learned/strengthened, newest first
         self.alerts: deque[dict] = deque(maxlen=20)      # companion pushes + reactions
+        self.last_reaction: dict[str, Any] | None = None
         self.mood, self.buff = "calm", ""
         self.xp_mult = 1.0
         self.move_index = 0
@@ -211,15 +235,32 @@ class PetAdapter:
     # --- what the panel shows -------------------------------------------------
     def view(self) -> dict[str, Any]:
         base = self.local.as_dict()
-        if self.online and self.link.pet:
+        if self.online and self.link and self.link.pet:
+            # The companion's pet object is authoritative while the link is up.
             remote = dict(self.link.pet)
             remote.setdefault("moves", [])
             remote["source"] = "LINK"
-            remote["dash_xp"] = f"L{self.local.level} {self.local.xp}/{self.local.xp_to_next()}"
+            # Drop local-only fields that would disagree with the companion.
             base = {**base, **remote}
+            if "xp_next" not in self.link.pet:
+                base.pop("xp_next", None)
+            if "move_strength" not in self.link.pet:
+                base.pop("move_strength", None)
         else:
             base["source"] = "LOCAL"
-        base["env_mood"], base["buff"] = self.mood, self.buff
+        env = base.get("environment") if isinstance(base.get("environment"), dict) else None
+        if env and base.get("source") == "LINK":
+            buff = str(env.get("buff") or "")
+            base["env_busy"] = env.get("busy")
+            base["env_mood"] = env_mood_from_buff(buff)
+            base["buff"] = buff
+        else:
+            base["env_mood"], base["buff"] = self.mood, self.buff
+            base["env_busy"] = None
+        if self.combat:
+            base["combat"] = self.combat
+        if self.last_reaction:
+            base["last_reaction"] = self.last_reaction
         return base
 
     def moves(self) -> list[str]:
@@ -259,19 +300,34 @@ class PetAdapter:
             self._react(res, "local")
 
     def _discovery_reply(self, f: Finding, msg: Message) -> None:
+        """Apply a pet.discovery reply. Local XP is only a fallback.
+
+        The companion is the source of truth when it answers
+        pet.discovery.ok. We fall back to local XP rules only when it
+        answers unknown_type (an older companion). Other errors
+        (timeout, bad_payload, …) do not invent local XP, so a late
+        or lost reply cannot be double-counted.
+        """
         if msg.type == TYPE_DISCOVERY_OK:
             self.discovery_supported = True
-            self._react(dict(msg.payload), "companion")
-        else:
-            if msg.payload.get("code") == "unknown_type":
-                self.discovery_supported = False   # stop asking; use local rules
+            payload = dict(msg.payload)
+            pet = payload.get("pet")
+            if self.link and isinstance(pet, dict):
+                self.link.pet = pet
+            self._react(payload, "companion")
+            self._request_combat_stats()
+            return
+        if msg.payload.get("code") == "unknown_type":
+            self.discovery_supported = False   # stop asking; use local rules
             self._local_discovery(f)
 
     def _react(self, res: dict, source: str) -> None:
-        for key in ("learned_move", "strengthened_move"):
-            if res.get(key):
-                self.recent_moves.appendleft(f"{'+' if key == 'learned_move' else '^'} {res[key]}")
+        if res.get("learned_move"):
+            self.recent_moves.appendleft(f"+ {res['learned_move']}")
+        if res.get("strengthened_move"):
+            self.recent_moves.appendleft(f"^ {res['strengthened_move']}")
         res["source"] = source
+        self.last_reaction = res
         if self.on_reaction:
             self.on_reaction(res)
 
@@ -281,6 +337,19 @@ class PetAdapter:
         return f"{self.view().get('name', 'PULSE')} uses {move}!"
 
     # --- per-frame housekeeping ----------------------------------------------
+    def _request_combat_stats(self) -> None:
+        """Ask for move power/rank/bonus so the PULSE panel can show ranks."""
+        if not self.online or self.combat_supported is False or not self.link:
+            return
+        self.link.request(TYPE_COMBAT_STATS, {}, self._combat_reply)
+
+    def _combat_reply(self, msg: Message) -> None:
+        if msg.type == TYPE_COMBAT_STATS_OK:
+            self.combat_supported = True
+            self.combat = dict(msg.payload)
+        elif msg.payload.get("code") == "unknown_type":
+            self.combat_supported = False
+
     def drain(self) -> None:
         """Run reply callbacks and forward pushed events (UI thread only)."""
         if not self.link:
@@ -290,10 +359,26 @@ class PetAdapter:
             cb(msg)
         while not self.link.events.empty():
             ev = self.link.events.get_nowait()
+            if isinstance(ev.get("pet"), dict):
+                self.link.pet = ev["pet"]
             self.alerts.appendleft(ev)
             detail = ev.get("detail") or {}
-            if ev.get("event") == "learned_move" and (detail.get("move") or detail.get("name")):
-                self.recent_moves.appendleft(f"+ {detail.get('move') or detail.get('name')}")
+            name = detail.get("move") or detail.get("name")
+            kind = ev.get("event")
+            if kind == "learned_move" and name:
+                note = f"+ {name}"
+                if note not in self.recent_moves:
+                    self.recent_moves.appendleft(note)
+            elif kind == "move_strengthened" and name:
+                extra = ""
+                if detail.get("rank") is not None:
+                    extra += f" r{detail['rank']}"
+                if detail.get("bonus") is not None:
+                    extra += f" +{detail['bonus']}"
+                note = f"^ {name}{extra}"
+                if note not in self.recent_moves:
+                    self.recent_moves.appendleft(note)
+                self._request_combat_stats()
             if self.on_event:
                 self.on_event(ev)
 

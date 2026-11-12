@@ -251,7 +251,7 @@ def render_checklist(dash, big: bool):
 # ---------------------------------------------------------------------------
 # 8. PULSE companion
 # ---------------------------------------------------------------------------
-FACES = {"calm": "(-‿-)", "curious": "(o_o)?", "buzzing": "\\(^o^)/", "alert": "(!_!)"}
+FACES = {"calm": "(-‿-)", "curious": "(o_o)?", "buzzing": "\\(^o^)/", "alert": "(!_!)", "bored": "(-_- )"}
 
 
 def render_pet(dash, big: bool):
@@ -270,8 +270,22 @@ def render_pet(dash, big: bool):
     else:
         lines.append(Text(f"xp {xp}  dash {v.get('dash_xp', '')}", style=th.dim))
     lines.append(Text("nrg ", style=th.dim) + bar(v.get("energy", 0) / 100, 10, th, invert=True))
-    lines.append(Text(f"env {v['env_mood']}: {v['buff']}", style=th.warn if v["env_mood"] == "alert" else th.text,
-                      no_wrap=not big, overflow="ellipsis"))
+    # Environment: when the companion is linked, show its busy meter and buff.
+    env_style = th.warn if v["env_mood"] in ("alert", "bored") else th.text
+    busy = v.get("env_busy")
+    if busy is not None:
+        try:
+            frac = max(0.0, min(1.0, float(busy)))
+        except (TypeError, ValueError):
+            frac = 0.0
+        env = Text("env ", style=th.dim) + bar(frac, 8, th) + Text(f" {frac:.2f}  ", style=th.dim)
+        env.append(v.get("buff") or v["env_mood"], style=env_style)
+        env.overflow = "ellipsis"
+        env.no_wrap = not big
+        lines.append(env)
+    else:
+        lines.append(Text(f"env {v['env_mood']}: {v['buff']}", style=env_style,
+                          no_wrap=not big, overflow="ellipsis"))
     mv = dash.pet.selected_move()
     if mv:
         lines.append(Text(f"move ▸ {mv} → {move_scanner(mv)}", style=th.accent2))
@@ -279,10 +293,27 @@ def render_pet(dash, big: bool):
     if recent:
         lines.append(Text("new  " + ", ".join(recent[: 6 if big else 2]), style=th.good, no_wrap=not big,
                           overflow="ellipsis"))
+    reaction = v.get("last_reaction") or {}
+    if reaction.get("reaction") and (big or reaction.get("source") == "companion"):
+        lines.append(Text(str(reaction["reaction"]), style=th.accent2, no_wrap=not big, overflow="ellipsis"))
     if big:
         lines.append(Text(f"\nstage {v.get('stage', '?')} · mood {v.get('mood', v['env_mood'])} · "
                           f"link {dash.link.status if dash.link else 'disabled'}", style=th.dim))
-        lines.append(Text("all moves: " + ", ".join(dash.pet.moves()), style=th.text))
+        # Prefer combat-stats rows (power, rank, bonus) when the companion sent them.
+        combat_moves = (v.get("combat") or {}).get("moves") if isinstance(v.get("combat"), dict) else None
+        if combat_moves:
+            bits = []
+            for m in combat_moves:
+                name = m.get("name", "?")
+                extra = ""
+                if m.get("rank"):
+                    extra = f" r{m['rank']}"
+                    if m.get("bonus"):
+                        extra += f" +{m['bonus']}"
+                bits.append(f"{name}{extra}")
+            lines.append(Text("all moves: " + ", ".join(bits), style=th.text))
+        else:
+            lines.append(Text("all moves: " + ", ".join(dash.pet.moves()), style=th.text))
         lines.append(Text("\ncompanion alerts", style=f"bold {th.accent2}"))
         for ev in list(dash.pet.alerts)[:8]:
             lines.append(Text(f" {ev.get('event')}: {ev.get('detail') or ''}", style=th.text))

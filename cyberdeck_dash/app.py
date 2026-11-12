@@ -271,24 +271,57 @@ class Dashboard:
             self.led.blink()
 
     def _on_reaction(self, res: dict) -> None:
-        self.log(res.get("reaction", "PULSE reacts"), "accent2")
-        for key, event in (("learned_move", "learned_move"), ("strengthened_move", "move_up")):
-            if res.get(key):
-                self.journal.record(Finding("pet", event, res[key], res[key], 2, {"source": res.get("source")}))
+        """Show a pet.discovery result: XP, reaction, moves, level-up.
+
+        The companion reply (or the local fallback) is already in `res`.
+        The ticker, the journal and the PULSE panel all read from it.
+        """
+        reaction = res.get("reaction") or "PULSE reacts"
+        self.log(reaction, "accent2")
+        detail = {
+            "xp": res.get("xp", 0),
+            "level": res.get("level"),
+            "level_up": bool(res.get("level_up")),
+            "learned_move": res.get("learned_move"),
+            "strengthened_move": res.get("strengthened_move"),
+            "reaction": reaction,
+            "source": res.get("source"),
+        }
+        # One journal line for the discovery itself (XP + reaction).
+        interest = 2 if (res.get("level_up") or res.get("learned_move") or res.get("strengthened_move")) else 1
+        self.journal.record(Finding("pet", "discovery", "pulse", reaction, interest, detail))
+        if res.get("learned_move"):
+            self.journal.record(Finding("pet", "learned_move", res["learned_move"], res["learned_move"], 2,
+                                        {"source": res.get("source")}))
+        if res.get("strengthened_move"):
+            self.journal.record(Finding("pet", "move_strengthened", res["strengthened_move"],
+                                        res["strengthened_move"], 2, {"source": res.get("source")}))
+        if res.get("level_up"):
+            level = res.get("level", "?")
+            self.journal.record(Finding("pet", "level_up", "pulse", f"level {level}", 2,
+                                        {"level": level, "source": res.get("source")}))
+            if "level" not in reaction.lower():
+                self.log(f"◆ PULSE reached level {level}!", "accent2")
 
     def _on_pet_event(self, ev: dict) -> None:
         detail = ev.get("detail") or {}
         name = (ev.get("pet") or {}).get("name", "PULSE")
+        move = detail.get("move") or detail.get("name")
+        rank, bonus = detail.get("rank"), detail.get("bonus")
+        strengthened = f"{name} strengthened {move}"
+        if rank is not None:
+            strengthened += f" (rank {rank}" + (f", +{bonus}" if bonus is not None else "") + ")"
+        strengthened += "!"
         text = {
             "hungry": f"{name} is hungry!", "tired": f"{name} is tired", "sad": f"{name} feels sad",
             "evolved": f"{name} evolved into {detail.get('to') or detail.get('form') or '???'}!",
             "level_up": f"{name} reached level {detail.get('level', '?')}!",
-            "learned_move": f"{name} learned {detail.get('move') or detail.get('name')}!",
+            "learned_move": f"{name} learned {move}!",
+            "move_strengthened": strengthened,
             "signal_found": f"{name} sniffed out {detail.get('ssid') or detail.get('name') or 'a signal'}",
         }.get(ev.get("event"), f"{name}: {detail.get('text') or ev.get('event')}")
         self.log("◆ " + text, "accent2")
-        short = (detail.get("move") or detail.get("name") or detail.get("ssid") or detail.get("to")
-                 or detail.get("level") or text)
+        short = (move or detail.get("ssid") or detail.get("to") or detail.get("level") or text)
         self.journal.record(Finding("pet", str(ev.get("event")), name, str(short), 2, {"detail": detail, "text": text}))
 
     def _on_scan_request(self, name: str) -> None:
