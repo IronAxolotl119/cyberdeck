@@ -338,8 +338,8 @@ def log_pet_action(ctx: "Context", action: str, payload: dict) -> None:
         text = (f"evolved {payload.get('from', '?')} → {payload.get('to', '?')}" if payload.get("accepted", True)
                 else f"evolve refused: {payload.get('reason', '?')}")
     elif action == "combat":
-        text = (f"dungeon run {payload.get('result', '?')}: +{payload.get('xp_gained', 0)} xp"
-                + (f", {payload['level_ups']} level-up(s)" if payload.get("level_ups") else ""))
+        text = (f"dungeon run {payload.get('result', '?')}: +{payload.get('xp_granted', payload.get('xp_gained', 0))} xp"
+                + (f" — {payload['reaction']}" if payload.get("reaction") else ""))
     elif action == "gift":
         item = payload.get("item") or {}
         verb = "got a gift" if payload.get("accepted", True) else "turned down a gift"

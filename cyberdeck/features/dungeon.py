@@ -22,14 +22,16 @@ PULSE fights at your side (config/fx.ini [dungeon] pulse = yes):
     accuracy and energy cost. The HUD shows PULSE's HP and energy.
   * each round, after you act, PULSE gets a turn if a monster is within
     two steps of you. You pick its move (1-9, space = auto, . = let it
-    rest) or, with pulse_moves = auto, it picks the strongest move it has
-    the energy for. The deck sends pet.combat.action and the pet decides
-    whether it hits and for how much; the deck applies the damage.
+    rest) or, with pulse_moves = auto, the pet picks its own move. The deck sends pet.combat.action and the pet decides
+    whether it hits and for how much; the deck applies the damage. A move
+    PULSE can't afford becomes the pet's fallback (Chirp or Guard).
   * monsters next to you sometimes go for PULSE instead (pet.combat.hit).
     A fainted PULSE sits out until a repair kit revives it — kits go to
-    whichever of you is more hurt (pet.combat.heal).
-  * when you leave or are derezzed, pet.combat.end reports the result,
-    xp and defeated enemies; PULSE may level up or learn a move.
+    whichever of you is more hurt (pet.combat.hit {heal}); `pet rest`
+    after the run also gets it back on its feet.
+  * when you leave or are derezzed, pet.combat.end reports the result
+    (win / lose / flee), xp and defeated enemies; PULSE may level up or
+    learn a move (those arrive as the usual pet.event pushes).
   * no link, an older companion, or a sleeping PULSE: you play solo, and
     the HUD says why.
 
@@ -61,9 +63,9 @@ from cyberdeck.fx import banner
 from cyberdeck.petdata import CombatStats, Move, combat_stats
 from cyberdeck.protocol import (
     TYPE_ERROR,
+    TYPE_PET_STATUS,
     TYPE_PET_COMBAT_ACTION,
     TYPE_PET_COMBAT_END,
-    TYPE_PET_COMBAT_HEAL,
     TYPE_PET_COMBAT_HIT,
     TYPE_PET_COMBAT_STATS,
     TYPE_PET_GIFT,
@@ -111,9 +113,12 @@ class Monster:
     hp: int
     attack: int
 
+    level: int = 1
+
     def describe(self) -> dict[str, Any]:
-        """The enemy object sent in pet.combat.action / hit."""
-        return {"name": self.name, "hp": self.hp, "attack": self.attack}
+        """The enemy snapshot sent in pet.combat.action / hit."""
+        return {"name": self.name, "level": self.level, "hp": self.hp, "attack": self.attack,
+                "defense": 0, "speed": 0}
 
 
 # --- PULSE as a party member ---------------------------------------------------------
@@ -121,6 +126,8 @@ class Monster:
 class PulseAlly:
     """PULSE in the dungeon. Every outcome comes from the companion.
 
+    The companion is the authority (companion/docs/DUNGEON_INTEGRATION.md):
+    the deck keeps only the last HP / energy it was told, for the HUD.
     `request` is ctx.companion.request (or a fake in tests). Any link
     trouble or "unknown message" reply turns PULSE off for the rest of
     the run (solo mode) instead of breaking the game; `note` says why.
@@ -172,7 +179,13 @@ class PulseAlly:
             self._drop("asleep — `pet sleep off` to bring it next time")
             return False
         self.stats, self.hp, self.max_hp, self.energy = stats, stats.hp, stats.max_hp, stats.energy
-        self.moves = stats.moves or (Move("tackle", 4, 0.9, 0),)
+        self.moves = stats.moves
+        if self.energy is None:
+            # Energy lives in the pet object, not the combat sheet.
+            status = self._ask(TYPE_PET_STATUS, {})
+            if status is None:
+                return False
+            self._update(status)
         self.note = ""
         return True
 
@@ -187,15 +200,13 @@ class PulseAlly:
     def affordable(self, move: Move) -> bool:
         return self.energy is None or move.energy_cost <= self.energy
 
-    def auto_move(self) -> Move:
-        """Strongest expected hit we have the energy for (else the cheapest)."""
-        options = [m for m in self.moves if self.affordable(m)]
-        if not options:
-            return min(self.moves, key=lambda m: m.energy_cost)
-        return max(options, key=lambda m: (m.power * m.accuracy, -m.energy_cost))
-
-    def act(self, move: Move, enemy: Monster) -> dict[str, Any] | None:
-        body = self._ask(TYPE_PET_COMBAT_ACTION, {"move": move.name, "enemy": enemy.describe()})
+    def act(self, move: Move | None, enemy: Monster) -> dict[str, Any] | None:
+        """pet.combat.action. move None = let the pet pick. A move it cannot
+        afford comes back as a fallback (Chirp or Guard) chosen by the pet."""
+        payload: dict[str, Any] = {"enemy": enemy.describe()}
+        if move is not None:
+            payload["move"] = move.name
+        body = self._ask(TYPE_PET_COMBAT_ACTION, payload)
         if body is None:
             return None
         self._update(body)
@@ -211,26 +222,25 @@ class PulseAlly:
         return body
 
     def heal(self, amount: int) -> dict[str, Any] | None:
-        """A repair kit for PULSE. A companion without pet.combat.heal just
-        says no (None) and PULSE stays in the fight; the kit heals you."""
-        try:
-            reply = self.request(TYPE_PET_COMBAT_HEAL, {"amount": int(amount)})
-        except Exception as exc:
-            self._drop(f"lost contact ({exc})")
+        """A repair kit for PULSE: pet.combat.hit {heal: N} (revives it too)."""
+        body = self._ask(TYPE_PET_COMBAT_HIT, {"heal": int(amount)})
+        if body is None:
             return None
-        if reply.type == TYPE_ERROR:
-            return None
-        body = reply.payload or {}
         self._update(body)
         return body
 
     def _update(self, body: dict[str, Any]) -> None:
-        hp = body.get("pet_hp")
-        if isinstance(hp, int) and not isinstance(hp, bool):
-            self.hp = max(0, hp)
-        energy = body.get("energy")
-        if isinstance(energy, int) and not isinstance(energy, bool):
-            self.energy = energy
+        """Copy what the pet reported (pet_hp, and the pet object's hp / energy)."""
+        pet = body.get("pet") if isinstance(body.get("pet"), dict) else {}
+        for value in (pet.get("hp"), body.get("pet_hp")):       # pet_hp wins when both are sent
+            if isinstance(value, int) and not isinstance(value, bool):
+                self.hp = max(0, value)
+        for value in (pet.get("max_hp"),):
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+                self.max_hp = value
+        energy = pet.get("energy", body.get("energy"))
+        if isinstance(energy, (int, float)) and not isinstance(energy, bool):
+            self.energy = int(round(energy))
         elif self.energy is not None and isinstance(body.get("energy_spent"), int):
             self.energy = max(0, self.energy - body["energy_spent"])
 
@@ -308,7 +318,7 @@ class Game:
                 name, glyph, hp, atk, _d = self.rng.choice(kinds)
                 x, y = free.pop()
                 bonus = self.depth // 3
-                self.monsters.append(Monster(name, glyph, x, y, hp + bonus * 2, atk + bonus))
+                self.monsters.append(Monster(name, glyph, x, y, hp + bonus * 2, atk + bonus, self.depth))
         for _ in range(self.rng.randint(3, 5)):
             if free:
                 self.items[free.pop()] = self.roll_loot()
@@ -416,7 +426,7 @@ class Game:
             if self.pulse_moves == "ask":
                 self.awaiting = target
                 return
-            self.pet_act(self.ally.auto_move(), target)
+            self.pet_act(None, target)       # the pet picks its own move
         self.monsters_turn()
 
     def pet_choose(self, index: int | None) -> None:
@@ -428,19 +438,24 @@ class Game:
             self.say(f"{self.ally_name} holds back this round.")
         else:
             moves = self.ally.moves
-            move = moves[index] if index is not None and 0 <= index < len(moves) else self.ally.auto_move()
+            move = moves[index] if index is not None and 0 <= index < len(moves) else None
             if target in self.monsters:
                 self.pet_act(move, target)
         self.monsters_turn()
 
-    def pet_act(self, move: Move, target: Monster) -> None:
+    def pet_act(self, move: Move | None, target: Monster) -> None:
         result = self.ally.act(move, target) if self.ally else None
         if result is None:
             self.say(f"{self.ally_name} drops out: {self.ally.note if self.ally else 'gone'} — you're solo.")
             return
-        reaction = result.get("reaction") or (f"{self.ally_name} uses {move.name}"
+        used = result.get("move") or (move.name if move else "a move")
+        reaction = result.get("reaction") or (f"{self.ally_name} uses {used}"
                                               + (f" for {result.get('damage')}" if result.get("hit") else " — miss"))
+        if result.get("fallback") and move is not None:
+            reaction = f"(can't use {move.name}) {reaction}"
         self.say(str(reaction))
+        if result.get("acted") is False:
+            return
         damage = result.get("damage")
         if result.get("hit") and isinstance(damage, int) and damage > 0 and target in self.monsters:
             self.damage(target, damage, self.ally_name)
@@ -518,19 +533,15 @@ class Game:
         ally = self.ally
         if ally is None or ally.stats is None:
             return []
-        result = "lost" if self.over else ("won" if ally.defeated else "fled")
+        result = "lose" if self.over else ("win" if ally.defeated else "flee")
         xp = min(500, sum(3 * self.depth for _ in ally.defeated) + 2 * self.depth)
         body = ally.end(result, xp)
         if body is None:
             return [f"{ally.name}: {ally.note or 'could not report the run'}"]
-        line = f"{ally.name}: +{body.get('xp_gained', xp)} xp"
-        if body.get("level_ups"):
-            line += f", level up → Lv {body.get('level', '?')}"
-        learned = body.get("learned_moves") or []
-        if learned:
-            line += f", learned {', '.join(map(str, learned))}"
-        self.end_payload = body
-        return [line]
+        granted = body.get("xp_granted", body.get("xp_gained", xp))
+        self.end_payload = dict(body, xp_granted=granted)
+        # Level-ups and new moves arrive as pet.event pushes, like any other growth.
+        return [f"{ally.name}: +{granted} xp" + (f" — {body['reaction']}" if body.get("reaction") else "")]
 
     def visible(self, x: int, y: int) -> bool:
         return (x - self.px) ** 2 + (y - self.py) ** 2 <= SIGHT ** 2
