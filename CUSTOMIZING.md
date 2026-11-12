@@ -212,7 +212,10 @@ usually need root, so the deck falls back to the current link.
 While the full-screen deck is open it checks on PULSE every
 `poll_seconds`. When PULSE is hungry, bored, or tired the ticker line
 flashes a message, a `! HUNGRY` badge appears on the status bar, and the
-buzzer chirps (for hunger). `config/pet.ini`:
+buzzer chirps (for hunger). On a narrow screen the bar makes room for the
+badge by shortening, then hiding, the less important readings (memory
+first, the companion link last); the priorities live in
+`cyberdeck/statusline.py` if you want a different order. `config/pet.ini`:
 
 ```ini
 [alerts]

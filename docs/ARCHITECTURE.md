@@ -34,6 +34,8 @@ cyberdeck-main/
   cyberdeck/            the Python package (`python -m cyberdeck`)
     app.py              flags, startup, choose UI or headless
     tui.py              full-screen curses interface (the only drawing code)
+    jobs.py             run slow commands on a thread; "fetching…" placeholder
+    statusline.py       fit the status readings + link label into the bar
     headless.py         run commands as plain text (for scripts/tests)
     commands.py         command registry, Context, core commands
     features/           one module per bigger feature, each with register()
@@ -216,8 +218,18 @@ deck:
 - Their output is parsed by small `parse_*` functions that take text,
   so tests feed them captured samples.
 - `net check` uses a thread pool so slow hosts are checked in parallel.
-  Each check still blocks the prompt until it finishes (worst case
-  about one `port_timeout`), which keeps the UI loop simple.
+- Commands that wait on the network (`weather`, `iss` and `iss refresh`,
+  `net check`, `net ping`, `net port`, `ping <host>`) never block the
+  screen. They hand their work to `jobs.in_background()`, which:
+  * in the full-screen UI, starts a thread and returns a one-line
+    placeholder (`weather: fetching…  [job 1]`). Every frame,
+    `tui._collect_jobs()` picks up finished jobs, swaps the placeholder
+    for the real lines, and flashes "weather ready" on the ticker. The
+    same command typed again while it runs says "still fetching";
+  * in headless mode (and the tests), just runs the work and returns
+    its lines, so scripts get results in order.
+  `weather` with a fresh cache answers straight away, and the sky panel
+  keeps refreshing in the background as before (`world.SkyRefresher`).
 - Traffic rates come from two `/proc/net/dev` samples (`RateMeter`).
 - `ssh` sets `ctx.external`; `tui.py` calls `curses.endwin()`, runs
   ssh in the real terminal, then redraws. A failed ssh waits for Enter
@@ -292,6 +304,13 @@ Only a command you type (`pet feed`) can wait, at most `timeout` (1.5 s).
   time → events), so alert rules are unit-tested.
 - **Status badges.** Any service with `status_badge()` can put a short
   flashing label on the right of the status bar (`! HUNGRY`).
+- **Fitting the status bar.** `statusline.status_items()` turns a sensor
+  reading and the link label into items, each with a priority and
+  shorter forms (`CPU 17%` → `C17%`, `DECK-NET -53dBm` → `-53dBm` →
+  `W-53`, `LINK UP · TCP 7777` → `LINK UP`). `fit()` shortens the
+  least important item first, then drops items (memory, CPU, wifi,
+  temperature, battery), so the link label is the last to be touched.
+  The badge itself is capped at a third of the width.
 - **GPIO.** `gpio.py` mirrors `sensors.py`: one `GpioBackend` interface,
   a sim backend that records everything, and real backends imported
   lazily so a laptop never needs gpiozero. `features/hardware.py` holds

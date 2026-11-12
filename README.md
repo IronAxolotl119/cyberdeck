@@ -24,9 +24,10 @@ python3 -m cyberdeck --headless --script 'help' --script 'ping' --script 'pet st
 ```
 
 `--mode sim` is the default. You can also set `CYBERDECK_MODE=sim`.
-`--mode real` selects the Pi sensor stub and the UART companion stub
-(the serial link is not implemented yet; the UI will show the link
-down).
+`--mode real` selects the Pi sensors and the UART companion link
+(`--link serial`, default `/dev/serial0`). `--link sim|tcp|serial`
+picks the companion link on its own; see "Deck + pet on one computer"
+below.
 
 ```bash
 python3 -m cyberdeck --help
@@ -49,16 +50,39 @@ cyberdeck/              the Python package
 docs/PROTOCOL.md        dual-board message protocol
 docs/ARCHITECTURE.md    how modules fit together
 docs/screenshot.txt     captured text snapshot of the UI
+docs/TESTING_TWO_BOARDS.md  running deck + pet together (TCP, serial, two Pis)
+tools/fake_companion.py stand-in pet server for testing the link
+companion/              the companion board's own app (the real pet; its own README)
 CUSTOMIZING.md          how to change colors, layout, and commands
 tests/                  unit tests
 ```
 
 ## Deck + pet on one computer
 
+The real pet lives in `companion/`, the companion board's app. It is
+maintained separately; see [companion/README.md](companion/README.md).
+To run both together, open two terminals in this directory:
+
 ```bash
-python3 tools/fake_companion.py          # terminal 1: the pet (TCP 127.0.0.1:7777)
+cd companion && python3 companion.py --tcp 127.0.0.1:7777   # terminal 1: the pet
+python3 -m cyberdeck --link tcp                             # terminal 2: the deck
+```
+
+The deck connects to `127.0.0.1:7777` by default (change it with
+`--host` / `--port` or `[link]` in `config/hardware.ini`). The status
+line shows `LINK UP · TCP 7777` once they are talking. Start them in
+either order; the deck keeps retrying.
+
+No companion checkout handy? `tools/fake_companion.py` is a stand-in
+that speaks the same protocol:
+
+```bash
+python3 tools/fake_companion.py          # terminal 1: fake pet (TCP 127.0.0.1:7777)
 python3 -m cyberdeck --link tcp          # terminal 2: the deck
 ```
+
+The companion's own tests run from its folder:
+`cd companion && python3 -m unittest discover -s tests -v`.
 
 Serial and two-Pi setups: [docs/TESTING_TWO_BOARDS.md](docs/TESTING_TWO_BOARDS.md).
 
