@@ -344,7 +344,7 @@ class OfflineCommandTests(unittest.TestCase):
         self.assertIn("ISS", text)
 
     def test_stale_tle_warning(self):
-        ws = WorldSettings(tle_warn_days=0.0)
+        ws = WorldSettings(tle_warn_days=0.0, offline=True)   # never touch the network in tests
         self.ctx.services["world_settings"] = ws
         self.assertIn("days old", iss.get_tle(self.ctx).warning)
 
