@@ -45,6 +45,7 @@ from cyberdeck.config import Layout, Settings, Theme
 from cyberdeck.features.core_ux import get_history, launcher_items
 from cyberdeck.keys import key_name, load_hotkeys
 from cyberdeck.panes import PANES, ScreenLayout, compute_layout, load_pane_settings
+from cyberdeck.statusline import fit as fit_status, status_items
 
 # Standard curses color names accepted in config/theme.ini.
 # "default" means "use the terminal's own color" (pair -1).
@@ -362,22 +363,20 @@ class DeckUI:
         if clock_x > len(title) + 2:
             _safe_add(stdscr, 0, clock_x, right, self.attrs["title"])
 
-        cpu = f"CPU {reading.cpu_percent:.0f}%" if reading.cpu_percent is not None else "CPU --"
-        mem = f"MEM {reading.mem_percent:.0f}%" if reading.mem_percent is not None else "MEM --"
-        status = (f" {reading.temp_label()}  {cpu}  {mem}  {reading.battery_label()}  "
-                  f"{reading.wifi_label()}  {self.ctx.companion.link_label()}")
         width = max(0, cols - 2)
-        # Badges from services (e.g. "! HUNGRY" from pet alerts) go on the right.
+        # Badges from services (e.g. "! HUNGRY" from pet alerts) go on the right,
+        # at most a third of the line, so the readings beside them still fit.
         badges = self._badges()
         if badges:
             text, role = badges[0]
-            badge = f" {text} "
+            badge = f" {text[: max(4, width // 3 - 2)]} "
             attr_b = self.attrs.get(role, self.attrs["warn"])
             if role == "alert" and int(time.time() * 2) % 2:
                 attr_b |= curses.A_REVERSE  # flash
-            status = status[: max(0, width - len(badge))]
             _safe_add(stdscr, geo.status_row, 1 + width - len(badge), badge, attr_b)
             width -= len(badge)
+        # Shorten / drop the least important readings first (statusline.py).
+        status = " " + fit_status(status_items(reading, self.ctx.companion.link_label()), max(0, width - 2))
         attr = self.attrs["status"]
         if reading.cpu_temp_c is not None and reading.cpu_temp_c >= 70:
             attr = self.attrs["alert"]
