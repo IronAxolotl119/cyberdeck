@@ -268,6 +268,9 @@ def build_registry(include_plugins: bool = True) -> Registry:
             f"radio         {reading.wifi_label()}",
             f"companion     {ctx.companion.link_label()}",
         ]
+        detail = getattr(ctx.companion, "link_detail", None)
+        if callable(detail):
+            lines.append(f"link          {detail()}")
         if linked:
             try:
                 reply = ctx.companion.request(TYPE_PING, {})
@@ -341,7 +344,7 @@ def build_registry(include_plugins: bool = True) -> Registry:
             run_pet_hooks(ctx, "play", payload)
             if payload.get("played") is False:
                 reason = payload.get("reason", "not now")
-                return [f"PULSE sits this one out ({reason}).", *_format_pet(pet)]
+                return [f"{pet.get('name', 'PULSE')} sits this one out ({reason}).", *_format_pet(pet)]
             return [f"played {payload.get('game', game)}", *_format_pet(pet)]
         if action in PET_ACTIONS:
             return PET_ACTIONS[action](ctx, args) or []
@@ -361,6 +364,25 @@ def build_registry(include_plugins: bool = True) -> Registry:
         rtt_ms = (time.perf_counter() - started) * 1000.0
         source = (reply.payload or {}).get("source", "companion")
         return [f"{reply.type}  rtt={rtt_ms:.1f}ms  id={reply.id[:8]}  via {source}"]
+
+    # link: how the deck reaches the companion, and how the wire is doing.
+    @reg.command("link", "Companion link details: where, state, counters.", usage="link")
+    def cmd_link(ctx: Context, args: list[str]) -> list[str]:
+        del args
+        link = ctx.companion
+        lines = [f"link     {link.link_label()}"]
+        detail = getattr(link, "link_detail", None)
+        if callable(detail):
+            lines.append(f"detail   {detail()}")
+        hello = getattr(link, "hello", None) or getattr(link, "_hello", None)
+        if hello:
+            lines.append("hello    " + ", ".join(f"{k}={v}" for k, v in hello.items()))
+        stats = getattr(link, "stats", None)
+        if stats:
+            lines.append("counters " + "  ".join(f"{k} {v}" for k, v in sorted(stats.items())))
+        if getattr(link, "events_enabled", False):
+            lines.append("events   on (the companion pushes hungry / evolved / level_up …)")
+        return lines
 
     # Feature modules (history, notes, network, games, weather…) each
     # register their own commands. See cyberdeck/features/__init__.py.
@@ -385,23 +407,38 @@ def _host_names(ctx: Context) -> list[str]:
 
 # --- small formatting helpers used by pet / status / sys ---
 
-def _format_pet(pet: dict[str, Any]) -> list[str]:
-    """Turn a pet payload dict into readable lines with need bars."""
-    if not pet:
+def _format_pet(raw: dict[str, Any]) -> list[str]:
+    """Turn a pet payload dict into readable lines with need bars.
+
+    Shows whatever species/form the companion reports, and the optional
+    stats (level, hp, moves…) only when it sends them.
+    """
+    from cyberdeck.petdata import normalize_pet, stats_line
+
+    if not raw:
         return ["pet: (empty payload)"]
-    name = pet.get("name", "?")
-    species = pet.get("species", "?")
-    stage = pet.get("stage", "?")
-    mood = pet.get("mood", "?")
-    age = pet.get("age_hours", "?")
+    pet = normalize_pet(raw)
+
+    def need(key: str) -> str:
+        value = pet[key]
+        return f"{_bar(value)}  {value if value is not None else '--'}"
+
     lines = [
-        f"{name}  ·  {species}  ·  {stage}",
-        f"mood     {mood}",
-        f"hunger   {_bar(pet.get('hunger'))}  {pet.get('hunger', '--')}",
-        f"happy    {_bar(pet.get('happiness'))}  {pet.get('happiness', '--')}",
-        f"energy   {_bar(pet.get('energy'))}  {pet.get('energy', '--')}",
-        f"age      {age}h",
+        f"{pet['name']}  ·  {pet['species']}  ·  {pet['stage']}",
+        f"mood     {pet['mood']}",
+        f"hunger   {need('hunger')}   (0 = full)",
+        f"happy    {need('happiness')}",
+        f"energy   {need('energy')}",
     ]
+    stats = stats_line(pet)
+    if stats:
+        lines.append(f"stats    {stats}")
+    if pet["moves"]:
+        lines.append(f"moves    {', '.join(pet['moves'])}")
+    if pet["care_mistakes"] is not None:
+        lines.append(f"mistakes {pet['care_mistakes']}")
+    if pet["age_hours"] is not None:
+        lines.append(f"age      {pet['age_hours']}h")
     return lines
 
 

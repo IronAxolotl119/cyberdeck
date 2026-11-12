@@ -189,6 +189,12 @@ class DeckUI:
             pass
         self.box = UNICODE_BOX if wants_unicode(self.layout) else ASCII_BOX
         self.attrs = self._init_colors()
+        self._rgb_pairs: dict[str, int] = {}
+        # Tell panes how many colours they may use (0, 8, or 256), e.g. for the pet avatar.
+        depth = 0
+        if curses.has_colors():
+            depth = 256 if getattr(curses, "COLORS", 8) >= 256 else 8
+        self.ctx.services["color_depth"] = depth
         stdscr.keypad(True)
 
     def _init_colors(self) -> dict[str, int]:
@@ -210,6 +216,31 @@ class DeckUI:
         for role in ("title", "prompt", "warn", "alert", "ok"):
             attrs[role] |= curses.A_BOLD
         return attrs
+
+    def _rgb_attr(self, role: str) -> int:
+        """'rgb:ffcc00:-' (foreground:background, '-' = none) -> a colour pair.
+
+        Pairs are made on first use with the nearest terminal colour, so a
+        picture such as the pet avatar can use any palette.
+        """
+        if role in self._rgb_pairs:
+            return self._rgb_pairs[role]
+        from cyberdeck.petdata import hex_to_rgb, nearest_256, nearest_8
+
+        attr = self.attrs.get("text", 0)
+        depth = self.ctx.services.get("color_depth", 0)
+        next_id = 64 + len(self._rgb_pairs)
+        if depth and next_id < getattr(curses, "COLOR_PAIRS", 0):
+            pick = nearest_256 if depth >= 256 else nearest_8
+            _, fg_hex, bg_hex = (role.split(":") + ["-", "-"])[:3]
+            fg, bg = hex_to_rgb(fg_hex), hex_to_rgb(bg_hex)
+            try:
+                curses.init_pair(next_id, pick(fg) if fg else -1, pick(bg) if bg else -1)
+                attr = curses.color_pair(next_id)
+            except curses.error:
+                pass
+        self._rgb_pairs[role] = attr
+        return attr
 
     def _banner(self) -> None:
         """A short greeting so the output pane is not empty on first launch."""
@@ -452,7 +483,8 @@ class DeckUI:
                 if room <= 0:
                     break
                 piece = text[:room]
-                _safe_add(stdscr, top + i, x, piece, self.attrs.get(role, self.attrs["text"]))
+                attr = self._rgb_attr(role) if role.startswith("rgb:") else self.attrs.get(role, self.attrs["text"])
+                _safe_add(stdscr, top + i, x, piece, attr)
                 x += len(piece)
                 used += len(piece)
 

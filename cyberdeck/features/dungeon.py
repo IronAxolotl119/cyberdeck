@@ -352,10 +352,14 @@ def gift(ctx: "Context", item: dict[str, Any]) -> tuple[bool, list[str]]:
     changes = "  ".join(f"{k} {v:+d}" for k, v in effects.items() if isinstance(v, int) and v)
     if effects.get("stage"):
         changes += f"  stage → {effects['stage']}"
-    lines = [f"[gift] {payload.get('reaction', 'gift delivered')}"]
-    if changes.strip():
+    accepted = payload.get("accepted", True) is not False
+    lines = [f"[gift] {payload.get('reaction', 'gift delivered' if accepted else 'gift refused')}"]
+    if not accepted:
+        # e.g. an evolve chip when the pet is already at its last form.
+        lines.append("       (not accepted — it stays in your loot bag)")
+    elif changes.strip():
         lines.append(f"       {changes.strip()}")
-    return bool(payload.get("accepted", True)), lines
+    return accepted, lines
 
 
 def format_item(i: int, item: dict[str, Any]) -> str:

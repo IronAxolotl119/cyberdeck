@@ -44,6 +44,7 @@ def run_headless(
         print(f"> {line}", file=out)
         output = registry.dispatch(line, ctx)
         output += handle_ui_requests(ctx)
+        output += pushed_events(ctx)
         for piece in output:
             print(piece, file=out)
         if ctx.should_quit:
@@ -72,6 +73,16 @@ def handle_ui_requests(ctx: Context) -> list[str]:
         except OSError as exc:
             lines.append(f"could not start {argv[0]}: {exc}")
     return lines
+
+
+def pushed_events(ctx: Context) -> list[str]:
+    """Events the companion pushed while the command ran (hungry, evolved…)."""
+    try:
+        from cyberdeck.features.petwatch import headless_event_lines
+
+        return headless_event_lines(ctx)
+    except Exception:  # the petwatch feature may be switched off
+        return []
 
 
 def _stdin_lines() -> Iterable[str]:

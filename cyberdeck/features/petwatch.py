@@ -82,6 +82,10 @@ CONDITIONS = (
 )
 
 
+# Pushed event names -> the deck's own alert names (see CONDITIONS).
+PUSHED_TO_LOCAL = {"hungry": "hungry", "sad": "bored", "tired": "tired"}
+
+
 class PetLog:
     """data/pet_log.txt: 'YYYY-MM-DD HH:MM:SS | kind | text' per line."""
 
@@ -125,6 +129,7 @@ class PetWatcher:
     active: set[str] = field(default_factory=set)          # alerts currently true
     _last_alert: dict[str, float] = field(default_factory=dict)
     _next_poll: float = 0.0
+    _next_push_check: float = 0.0
 
     def check(self, pet: dict[str, Any], now: float) -> list[PetEvent]:
         """Compare a fresh pet payload with the previous one. Pure logic."""
@@ -155,13 +160,41 @@ class PetWatcher:
         return events
 
     def poll(self, ctx: "Context", now: float) -> list[PetEvent]:
-        """Ask the companion and check. Link trouble just means no events."""
-        try:
-            reply = ctx.companion.request(TYPE_PET_STATUS, {})
-        except Exception:
-            return []
-        pet = (reply.payload or {}).get("pet")
+        """Check the newest pet (the link's background copy, or ask)."""
+        pet = ctx.companion.pet_snapshot()
+        if pet is None:
+            try:
+                reply = ctx.companion.request(TYPE_PET_STATUS, {})
+            except Exception:
+                return []   # link trouble just means no events
+            pet = (reply.payload or {}).get("pet")
         return self.check(pet, now) if pet else []
+
+    def pushed(self, ctx: "Context", now: float) -> list[PetEvent]:
+        """Events the companion pushed (pet.event) since last time.
+
+        Each pushed snapshot also refreshes the pet panel, and need events
+        count as already-announced so the deck's own threshold check does
+        not say the same thing twice.
+        """
+        from cyberdeck.petdata import event_notice
+
+        events: list[PetEvent] = []
+        for message in ctx.companion.drain_events():
+            payload = message.payload or {}
+            kind, level, text = event_notice(payload)
+            events.append(PetEvent(kind, level, text))
+            local = PUSHED_TO_LOCAL.get(kind)
+            if local:
+                self.active.add(local)
+                self._last_alert[local] = now
+            pet = payload.get("pet")
+            if isinstance(pet, dict):
+                ctx.services["pet_cache"] = {"at": time.monotonic(), "pet": pet}
+                if self.latest is not None:
+                    # Remember the new stage/mood so check() does not re-announce them.
+                    self.latest = dict(self.latest, stage=pet.get("stage"), mood=pet.get("mood"))
+        return events
 
     def handle(self, ctx: "Context", events: list[PetEvent], now: float) -> None:
         """Log every event; announce the important ones."""
@@ -173,8 +206,13 @@ class PetWatcher:
                 self._sound(ctx)
 
     def ui_tick(self, ctx: "Context", now: float) -> None:
-        """Called by the TUI every frame; polls every poll_seconds."""
-        if not self.settings.enabled or now < self._next_poll:
+        """Called by the TUI every frame: pushed events now, polls every poll_seconds."""
+        if not self.settings.enabled:
+            return
+        if now >= self._next_push_check:
+            self._next_push_check = now + 0.5
+            self.handle(ctx, self.pushed(ctx, now), now)
+        if now < self._next_poll:
             return
         self._next_poll = now + self.settings.poll_seconds
         self.handle(ctx, self.poll(ctx, now), now)
@@ -249,7 +287,8 @@ def pet_sim(ctx: "Context", args: list[str]) -> list[str]:
         return ["usage: pet sim hunger|happiness|energy <0-100>   or   pet sim stage <name>"]
     stat, value = args[1].lower(), args[2]
     if stat == "stage":
-        pet.stage = value
+        pet._evolve_to(value) if hasattr(pet, "_evolve_to") else setattr(pet, "stage", value)
+        ctx.services.pop("pet_cache", None)
         return [f"sim: stage = {value}"]
     if stat not in SIM_STATS or not value.isdigit():
         return ["usage: pet sim hunger|happiness|energy <0-100>"]
@@ -267,7 +306,8 @@ def log_pet_action(ctx: "Context", action: str, payload: dict) -> None:
                 else f"refused to play ({payload.get('reason', '?')})")
     elif action == "gift":
         item = payload.get("item") or {}
-        text = f"got a gift: {item.get('name', '?')} — {payload.get('reaction', '')}".rstrip(" —")
+        verb = "got a gift" if payload.get("accepted", True) else "turned down a gift"
+        text = f"{verb}: {item.get('name', '?')} — {payload.get('reaction', '')}".rstrip(" —")
     else:
         text = action
     get_watcher(ctx).log.add(action, text)
@@ -283,3 +323,13 @@ def register(reg: "Registry") -> None:
         PET_HOOKS.append(log_pet_action)
     if get_watcher not in UI_STARTUP:
         UI_STARTUP.append(get_watcher)  # start background alerts with the UI
+
+
+def headless_event_lines(ctx: "Context") -> list[str]:
+    """For headless mode: pushed events as '[pet] …' lines (also logged)."""
+    watcher = get_watcher(ctx)
+    now = time.time()
+    events = watcher.pushed(ctx, now)
+    for event in events:
+        watcher.log.add(event.kind, event.text, now)
+    return [f"[pet {event.kind}] {event.text}" for event in events]
