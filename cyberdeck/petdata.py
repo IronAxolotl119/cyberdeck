@@ -7,11 +7,18 @@ pet payload goes through here:
   normalize_pet(raw)   a tidy dict: always has name/species/stage/needs/
                        mood (a word), plus the optional extras when sent
                        (level, xp, hp, max_hp, attack, defense, speed,
-                       moves, care_mistakes, avatar)
+                       moves, care_mistakes, avatar, asleep, evolution)
   stats_line(pet)      'Lv 3 · HP 18/20 · ATK 6 DEF 5 SPD 7'
+  evolution_info(raw)  {next_stage, progress 0-1, ready} or None
   event_notice(msg)    a pushed pet.event -> (kind, level, text)
-  parse_avatar(reply)  a pet.avatar.ok payload -> Avatar (or None)
+  parse_face(reply)    a pet.avatar.ok text-face payload -> Face (or None)
+  pet_face(pet, now)   the face to show right now (animated, asleep-aware)
+  parse_avatar(reply)  an older companion's 16x16 sprite -> Avatar (or None)
+  combat_stats(reply)  a pet.combat.stats.ok payload -> CombatStats
   nearest_256/8(rgb)   pick the closest terminal colour for a pixel
+
+Stages and species are shown exactly as the companion names them, so a
+new form (or a whole new ladder) never needs a deck update.
 
 Nothing in here does I/O, so it is all unit-tested.
 """
@@ -85,7 +92,58 @@ def normalize_pet(raw: Any) -> dict[str, Any]:
         pet["moves"] = [str(n) for n in names if n]
     else:
         pet["moves"] = []
+    asleep = raw.get("asleep")
+    pet["asleep"] = asleep if isinstance(asleep, bool) else None
+    pet["evolution"] = evolution_info(raw.get("evolution"))
     return pet
+
+
+def evolution_info(raw: Any) -> dict[str, Any] | None:
+    """{next_stage, progress (0-1), ready} from pet.status, or None if not sent."""
+    if not isinstance(raw, dict):
+        return None
+    try:
+        progress = float(raw.get("progress"))
+    except (TypeError, ValueError):
+        progress = None
+    if progress is not None:
+        progress = max(0.0, min(1.0, progress if progress == progress else 0.0))
+    next_stage = raw.get("next_stage")
+    return {"next_stage": str(next_stage) if next_stage else None, "progress": progress,
+            "ready": raw.get("ready") is True, "choices": evolution_choices(raw.get("choices"))}
+
+
+def evolution_choices(raw: Any) -> list[dict[str, Any]]:
+    """[{species, stage, hint, available}] — branches for the next stage."""
+    out = []
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, dict) and str(item.get("species") or "").strip():
+            out.append({"species": str(item["species"]).strip(), "stage": str(item.get("stage") or ""),
+                        "hint": str(item.get("hint") or ""), "available": item.get("available") is not False})
+    return out
+
+
+def choice_line(choice: dict[str, Any]) -> str:
+    """'Voltshard (champion)' plus '— locked: needs …' when it cannot be picked."""
+    stage = f" ({choice['stage']})" if choice.get("stage") else ""
+    if choice.get("available"):
+        hint = f" — {choice['hint']}" if choice.get("hint") else ""
+        return f"{choice['species']}{stage}{hint}"
+    return f"{choice['species']}{stage} — locked: {choice.get('hint') or 'not available yet'}"
+
+
+def evolution_line(evolution: dict[str, Any] | None, width: int = 10) -> str:
+    """'→ champion [######----] 62%' (or 'final form' / '' when unknown)."""
+    if not evolution:
+        return ""
+    if not evolution.get("next_stage"):
+        return "final form"
+    progress = evolution.get("progress")
+    if progress is None:
+        return f"→ {evolution['next_stage']}"
+    filled = int(round(progress * width))
+    ready = "  ready!" if evolution.get("ready") else ""
+    return f"→ {evolution['next_stage']} [{'#' * filled}{'-' * (width - filled)}] {int(progress * 100)}%{ready}"
 
 
 def stage_index(stage: str) -> int:
@@ -122,9 +180,22 @@ def event_notice(payload: dict[str, Any]) -> tuple[str, str, str]:
         return kind, "warn", f"{name} is worn out — let it rest"
     if kind == "sad":
         return kind, "warn", f"{name} is sad — try `pet play`"
+    if kind == "evolve_soon":
+        nxt = detail.get("next_stage") or detail.get("to") or "its next form"
+        return kind, "info", f"{name} is close to evolving into {nxt}{_eta(detail)}"
+    if kind == "evolve_choice":
+        choices = evolution_choices(detail.get("choices"))
+        names = ", ".join(c["species"] for c in choices if c["available"]) or "?"
+        return kind, "alert", f"{name} is ready to evolve! choose: {names} — `pet evolve`"
+    if kind == "evolving":
+        new = detail.get("to") or detail.get("form") or "something new"
+        return kind, "ok", f"{name} is evolving: {detail.get('from') or pet['species']} → {new}…"
     if kind == "evolved":
         new = detail.get("form") or detail.get("to") or detail.get("stage") or pet["species"]
         return kind, "ok", f"{name} evolved into {new}!"
+    if kind == "woke":
+        why = detail.get("reason") or "rested"
+        return kind, "ok", f"{name} woke up ({why}) — energy {pet['energy'] if pet['energy'] is not None else '?'}"
     if kind == "level_up":
         level = detail.get("level", pet.get("level"))
         return kind, "ok", f"{name} reached level {level}!"
@@ -137,7 +208,143 @@ def event_notice(payload: dict[str, Any]) -> tuple[str, str, str]:
     return kind, "info", f"{name}: {kind.replace('_', ' ')} {extra}".rstrip()
 
 
-# --- avatars ----------------------------------------------------------------------
+def _eta(detail: dict[str, Any]) -> str:
+    """' (in about 3h)' from any eta-ish field the companion sends."""
+    for key, unit in (("eta_hours", "h"), ("eta_minutes", "m"), ("eta_min", "m"), ("eta_seconds", "s"), ("eta_s", "s")):
+        value = detail.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return f" (in about {value:g}{unit})"
+    eta = detail.get("eta")
+    return f" ({eta})" if isinstance(eta, str) and eta else ""
+
+
+# --- text faces (current companions) ------------------------------------------------
+
+# Used when the companion sends no face at all.
+DEFAULT_FACES = {"joyful": "(^o^)", "playful": "(^_^)", "content": "(o_o)", "hungry": "(>_<)",
+                 "tired": "(=_=)", "grumpy": "(>_>)", "sleep": "(-_-) zZ"}
+
+
+@dataclass(frozen=True)
+class Face:
+    """An animated text face: frames shown in turn every interval_ms."""
+
+    frames: tuple[str, ...]
+    interval_ms: int = 500
+    mood: str = ""
+
+    def at(self, now: float) -> str:
+        """The frame for this moment (now in seconds)."""
+        if not self.frames:
+            return ""
+        step = int(now * 1000 // max(50, self.interval_ms))
+        return self.frames[step % len(self.frames)]
+
+
+def _clean_face(text: Any, limit: int = 24) -> str:
+    """One printable line, at most `limit` characters."""
+    if not isinstance(text, str):
+        return ""
+    return "".join(c for c in text.replace("\n", " ").replace("\t", " ") if c.isprintable())[:limit].strip()
+
+
+def parse_face(payload: Any) -> Face | None:
+    """A pet.avatar.ok text-face payload -> Face. Sprites (rows/palette) -> None."""
+    if not isinstance(payload, dict):
+        return None
+    frames = payload.get("frames")
+    if isinstance(frames, list):
+        clean = tuple(f for f in (_clean_face(x) for x in frames[:16]) if f)
+    else:
+        clean = ()
+    if not clean and _clean_face(payload.get("text")):
+        clean = (_clean_face(payload.get("text")),)
+    if not clean:
+        return None
+    interval = _int(payload.get("interval_ms")) or 500
+    return Face(clean, max(80, min(10_000, interval)), str(payload.get("mood") or ""))
+
+
+def is_face_avatar(avatar: Any) -> bool:
+    """True when a pet object's avatar is the text-face kind."""
+    return isinstance(avatar, dict) and (avatar.get("style") == "face" or isinstance(avatar.get("text"), str))
+
+
+def pet_face(pet: dict[str, Any], now: float, face: Face | None = None) -> str:
+    """The text face to draw: fetched frames, else avatar.text, else a default.
+
+    Asleep pets always get a sleepy face with zZ, whatever was cached.
+    """
+    avatar = pet.get("avatar") if isinstance(pet.get("avatar"), dict) else {}
+    mood = str(avatar.get("mood") or pet.get("mood") or "")
+    if face is not None and face.frames and (not face.mood or face.mood == mood):
+        text = face.at(now)
+    else:
+        text = _clean_face(avatar.get("text")) or DEFAULT_FACES.get(mood, "(o_o)")
+    if pet.get("asleep") and "zz" not in text.lower():
+        text = DEFAULT_FACES["sleep"] if face is None and not avatar.get("text") else f"{text} zZ"
+    return text
+
+
+# --- combat ----------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Move:
+    name: str
+    power: int = 0
+    accuracy: float = 1.0      # 0-1
+    energy_cost: int = 0
+
+
+@dataclass(frozen=True)
+class CombatStats:
+    """PULSE's fighting numbers from pet.combat.stats.ok."""
+
+    hp: int
+    max_hp: int
+    attack: int = 0
+    defense: int = 0
+    speed: int = 0
+    level: int = 1
+    energy: int | None = None
+    asleep: bool = False
+    moves: tuple[Move, ...] = ()
+
+
+def combat_stats(payload: Any) -> CombatStats | None:
+    """Validate pet.combat.stats.ok. Needs at least hp; everything else optional."""
+    if not isinstance(payload, dict):
+        return None
+    src = payload.get("stats") if isinstance(payload.get("stats"), dict) else payload
+    pet = payload.get("pet") if isinstance(payload.get("pet"), dict) else {}
+    hp = _int(src.get("hp"))
+    if hp is None:
+        return None
+    max_hp = _int(src.get("max_hp")) or max(1, hp)
+    moves = []
+    for raw in src.get("moves") or []:
+        if isinstance(raw, str) and raw.strip():
+            moves.append(Move(raw.strip()))
+        elif isinstance(raw, dict) and str(raw.get("name") or "").strip():
+            try:
+                accuracy = float(raw.get("accuracy", 1.0))
+            except (TypeError, ValueError):
+                accuracy = 1.0
+            if accuracy > 1.0:          # 0-100 style
+                accuracy /= 100.0
+            moves.append(Move(str(raw["name"]).strip(), _int(raw.get("power")) or 0,
+                              max(0.0, min(1.0, accuracy)), max(0, _int(raw.get("energy_cost")) or 0)))
+    energy = _int(src.get("energy"))
+    if energy is None:
+        energy = _int(pet.get("energy"))
+    asleep = src.get("asleep", pet.get("asleep"))
+    return CombatStats(hp=max(0, hp), max_hp=max_hp, attack=_int(src.get("attack")) or 0,
+                       defense=_int(src.get("defense")) or 0, speed=_int(src.get("speed")) or 0,
+                       level=_int(src.get("level")) or 1, energy=energy, asleep=asleep is True,
+                       moves=tuple(moves))
+
+
+# --- sprite avatars (older companions) ----------------------------------------------
 
 RGB = tuple[int, int, int]
 

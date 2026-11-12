@@ -36,15 +36,36 @@ TYPE_PET_PLAY = "pet.play"
 TYPE_PET_PLAY_OK = "pet.play.ok"
 TYPE_PET_GIFT = "pet.gift"
 TYPE_PET_GIFT_OK = "pet.gift.ok"
-# Optional: the pet's 16x16 picture as palette indexes (see PROTOCOL.md).
+# Optional: the pet's animated text face (or, from older companions, a
+# 16x16 picture as palette indexes). See PROTOCOL.md.
 TYPE_PET_AVATAR = "pet.avatar"
 TYPE_PET_AVATAR_OK = "pet.avatar.ok"
+# Rest and sleep: refill PULSE's energy from the deck.
+TYPE_PET_REST = "pet.rest"
+TYPE_PET_REST_OK = "pet.rest.ok"
+TYPE_PET_SLEEP = "pet.sleep"
+TYPE_PET_SLEEP_OK = "pet.sleep.ok"
+# Pick the next form when the pet is ready to evolve (see evolution.choices).
+TYPE_PET_EVOLVE = "pet.evolve"
+TYPE_PET_EVOLVE_OK = "pet.evolve.ok"
+# Dungeon combat: PULSE fights next to you; the pet decides every outcome.
+TYPE_PET_COMBAT_STATS = "pet.combat.stats"
+TYPE_PET_COMBAT_STATS_OK = "pet.combat.stats.ok"
+TYPE_PET_COMBAT_ACTION = "pet.combat.action"
+TYPE_PET_COMBAT_ACTION_OK = "pet.combat.action.ok"
+TYPE_PET_COMBAT_HIT = "pet.combat.hit"
+TYPE_PET_COMBAT_HIT_OK = "pet.combat.hit.ok"
+TYPE_PET_COMBAT_HEAL = "pet.combat.heal"          # deck-side proposal (see PROTOCOL.md)
+TYPE_PET_COMBAT_HEAL_OK = "pet.combat.heal.ok"
+TYPE_PET_COMBAT_END = "pet.combat.end"
+TYPE_PET_COMBAT_END_OK = "pet.combat.end.ok"
 TYPE_ERROR = "error"
 
 # Optional push message from the companion (never answered). Only sent
 # after a hello that asked for {"events": true} and was echoed back.
 TYPE_PET_EVENT = "pet.event"
-EVENT_KINDS = ("hungry", "tired", "sad", "evolved", "level_up", "learned_move", "signal_found")
+EVENT_KINDS = ("hungry", "tired", "sad", "evolve_soon", "evolve_choice", "evolving", "evolved", "level_up", "learned_move",
+               "signal_found", "woke")
 
 # The evolution ladder, lowest to highest.
 STAGES = ("egg", "baby", "in-training", "rookie", "champion", "ultimate", "mega")

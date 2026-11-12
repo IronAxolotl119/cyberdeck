@@ -353,7 +353,10 @@ class GiftTests(unittest.TestCase):
         self.assertEqual(pet.gift({"name": "ball", "kind": "toy", "power": 20})["effects"]["happiness"], 20)
         self.assertEqual(pet.gift({"name": "cell", "kind": "battery", "power": 25})["effects"]["energy"], 25)
         evo = pet.gift({"name": "evo chip", "kind": "evolve"})
-        self.assertEqual((pet.stage, evo["effects"]["stage"]), ("champion", "champion"))
+        # A chip makes PULSE ready (every branch unlocked) but never evolves it by itself.
+        self.assertEqual((pet.stage, evo["effects"]["stage"]), ("rookie", None))
+        self.assertTrue(pet.evolution()["ready"])
+        self.assertTrue(all(c["available"] for c in pet.evolution()["choices"]))
         self.assertEqual(pet.gift({"name": "rock", "kind": "weird"})["item"]["kind"], "trinket")
         self.assertEqual(pet.as_payload()["gifts"], 5)
 
@@ -371,7 +374,7 @@ class GiftTests(unittest.TestCase):
         reg = build_registry(include_plugins=False)
         dungeon.loot_bag(ctx).add({"name": "evo chip", "kind": "evolve", "power": 0, "rarity": "legendary"})
         lines = reg.dispatch("pet gift 1", ctx)
-        self.assertIn("evolved", lines[0])
+        self.assertIn("ready to evolve", lines[0])
         self.assertEqual(dungeon.loot_bag(ctx).items(), [])
         self.assertIn("evo chip", "\n".join(reg.dispatch("pet log", ctx)))
 

@@ -186,9 +186,14 @@ class SimCompanionTests(unittest.TestCase):
         chip = {"item": {"name": "evo chip", "kind": "evolve", "power": 50}}
         reply = link.request("pet.gift", chip)
         self.assertTrue(reply.payload["accepted"])
-        self.assertEqual(reply.payload["effects"]["stage"], "mega")
-        evolved = [e for e in link.drain_events() if e.payload["event"] == "evolved"]
-        self.assertEqual(evolved[0].payload["detail"]["stage"], "mega")
+        self.assertIsNone(reply.payload["effects"]["stage"])          # ready, not evolved
+        choice = [e for e in link.drain_events() if e.payload["event"] == "evolve_choice"]
+        self.assertEqual({c["species"] for c in choice[0].payload["detail"]["choices"]}, {"Aethcrown", "Nullking"})
+        picked = link.request("pet.evolve", {"species": "Nullking"})
+        self.assertTrue(picked.payload["accepted"])
+        kinds = [e.payload["event"] for e in link.drain_events()]
+        self.assertEqual(kinds[-2:], ["evolving", "evolved"])
+        self.assertEqual((link.pet.stage, link.pet.species), ("mega", "Nullking"))
         gifts = len(link.pet.inventory)
         again = link.request("pet.gift", chip)
         self.assertIs(again.payload["accepted"], False)
@@ -200,7 +205,13 @@ class SimCompanionTests(unittest.TestCase):
         link.connect()
         reply = link.request("pet.avatar", {})
         self.assertEqual(reply.type, "pet.avatar.ok")
-        av = petdata.parse_avatar(reply.payload)
+        self.assertEqual(reply.payload["style"], "face")
+        face = petdata.parse_face(reply.payload)
+        self.assertEqual(len(face.frames), 2)
+        self.assertIsNone(petdata.parse_avatar(reply.payload))     # no sprite any more
+        # The old sprite shape still parses (fallback for older companions).
+        from cyberdeck.companion import sim_avatar
+        av = petdata.parse_avatar(sim_avatar("rookie", "content", 0))
         self.assertEqual((len(av.rows), av.width), (16, 16))
         self.assertIsNone(av.palette[0])
         self.assertIsNotNone(av.pixel(7, 9))   # the body is drawn
