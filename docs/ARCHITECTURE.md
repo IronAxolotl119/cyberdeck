@@ -43,6 +43,10 @@ cyberdeck-main/
       netcheck.py       net hosts / ping / port / check (TCP + system ping)
       netinfo.py        net info screen, rx/tx RateMeter, net panel
       ssh.py            ssh shortcuts (runs ssh with curses suspended)
+      hardware.py       gpio command + shared Hardware (backend, pin names, buzzer lock)
+      music.py          song parser, background MusicPlayer, music panel
+      petwatch.py       PULSE alerts, pet log, pet sim (hooks into `pet`)
+    gpio.py             GPIO backends: SimGpio, GpiozeroGpio, SysfsGpio
     activity.py         base class for full-screen modes + the launcher menu
     panes.py            side panels, tabs, and the screen-layout maths
     history.py          Up/Down history saved to data/history.txt
@@ -54,6 +58,7 @@ cyberdeck-main/
     sensors.py          CPU temp / battery / wifi (sim + Pi stub)
     companion.py        pet link (sim + UART stub)
     __main__.py         hook for `python -m cyberdeck`
+  songs/                chiptunes for the buzzer (plain text)
   docs/                 protocol, architecture, UI snapshot
   tests/                unit tests (stdlib unittest)
 ```
@@ -199,6 +204,32 @@ deck:
 - `ssh` sets `ctx.external`; `tui.py` calls `curses.endwin()`, runs
   ssh in the real terminal, then redraws. A failed ssh waits for Enter
   so the error stays readable.
+
+## Pet alerts, GPIO, and music
+
+- **Extending `pet`.** `commands.py` keeps two small hook tables:
+  `PET_ACTIONS` (extra `pet <action>` handlers — `log`, `alerts`, `sim`,
+  later `gift`) and `PET_HOOKS` (functions told about every feed, play,
+  and gift reply — the pet log uses this). Features add to them in their
+  `register()` instead of editing the `pet` command.
+- **Background work without threads in the UI.** `features.UI_STARTUP`
+  lists functions run once when the TUI starts; `petwatch` uses it to
+  create the `PetWatcher` service. The TUI calls every service's
+  `ui_tick(ctx, now)` each frame; the watcher only polls the companion
+  every `poll_seconds`. `PetWatcher.check()` is pure logic (pet dict +
+  time → events), so alert rules are unit-tested.
+- **Status badges.** Any service with `status_badge()` can put a short
+  flashing label on the right of the status bar (`! HUNGRY`).
+- **GPIO.** `gpio.py` mirrors `sensors.py`: one `GpioBackend` interface,
+  a sim backend that records everything, and real backends imported
+  lazily so a laptop never needs gpiozero. `features/hardware.py` holds
+  the single shared `Hardware` service with pin names and a
+  `buzzer_lock`, so an alert beep never talks over a song.
+- **Music** is the only feature with its own thread: `MusicPlayer`
+  plays notes via `gpio.tone()` in a daemon thread so the prompt stays
+  live. It exposes `level()` and `pitch()` for the visualizer and reports
+  "finished" through `ui_tick`. In headless mode `music play` blocks
+  until the song ends.
 
 ## What each module does
 

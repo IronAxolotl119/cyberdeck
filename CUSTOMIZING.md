@@ -17,6 +17,9 @@ want to. Restart the deck after you change a file.
 | Homelab hosts and ports to check | `config/hosts.ini` `[hosts]` |
 | SSH shortcuts                    | `config/hosts.ini` `[ssh]` |
 | Wifi backend, timeouts, ssh opts | `config/network.ini` |
+| Pet alert thresholds, alert sound| `config/pet.ini` |
+| GPIO pin names, buzzer type      | `config/hardware.ini` |
+| Songs for the buzzer             | `songs/*.txt` |
 | Launcher menu entries            | `config/keys.ini` `[launcher]` |
 | Add a command of your own        | `plugins/` (copy `_template.py`) |
 | Built-in commands (help, pet…)   | `cyberdeck/commands.py` |
@@ -199,6 +202,73 @@ meter (any key to leave). In `--mode sim` the networks are made up.
 On the Pi, `nmcli` (NetworkManager) is used when installed; `iw` scans
 usually need root, so the deck falls back to the current link.
 
+## PULSE alerts and the pet log
+
+While the full-screen deck is open it checks on PULSE every
+`poll_seconds`. When PULSE is hungry, bored, or tired the ticker line
+flashes a message, a `! HUNGRY` badge appears on the status bar, and the
+buzzer chirps (for hunger). `config/pet.ini`:
+
+```ini
+[alerts]
+enabled = yes
+poll_seconds = 10
+hungry_at = 75        # hunger at or above
+bored_at = 35         # happiness at or below
+tired_at = 15         # energy at or below
+repeat_minutes = 10   # remind again while it lasts (0 = once)
+sound = beep          # none, beep, or a song name such as alert
+```
+
+`pet log` shows evolutions, alerts, recoveries, mood changes, feeds,
+plays, and gifts (saved in `data/pet_log.txt`). `pet alerts` checks
+right now. In sim mode, `pet sim hunger 90` or `pet sim stage champion`
+lets you try alerts and evolutions without waiting.
+
+## GPIO: LEDs, buttons, buzzer
+
+```text
+gpio                      backend + named pins and their state
+gpio led on|off|toggle    the "led" pin (or: gpio led on 22)
+gpio set 23 on            any pin
+gpio read [button]        read an input (button pins use the internal pull-up)
+gpio beep [hz] [ms]       short beep
+gpio sim press button     sim mode: pretend the button is held down
+```
+
+Name your pins in `config/hardware.ini` `[pins]` (BCM numbers, e.g.
+`fan = 23`) and use the names anywhere a pin is expected. `[gpio]
+backend = auto` uses pretend pins in sim mode and, on the Pi, gpiozero
+(then `/sys/class/gpio`). A simple wiring sketch for the defaults:
+
+```text
+GPIO17 ──[330Ω]──▶|── GND        LED (long leg toward the resistor/GPIO side)
+GPIO27 ──[button]── GND          button (internal pull-up, pressed = HIGH reading)
+GPIO18 ──(+)buzzer(−)── GND      passive piezo buzzer; set [buzzer] type = active
+                                 for a buzzer that beeps on its own
+```
+
+## Songs for the buzzer
+
+`music list`, `music play <song>`, `music stop`, `music now`,
+`music show <song>` (a little piano roll). Songs are text files in
+`songs/`; the file name is the song name:
+
+```text
+title: Ode to Joy
+tempo: 132              quarter notes per minute
+octave: 4               default octave (C4 = middle C)
+length: 4               default note length
+# comment lines start with #
+E4 E4 F4 G4 | G4 F4 E4 D4 | C4 C4 D4 E4 | E4/4. D4/8 D4/2
+```
+
+A note is a letter `A`–`G` (or `R` for a rest), an optional `#` or `b`,
+an optional octave, an optional `/length` (`1 2 4 8 16 32`), and an
+optional `.` for dotted. Bar lines `|` are ignored. Add a `music` panel
+to `[panes]` to see what is playing. Rename or add `alert.txt` and set
+`sound = alert` in pet.ini to give PULSE its own alert tune.
+
 ## Add your own command
 
 1. Copy `plugins/_template.py` to something like `plugins/mood.py`.
@@ -252,7 +322,7 @@ register_pane("clock", "CLOCK", clock_pane)
 ```
 
 Then add `clock` to `side =` or `tabs =` in `[panes]`. Built-in panel
-names so far: `pet`, `system`, `net`, `todo`. Roles are the
+names so far: `pet`, `system`, `net`, `todo`, `music`. Roles are the
 theme names: `text`, `title`, `dim`, `ok`, `warn`, `alert`, `prompt`.
 
 ## What you usually should not need to change
