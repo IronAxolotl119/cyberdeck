@@ -1,0 +1,9 @@
+# The Rich dashboard (python3 -m cyberdeck_dash) needs only Rich.
+# Everything else is the Python standard library.
+rich>=13.0
+
+# Optional hardware libraries, only on the real Pi. The dashboard
+# imports these lazily and falls back to simulation without them:
+#   gpiozero            buttons / joystick      (sudo apt install python3-gpiozero)
+#   mfrc522 + spidev    RFID reader over SPI    (pip install mfrc522 spidev)
+#   bleak               Bluetooth LE scanning   (pip install bleak)
