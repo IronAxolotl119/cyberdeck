@@ -36,7 +36,18 @@ TYPE_PET_PLAY = "pet.play"
 TYPE_PET_PLAY_OK = "pet.play.ok"
 TYPE_PET_GIFT = "pet.gift"
 TYPE_PET_GIFT_OK = "pet.gift.ok"
+# Optional: the pet's 16x16 picture as palette indexes (see PROTOCOL.md).
+TYPE_PET_AVATAR = "pet.avatar"
+TYPE_PET_AVATAR_OK = "pet.avatar.ok"
 TYPE_ERROR = "error"
+
+# Optional push message from the companion (never answered). Only sent
+# after a hello that asked for {"events": true} and was echoed back.
+TYPE_PET_EVENT = "pet.event"
+EVENT_KINDS = ("hungry", "tired", "sad", "evolved", "level_up", "learned_move", "signal_found")
+
+# The evolution ladder, lowest to highest.
+STAGES = ("egg", "baby", "in-training", "rookie", "champion", "ultimate", "mega")
 
 # Every valid message must have these three keys.
 REQUIRED_FIELDS = ("type", "id", "payload")
