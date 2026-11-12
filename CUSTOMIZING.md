@@ -9,9 +9,16 @@ want to. Restart the deck after you change a file.
 | What you want to change          | Where to edit |
 |----------------------------------|---------------|
 | Colors                           | `config/theme.ini` |
-| Title, prompt, clock, min size   | `config/layout.ini` |
+| Title, prompt, clock, min size   | `config/layout.ini` `[layout]` |
+| Split panes vs tabs, side panels | `config/layout.ini` `[panes]` |
+| History size                     | `config/layout.ini` `[history]` |
+| Switch off a built-in feature    | `config/layout.ini` `[features]` |
+| Hotkeys (F-keys, Ctrl combos)    | `config/keys.ini` `[hotkeys]` |
+| Launcher menu entries            | `config/keys.ini` `[launcher]` |
 | Add a command of your own        | `plugins/` (copy `_template.py`) |
 | Built-in commands (help, pet…)   | `cyberdeck/commands.py` |
+| Bigger features (one file each)  | `cyberdeck/features/` |
+| Side panels / tabs (what they show) | `cyberdeck/panes.py` (or `register_pane` in a plugin) |
 | Fake pet behaviour               | `PetState` in `cyberdeck/companion.py` |
 | Status-bar sensor values         | `cyberdeck/sensors.py` |
 | Message format between boards    | `cyberdeck/protocol.py` and `docs/PROTOCOL.md` |
@@ -68,6 +75,73 @@ use_unicode = auto
 You can point at a different folder with `--config-dir /path` or
 `CYBERDECK_CONFIG_DIR`.
 
+## Split panes or tabs
+
+`config/layout.ini` `[panes]` decides how the middle of the screen is
+used:
+
+```ini
+[panes]
+mode = split            # split = output left, live panels right; tabs = one view at a time
+side = pet, system      # right-hand panels for split mode, top to bottom
+side_width = 30
+min_split_cols = 72     # narrower terminals fall back to tabs automatically
+tabs = output, pet, system
+ticker = yes            # second status line (notices, deck mood, visualizer)
+hints = yes             # hotkey reminders on the bottom border
+pet_refresh = 3         # seconds between pet panel updates
+```
+
+While the deck runs: **F6** (or `layout toggle`) flips between split
+and tabs, **F4 / Ctrl-T** (or `view next`) moves to the next tab, and
+`view pet` jumps to a named tab. Pressing F4 in split mode "zooms" into
+tabs mode. More panel names (net, todo, music…) become available as
+features are added — `view ` + Tab lists them.
+
+## Hotkeys and the launcher menu
+
+`config/keys.ini` has two sections.
+
+`[hotkeys]` maps a key to something to run:
+
+```ini
+[hotkeys]
+F1 = help
+F2 = :launcher
+ctrl+p = pet status
+F9 = wifi scan
+```
+
+- Keys: `F1`…`F12`, `ctrl+<letter>` (also `^P` or `C-p`), `esc`, `insert`.
+- Some Ctrl keys are reserved (Ctrl-C/D quit, Ctrl-A/E start/end,
+  Ctrl-L clear, Ctrl-U wipe line, plus a few the terminal itself eats).
+  The deck shows a notice if you bind one, and `keys` lists warnings.
+- The value is any command line, or a **UI action** that starts with
+  a colon: `:launcher`, `:tab next`, `:tab prev`, `:tab pet`,
+  `:layout toggle|split|tabs`, `:clear`, `:scroll up|down`, `:quit`.
+
+`[launcher]` is the popup menu (F2, Ctrl-O, or `menu`): one
+`label = command` per line, shown in order. Arrow keys move, typing
+filters, Enter runs, Esc closes. End a command with `...`
+(`Add note = note add ...`) to drop it on the prompt so you can type
+the rest. Delete the whole section to list every command instead.
+
+Type `keys` at the prompt to see what is active.
+
+## History and Tab completion
+
+- **Up / Down** walk through earlier commands. They are saved in
+  `data/history.txt`, so they survive restarts. Start a command with a
+  space to keep it out of the history. `history` lists them,
+  `history clear` wipes them, `[history] size` sets how many to keep.
+- **Tab** completes command names, then subcommands (`pet f` → `pet feed`),
+  then things like song or host names. If several match, they are
+  printed so you can see the choices.
+
+Runtime files (history, notes, scores, cache) go in `data/` (ignored by
+git). Use `--data-dir /path` or `CYBERDECK_DATA_DIR` to put them
+somewhere else, such as a USB stick.
+
 ## Add your own command
 
 1. Copy `plugins/_template.py` to something like `plugins/mood.py`.
@@ -83,7 +157,10 @@ hello
 hello sam
 ```
 
-`run` should return a list of strings (the lines to print). The
+`run` should return a list of strings (the lines to print).
+Optional extras: `SUBCOMMANDS = ("on", "off")` makes Tab offer those
+words, and a `complete(ctx, args)` function can return Tab choices that
+change at runtime. The
 `ctx` object is the same one built-in commands get, so your command
 can read sensors or talk to the pet if it wants to. Notes are in
 the template.
@@ -101,6 +178,24 @@ function inside `build_registry()` in `cyberdeck/commands.py`,
 using the `@reg.command(...)` decorator. Follow the existing
 commands — they all return a list of lines and stay short on
 purpose.
+
+## Add your own side panel or tab
+
+A panel is a function that returns rows of `(text, color role)` pieces.
+From a plugin file:
+
+```python
+from cyberdeck.panes import register_pane
+
+def clock_pane(ctx, width, height):
+    import time
+    return [[("time ", "dim"), (time.strftime("%H:%M"), "title")]]
+
+register_pane("clock", "CLOCK", clock_pane)
+```
+
+Then add `clock` to `side =` or `tabs =` in `[panes]`. Roles are the
+theme names: `text`, `title`, `dim`, `ok`, `warn`, `alert`, `prompt`.
 
 ## What you usually should not need to change
 

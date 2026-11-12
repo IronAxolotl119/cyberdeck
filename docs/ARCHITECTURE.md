@@ -28,15 +28,23 @@ for real hardware later.
 
 ```text
 cyberdeck-main/
-  config/               colors and layout (INI files you can edit)
+  config/               INI files you can edit (colors, layout, keys, …)
   plugins/              your extra commands; auto-loaded at startup
+  data/                 files the deck writes (history, notes…); not in git
   cyberdeck/            the Python package (`python -m cyberdeck`)
     app.py              flags, startup, choose UI or headless
-    tui.py              full-screen curses interface
+    tui.py              full-screen curses interface (the only drawing code)
     headless.py         run commands as plain text (for scripts/tests)
-    commands.py         command registry + built-in commands
+    commands.py         command registry, Context, core commands
+    features/           one module per bigger feature, each with register()
+      core_ux.py        history / menu / view / layout / keys commands
+    activity.py         base class for full-screen modes + the launcher menu
+    panes.py            side panels, tabs, and the screen-layout maths
+    history.py          Up/Down history saved to data/history.txt
+    completion.py       Tab completion
+    keys.py             key names, keys.ini hotkeys and launcher entries
     plugins.py          loads files from plugins/
-    config.py           reads theme.ini and layout.ini
+    config.py           reads the INI files (theme, layout, Settings helper)
     protocol.py         encode/decode newline-delimited JSON messages
     sensors.py          CPU temp / battery / wifi (sim + Pi stub)
     companion.py        pet link (sim + UART stub)
@@ -113,6 +121,61 @@ runner acts on it after the handler returns.
         ▼
   output pane  or  stdout
 ```
+
+## Keys that are not plain typing
+
+The prompt loop in `tui.py` turns every curses keypress into a simple
+name with `keys.key_name()` (`"f2"`, `"ctrl+p"`, `"up"`, `"a"`), then:
+
+1. **Hotkeys first.** If the name is in `config/keys.ini` `[hotkeys]`,
+   its action runs. An action is either a command line (handled exactly
+   like typing it and pressing Enter) or a `:ui action`.
+2. **Editing keys.** Enter, Tab, Backspace, arrows, Home/End, PgUp/PgDn,
+   Ctrl-A/E/U/L.
+   - Up/Down ask `History` (history.py) for the previous/next line.
+   - Tab asks `complete_line()` (completion.py), which looks at command
+     names, each command's `subcommands`, and its optional `completer`.
+3. **Anything printable** is inserted at the cursor.
+
+## How a command asks the screen to do something
+
+Commands never import curses. Instead they set a field on `Context`
+and `tui.py` acts on it right after the command returns
+(`DeckUI._after_command`):
+
+| Field            | Meaning                                         | Headless fallback |
+|------------------|-------------------------------------------------|-------------------|
+| `should_clear`   | wipe the output pane                            | ignored |
+| `ui_action`      | `:launcher`, `:tab pet`, `:layout split`…       | ignored |
+| `activity`       | run a full-screen `Activity` (menu, game, effect) | prints `activity.headless()` |
+| `external`       | argv to run with curses suspended (ssh)         | runs it directly |
+| `notify()`       | queue a message for the ticker line             | (not shown) |
+
+An **Activity** (activity.py) is a small object with `on_key()`,
+`update()`, and `render()`; render returns rows of `(text, role)`
+pieces. `DeckUI._run_activity` loops: update → paint → wait for a key.
+Popups (like the launcher) set `overlay = True` and are drawn in a box
+over the normal screen. Because activities never touch curses, tests
+drive them with fake key names and read `render()` as text.
+
+## Screen layout: split panes and tabs
+
+`panes.compute_layout(rows, cols, settings)` returns a `ScreenLayout`
+with the row/column of every area: status row, ticker row, dividers,
+the output area, and the side panels with their title rows. `tui.py`
+only paints what it is told. In split mode, panels named in
+`[panes] side` are stacked on the right. In tabs mode, the top divider
+becomes a tab bar. Narrow terminals fall back to tabs automatically.
+
+Panels are registered by name with `panes.register_pane(name, title,
+fn)`; `fn(ctx, width, height)` returns rows. Built in: `pet` and
+`system`. The pet panel reads the companion at most every
+`pet_refresh` seconds.
+
+Long-lived helpers (history, later the GPIO backend, music player, pet
+watcher) live in `ctx.services`. If one has a `ui_tick(ctx, now)`
+method, the TUI calls it every frame, which is how background features
+update without threads in the UI.
 
 ## What each module does
 
