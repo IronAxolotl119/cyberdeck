@@ -53,6 +53,22 @@ CUSTOMIZING.md          how to change colors, layout, and commands
 tests/                  unit tests
 ```
 
+## What it can do
+
+Type `help` for everything, or press F2 for the launcher menu.
+
+- **Core:** split panes or tabs (`view`, `layout`, F4/F6), launcher
+  (F2), hotkeys (`keys`), history (Up/Down, `history`), Tab completion.
+- **Productivity and network:** `note`, `todo`, `wifi scan`/`wifi meter`,
+  `net info`, `ping`, `net port`, `net check`, `ssh <name>`.
+- **Pet and hardware:** `pet` (feed/play/log/alerts/gift), hunger and
+  boredom alerts, `gpio led|set|read|beep`, `music play <song>` on the
+  buzzer.
+- **Fun:** boot animation, ticker visualizer, deck moods, `hack`,
+  `typehack`, `dungeon` (loot can be gifted to PULSE).
+- **Outside world:** `weather`, `sun`, `moon`, `iss` (passes over you,
+  computed on the deck), plus a `sky` panel.
+
 ## Customize
 
 This scaffold is meant to be edited. Start with

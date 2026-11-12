@@ -23,6 +23,7 @@ want to. Restart the deck after you change a file.
 | Boot animation, visualizer, games| `config/fx.ini` |
 | The deck's sassy status lines    | `config/moods.ini` |
 | Typing-challenge phrases         | `text/hack_phrases.txt` |
+| Your location, units, ISS options| `config/world.ini` |
 | Launcher menu entries            | `config/keys.ini` `[launcher]` |
 | Add a command of your own        | `plugins/` (copy `_template.py`) |
 | Built-in commands (help, pet…)   | `cyberdeck/commands.py` |
@@ -318,6 +319,49 @@ after editing.
 
 `text/hack_phrases.txt`: one phrase per line, `#` for comments. Scores
 are saved in `data/typing_scores.json`.
+
+## Weather, sun, moon, and the ISS
+
+| Command | What it does |
+|---------|--------------|
+| `weather` (or `wx`), `weather refresh` | Conditions with an ASCII icon, a forecast, the sun clock, the moon. |
+| `sun`, `sun tomorrow` | Sunrise, solar noon, sunset, day length, and a bar showing where the sun is. |
+| `moon` | The phase drawn in ASCII, % lit, next full and new moon. |
+| `iss`, `iss visible` | Next passes over you; `*` marks ones you can see (sunlit station, dark sky). |
+| `iss now`, `iss tle`, `iss refresh` | Where it is now; the orbit data in use; download fresh orbit data. |
+
+Add `sky` to `side` or `tabs` under `[panes]` in `config/layout.ini`
+for a small panel with temperature, the sun clock, the moon, and the
+next ISS pass. (It is in the default side column.)
+
+Everything is set in `config/world.ini`:
+
+- `[location]` `name`, `latitude`, `longitude` (south and west are
+  negative), `timezone` (e.g. `America/Phoenix`, or `local` to use the
+  Pi's own clock setting). Phoenix is the default.
+- `[network]` `offline = yes` never goes online, and the deck uses only
+  what is cached plus its own maths. `background_refresh` keeps data
+  fresh while the deck is open. `timeout` is how long to wait for a
+  website.
+- `[weather]` `units` (`fahrenheit` or `celsius`), `wind_units`
+  (`mph` or `kmh`), `refresh_minutes`, and `forecast_days` (1–7).
+- `[iss]` `tle_url` takes any satellite: change `CATNR=25544` to
+  another catalog number (Hubble is 20580), then `iss refresh`.
+  `refresh_hours`, `warn_after_days`, `search_hours`, `min_elevation`
+  (10° clears most rooftops; use 20–30 if you have mountains or
+  buildings around), `show`, and `alert_minutes` (a ticker notice
+  before a visible pass; 0 turns it off).
+
+**Offline behaviour.** Downloads are cached in `data/cache/`. With no
+network, the deck shows the last download and says how old it is. Sun
+and moon times are always worked out on the deck, so they need no
+network. For the ISS, a copy of the orbit data ships in
+`text/iss_fallback.tle`, so a brand-new deck can still predict passes.
+That copy is only accurate for a week or two, and the deck warns you
+when it is too old.
+
+Weather data: [Open-Meteo](https://open-meteo.com) (free, no key).
+Orbit data: [Celestrak](https://celestrak.org).
 
 ## Add your own command
 

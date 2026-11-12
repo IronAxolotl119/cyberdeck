@@ -52,6 +52,12 @@ cyberdeck-main/
       mainframe.py      `hack` show Activity
       typing_game.py    `typehack` rounds, scoring, high scores
       dungeon.py        roguelike rules (Game), loot bag, gifts, `loot`
+      weather.py        weather / sun / moon commands, ASCII icons, sky panel
+      iss.py            ISS passes, position, TLE fallback, pass alerts
+    netcache.py         cached web downloads with offline fallback (data/cache/)
+    world.py            world.ini settings, timezone display, background refresher
+    astro.py            sun and moon maths, sidereal time, look angles
+    orbit.py            TLE parsing, orbit propagation, pass finder
     fx.py               shared effects: block-letter banner, glitch, bars, fake code
     gpio.py             GPIO backends: SimGpio, GpiozeroGpio, SysfsGpio
     activity.py         base class for full-screen modes + the launcher menu
@@ -66,7 +72,7 @@ cyberdeck-main/
     companion.py        pet link (sim + UART stub)
     __main__.py         hook for `python -m cyberdeck`
   songs/                chiptunes for the buzzer (plain text)
-  text/                 editable text for games (typing phrases)
+  text/                 editable text: typing phrases, fallback ISS orbit
   docs/                 protocol, architecture, UI snapshot
   tests/                unit tests (stdlib unittest)
 ```
@@ -212,6 +218,36 @@ deck:
 - `ssh` sets `ctx.external`; `tui.py` calls `curses.endwin()`, runs
   ssh in the real terminal, then redraws. A failed ssh waits for Enter
   so the error stays readable.
+
+### Weather, sun, moon, ISS
+
+These follow the same rules: the maths and parsing are plain functions
+with no I/O, and the network is optional.
+
+- **netcache.fetch(url, max_age)** gives back a cached copy if it is fresh
+  enough; otherwise it downloads (urllib, with a timeout). If the
+  download fails it gives back the old copy marked `stale`, or `offline` if
+  nothing was saved. It never raises for network trouble.
+- **world.SkyRefresher** is a service with `ui_tick`. Every 30 s it
+  checks its jobs (weather every `refresh_minutes`, the TLE every
+  `refresh_hours`) and runs any that are due on a daemon thread. Panels
+  only read the cache, so drawing never waits on the network. The
+  `weather` and `iss` commands themselves may wait up to `timeout`
+  seconds when the cache is old.
+- **astro.py**: the sunrise equation (agrees with Open-Meteo to within
+  about a minute), the moon's phase from a known new moon and the mean
+  synodic month (within about 2 h), GMST, and the conversion from
+  Earth-fixed coordinates to elevation and azimuth.
+- **orbit.py** propagates the TLE with Keplerian motion plus J2 secular
+  drift and the TLE's drag term, then rotates into the Earth frame.
+  It was checked against a live tracker (within about 10 km) and
+  Heavens-Above (pass times within about 5 s). A 48 h scan is
+  `find_passes` stepping every 30 s and bisecting each horizon
+  crossing. The scan is memoised for 10 minutes. A pass is *visible*
+  when the sun is more than 6° below your horizon and the station is
+  outside Earth's shadow (cylinder model).
+- Times are kept in UTC internally and shown in `[location] timezone`
+  with `zoneinfo`. If that zone is missing, the device's own zone is used.
 
 ## Pet alerts, GPIO, and music
 

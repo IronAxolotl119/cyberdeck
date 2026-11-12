@@ -1,24 +1,24 @@
-┌─ CYBERDECK / MAIN ──────────────────────────────────────────────── 05:14:36 ─┐
-│ 47.7C  CPU 17%  MEM 32%  BAT 87%+  DECK-NET -50dBm  LINK UP · SIM            │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ type 'help' for commands, 'quit' to leave                                    │
-│ > help                                                                       │
-│ commands:                                                                    │
-│   help [command]         List commands, or describe one.                     │
-│   status                 Show deck sensors and companion link state.         │
-│   clear                  Clear the output pane.                              │
-│   quit                   Leave the deck UI.                                  │
-│   sys                    Print a slightly deeper system snapshot.            │
-│   pet [status|feed|play] Query the companion pet: status, feed, or play.     │
-│   ping                   Ping the companion board and report the reply.      │
-│   hello [name]           Say hello (example user command).                   │
-│ > pet status                                                                 │
-│ PULSE  ·  Bitling  ·  rookie                                                 │
-│ mood     playful                                                             │
-│ hunger   [####------]  38                                                    │
-│ happy    [#######---]  72                                                    │
-│ energy   [########--]  80                                                    │
-│ age      11.5h                                                               │
-├──────────────────────────────────────────────────────────────────────────────┤
+┌─ CYBERDECK / MAIN ──────────────────────────────────────────────── 18:13:58 ─┐
+│ 47.8C  CPU 23%  MEM 34%  BAT 85%  DECK-NET -55dBm  LINK UP · SIM             │
+│ Tab completes · ↑↓ history · F2 menu · F4 tabs                  ▃▂▂▂▂▂▂▃▃▃▂▂ │
+├───────────────────────────────────────────────┬─ PULSE ──────────────────────┤
+│ > weather                                     │ (^_^) PULSE · rookie         │
+│     \   /      Phoenix, AZ · clear            │ mood  playful                │
+│      .-.       80°F  (feels 76°F)             │ food  [#######-----] 38      │
+│   - (   ) -    humidity 27%                   │ happy [#########---] 72      │
+│      `-'       wind 4 mph from ESE            │ nrg   [##########--] 80      │
+│     /   \      [cached 4m ago]                ├─ SYSTEM ─────────────────────┤
+│                                               │ temp [####--------] 47.8C    │
+│   today overcast         86/58    1% rain     │ cpu  [###---------] 23%      │
+│   Fri   rain             80/58   47% rain     │ mem  [####--------] 34%      │
+│   Sat   drizzle          71/60   13% rain     │ bat  [##########--] 85%      │
+│                                               │ wifi [#######-----] -55dBm   │
+│   06:57 [========o-------------] 17:27        ├─ SKY ────────────────────────┤
+│   daylight left 6h13m                         │ 80°F clear                   │
+│   moon  )  waxing crescent, 9% lit            │ H86 L58 rain 1%              │
+│                                               │ 06:57 [=====o--------] 17:27 │
+│                                               │ moon ) 9% waxing crescent    │
+│                                               │ ISS Thu 19:03 19°*           │
+├───────────────────────────────────────────────┴──────────────────────────────┤
 │ >                                                                            │
-└──────────────────────────────────────────────────────────────────────────────┘
+└─ F1 help  F2 launcher  F3 pet  F4 tab  F5 status  F6 layout  F7 net  F8 todo─┘

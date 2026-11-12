@@ -37,6 +37,8 @@ FEATURES = [
     "mainframe",    # `hack`: the dramatic fake hacking show
     "typing_game",  # `typehack`: typing-speed challenge + high scores
     "dungeon",      # ASCII roguelike + loot gifts to PULSE
+    "weather",      # weather, sun clock, moon phase, the "sky" panel
+    "iss",          # ISS passes over you (orbit maths on the deck)
 ]
 
 
