@@ -160,6 +160,9 @@ class DeckUI:
 
     def _frame_ms(self) -> int:
         """Redraw faster while something animated (like the visualizer) is on."""
+        popups = self.ctx.services.get("popups")
+        if popups is not None and popups.animating():
+            return 120
         viz = self.ctx.services.get("visualizer")
         if viz is not None and getattr(viz, "enabled", False):
             return max(60, int(getattr(viz, "frame_ms", 150)))
@@ -302,8 +305,30 @@ class DeckUI:
             else:
                 self._draw_rows(stdscr, r.top, r.left, r.height, r.width, self._safe_pane(current, r.width, r.height))
         self._draw_hints(stdscr, rows, cols)
-        self._draw_prompt(stdscr, geo, cols)
+        self._draw_popup(stdscr, rows, cols)
+        self._draw_prompt(stdscr, geo, cols)   # last, so the cursor stays at the prompt
         stdscr.refresh()
+
+    def _draw_popup(self, stdscr, rows: int, cols: int) -> None:
+        """PULSE's evolution pop-up, centred over everything (see popups.py)."""
+        from cyberdeck.popups import get_popups, popup_size, render_popup
+
+        popup = get_popups(self.ctx).active(time.time())
+        if popup is None:
+            return
+        want_w, want_h = popup_size(popup)
+        w, h = min(want_w, cols - 4), min(want_h, rows - 4)
+        if w < 12 or h < 4:
+            return
+        top, left = max(0, (rows - h) // 2), max(0, (cols - w) // 2)
+        b, attr = self.box, self.attrs.get("alert", self.attrs["frame"])
+        _safe_add(stdscr, top, left, b["tl"] + b["h"] * (w - 2) + b["tr"], attr)
+        _safe_add(stdscr, top, left + 2, f" {popup.title} ", self.attrs["title"])
+        for y in range(top + 1, top + h - 1):
+            _safe_add(stdscr, y, left, b["v"] + " " * (w - 2) + b["v"], attr)
+        _safe_add(stdscr, top + h - 1, left, b["bl"] + b["h"] * (w - 2) + b["br"], attr)
+        self._draw_rows(stdscr, top + 1, left + 2, h - 2, w - 4,
+                        render_popup(popup, time.time(), w - 4, self.box is UNICODE_BOX))
 
     def _safe_pane(self, name: str, width: int, height: int) -> list[Row]:
         """Render one pane, turning any error into a visible message."""
@@ -524,6 +549,12 @@ class DeckUI:
         except curses.error:
             return  # timeout: the next loop just redraws the clock
         key = key_name(raw)
+        if key != "resize":
+            # A key closes an open pop-up AND still does its normal job below,
+            # so pop-ups never swallow what you were typing.
+            from cyberdeck.popups import get_popups
+
+            get_popups(self.ctx).dismiss()
 
         # Hotkeys from keys.ini win over everything except typing.
         if key in self.hotkeys:

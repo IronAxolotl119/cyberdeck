@@ -15,7 +15,9 @@ Commands added to `pet`:
   pet log clear        empty the log
   pet alerts           check right now and show the alert state
   pet sim <stat> <n>   sim mode only: set hunger / happiness / energy /
-                       stage, to try alerts and evolutions quickly
+                       stage / discoveries / level, or `ready yes` to
+                       make PULSE ready to evolve, to try alerts and
+                       evolutions quickly
 
 Thresholds live in config/pet.ini. check() is pure (pet dict + time in,
 events out), so the alert rules are unit-tested.
@@ -130,6 +132,7 @@ class PetWatcher:
     _last_alert: dict[str, float] = field(default_factory=dict)
     _next_poll: float = 0.0
     _next_push_check: float = 0.0
+    asleep: bool = False                                    # zZ on the status bar
 
     def check(self, pet: dict[str, Any], now: float) -> list[PetEvent]:
         """Compare a fresh pet payload with the previous one. Pure logic."""
@@ -156,6 +159,8 @@ class PetWatcher:
             elif kind in self.active:
                 self.active.discard(kind)
                 events.append(PetEvent("recovered", "info", f"{name} is no longer {kind}"))
+        if isinstance(pet.get("asleep"), bool):
+            self.asleep = pet["asleep"]
         self.latest = pet
         return events
 
@@ -173,11 +178,14 @@ class PetWatcher:
     def pushed(self, ctx: "Context", now: float) -> list[PetEvent]:
         """Events the companion pushed (pet.event) since last time.
 
+        Evolution news also goes to the pop-up queue (full-screen deck only).
+
         Each pushed snapshot also refreshes the pet panel, and need events
         count as already-announced so the deck's own threshold check does
         not say the same thing twice.
         """
         from cyberdeck.petdata import event_notice
+        from cyberdeck.popups import POPUP_KINDS, get_popups, popup_for_event
 
         events: list[PetEvent] = []
         for message in ctx.companion.drain_events():
@@ -188,8 +196,16 @@ class PetWatcher:
             if local:
                 self.active.add(local)
                 self._last_alert[local] = now
+            if ctx.interactive and kind in POPUP_KINDS:
+                popup = popup_for_event(payload)
+                if popup is not None:
+                    get_popups(ctx).push(popup)
+            if kind == "woke":
+                self.asleep = False
             pet = payload.get("pet")
             if isinstance(pet, dict):
+                if isinstance(pet.get("asleep"), bool):
+                    self.asleep = pet["asleep"]
                 ctx.services["pet_cache"] = {"at": time.monotonic(), "pet": pet}
                 if self.latest is not None:
                     # Remember the new stage/mood so check() does not re-announce them.
@@ -218,10 +234,11 @@ class PetWatcher:
         self.handle(ctx, self.poll(ctx, now), now)
 
     def status_badge(self) -> tuple[str, str] | None:
-        """Short text for the status bar while an alert is active."""
+        """Short text for the status bar: alerts, and zZ while PULSE sleeps."""
         if not self.active:
-            return None
-        return "! " + "/".join(sorted(self.active)).upper(), "alert"
+            return ("zZ ASLEEP", "dim") if self.asleep else None
+        text = "! " + "/".join(sorted(self.active)).upper()
+        return (text + " zZ" if self.asleep else text), "alert"
 
     def _sound(self, ctx: "Context") -> None:
         sound = self.settings.sound
@@ -284,8 +301,16 @@ def pet_sim(ctx: "Context", args: list[str]) -> list[str]:
     if pet is None:
         return ["pet sim only works with the simulated companion (--mode sim)"]
     if len(args) < 3:
-        return ["usage: pet sim hunger|happiness|energy <0-100>   or   pet sim stage <name>"]
+        return ["usage: pet sim hunger|happiness|energy <0-100> · stage <name> · ready yes|no · "
+                "discoveries|level|care_mistakes <n>"]
     stat, value = args[1].lower(), args[2]
+    if stat == "ready" and hasattr(pet, "stage_hours"):
+        pet.stage_hours = 10_000.0 if value in {"yes", "on", "1"} else 0.0
+        ctx.services.pop("pet_cache", None)
+        return [f"sim: evolution {'ready' if pet.stage_hours else 'reset'} — evolve_choice is pushed on the next tick"]
+    if stat in {"discoveries", "level", "care_mistakes"} and value.isdigit():
+        setattr(pet, stat, int(value))
+        return [f"sim: {stat} = {value}"]
     if stat == "stage":
         pet._evolve_to(value) if hasattr(pet, "_evolve_to") else setattr(pet, "stage", value)
         ctx.services.pop("pet_cache", None)
@@ -304,6 +329,17 @@ def log_pet_action(ctx: "Context", action: str, payload: dict) -> None:
     elif action == "play":
         text = (f"played {payload.get('game', '?')}" if payload.get("played", True)
                 else f"refused to play ({payload.get('reason', '?')})")
+    elif action == "rest":
+        text = (f"rested (energy {payload.get('energy_delta', '?'):+})" if isinstance(payload.get("energy_delta"), int)
+                and payload.get("rested", True) else f"could not rest ({payload.get('reason', '?')})")
+    elif action == "sleep":
+        text = "fell asleep" if payload.get("asleep") else "woke up"
+    elif action == "evolve":
+        text = (f"evolved {payload.get('from', '?')} → {payload.get('to', '?')}" if payload.get("accepted", True)
+                else f"evolve refused: {payload.get('reason', '?')}")
+    elif action == "combat":
+        text = (f"dungeon run {payload.get('result', '?')}: +{payload.get('xp_gained', 0)} xp"
+                + (f", {payload['level_ups']} level-up(s)" if payload.get("level_ups") else ""))
     elif action == "gift":
         item = payload.get("item") or {}
         verb = "got a gift" if payload.get("accepted", True) else "turned down a gift"

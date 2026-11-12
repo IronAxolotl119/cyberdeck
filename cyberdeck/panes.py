@@ -198,7 +198,11 @@ def cached_pet(ctx: "Context", max_age: float = 3.0) -> dict[str, Any] | None:
                 from cyberdeck.protocol import TYPE_PET_STATUS
 
                 reply = ctx.companion.request(TYPE_PET_STATUS, {})
-                cache["pet"] = (reply.payload or {}).get("pet")
+                payload = reply.payload or {}
+                pet = payload.get("pet")
+                if isinstance(pet, dict) and isinstance(payload.get("evolution"), dict):
+                    pet = dict(pet, evolution=payload["evolution"])   # sent beside the pet
+                cache["pet"] = pet
         except Exception:  # link trouble shows as "no signal" in the pane
             cache["pet"] = None
     return cache["pet"]
@@ -214,17 +218,22 @@ def pet_pane(ctx: "Context", width: int, height: int) -> list[Row]:
         return [[("no signal from companion", "warn")], [(ctx.companion.link_label(), "dim")]]
     pet = normalize_pet(raw)
     bw = max(4, min(12, width - 12))
-    face = PET_FACES.get(pet["mood"], "(•_•)")
+    face = current_face(ctx, pet)
     hunger, happy, energy = pet["hunger"], pet["happiness"], pet["energy"]
     rows: list[Row] = [
         [(f"{face} ", "title"), (f"{pet['name']} · {pet['species']}", "text")],
         [("stage ", "dim"), (pet["stage"], "text"), (f"  Lv {pet['level']}" if pet["level"] is not None else "", "ok")],
-        [("mood  ", "dim"), (pet["mood"], "prompt")],
+        [("mood  ", "dim"), (pet["mood"], "prompt"), ("  zZ asleep" if pet["asleep"] else "", "warn")],
         [("food  ", "dim"), (bar(100 - hunger if hunger is not None else None, bw), level_role(hunger, 65, 82)), (f" {_num(hunger)}", "dim")],
         [("happy ", "dim"), (bar(happy, bw), level_role(happy, 45, 28, higher_is_worse=False)), (f" {_num(happy)}", "dim")],
         [("nrg   ", "dim"), (bar(energy, bw), level_role(energy, 35, 18, higher_is_worse=False)), (f" {_num(energy)}", "dim")],
     ]
     # Optional extras, most useful first; they only show if there is room.
+    evolution = pet["evolution"]
+    if evolution and evolution["next_stage"] and evolution["progress"] is not None:
+        ready = evolution["ready"]
+        rows.append([("evo   ", "dim"), (bar(evolution["progress"] * 100, bw), "ok" if ready else "prompt"),
+                     (f" {'READY' if ready else str(int(evolution['progress'] * 100)) + '%'} → {evolution['next_stage']}", "dim")])
     if pet["hp"] is not None and pet["max_hp"]:
         rows.append([("hp    ", "dim"), (bar(pet["hp"], bw, 0, pet["max_hp"]), level_role(pet["hp"], pet["max_hp"] * 0.5, pet["max_hp"] * 0.25, False)),
                      (f" {pet['hp']}/{pet['max_hp']}", "dim")])
@@ -247,18 +256,34 @@ def _num(value: Any) -> str:
     return "--" if value is None else str(value)
 
 
-def avatar_rows(ctx: "Context", pet: dict[str, Any], width: int) -> list[Row]:
-    """The companion's 16x16 picture as half-block colour rows (8 lines tall).
+def current_face(ctx: "Context", pet: dict[str, Any]) -> str:
+    """PULSE's text face for this frame: the companion's animated frames
+    (fetched with pet.avatar), else its avatar.text, else one by mood."""
+    from cyberdeck.petdata import is_face_avatar, pet_face
 
-    Needs a colour terminal and Unicode; otherwise [] and the ASCII face is
-    used. The picture is fetched with pet.avatar on a short background
-    thread whenever the pet's avatar {form, mood, frame} changes. A
-    companion that does not support pet.avatar is asked only once.
+    cache = avatar_cache(ctx, pet)
+    if cache["face"] is None and not is_face_avatar(pet.get("avatar")):
+        face = PET_FACES.get(pet["mood"], "(•_•)")
+        return f"{face} zZ" if pet.get("asleep") else face
+    return pet_face(pet, time.time(), cache["face"])
+
+
+def avatar_cache(ctx: "Context", pet: dict[str, Any]) -> dict[str, Any]:
+    """Fetch pet.avatar in the background whenever the look changes.
+
+    Current companions answer with an animated text face (cache["face"]);
+    older ones with a 16x16 colour sprite (cache["avatar"]). A companion
+    that does not support pet.avatar is asked only once.
     """
-    if not ctx.services.get("color_depth") or not ctx.services.get("unicode"):
-        return []
-    cache = ctx.services.setdefault("avatar_cache", {"key": None, "avatar": None, "busy": False, "unsupported": False})
-    key = repr(sorted((pet.get("avatar") or {}).items())) + pet["stage"] + pet["mood"]
+    from cyberdeck.petdata import is_face_avatar
+
+    cache = ctx.services.setdefault("avatar_cache", {"key": None, "avatar": None, "face": None,
+                                                     "busy": False, "unsupported": False})
+    avatar = dict(pet.get("avatar") or {})
+    if is_face_avatar(avatar):
+        avatar.pop("frame", None)      # faces animate on the deck; a new frame is not a new look
+        avatar.pop("text", None)
+    key = repr(sorted(avatar.items())) + pet["stage"] + pet["mood"] + str(pet.get("asleep"))
     if cache["key"] != key and not cache["busy"] and not cache["unsupported"]:
         cache["busy"] = True
         cache["key"] = key
@@ -272,14 +297,35 @@ def avatar_rows(ctx: "Context", pet: dict[str, Any], width: int) -> list[Row]:
                 if reply.type == TYPE_ERROR:
                     cache["unsupported"] = (reply.payload or {}).get("code") == "unknown_type"
                 else:
-                    cache["avatar"] = parse_avatar(reply.payload) or cache["avatar"]
+                    from cyberdeck.petdata import parse_face
+
+                    face = parse_face(reply.payload)
+                    if face is not None:
+                        cache["face"], cache["avatar"] = face, None
+                    else:
+                        cache["avatar"] = parse_avatar(reply.payload) or cache["avatar"]
             except Exception:
                 cache["key"] = None   # try again later
             finally:
                 cache["busy"] = False
 
         threading.Thread(target=fetch, name="pet-avatar", daemon=True).start()
-    avatar = cache["avatar"]
+    return cache
+
+
+def avatar_rows(ctx: "Context", pet: dict[str, Any], width: int) -> list[Row]:
+    """An older companion's 16x16 sprite as half-block colour rows (8 lines).
+
+    Needs a colour terminal and Unicode; otherwise [] and the text face is
+    used. Companions that send text faces never get a sprite here.
+    """
+    if not ctx.services.get("color_depth") or not ctx.services.get("unicode"):
+        return []
+    return sprite_rows(avatar_cache(ctx, pet)["avatar"], width)
+
+
+def sprite_rows(avatar: Any, width: int) -> list[Row]:
+    """Half-block rows ('▀' with fg = top pixel, bg = bottom pixel)."""
     if avatar is None or avatar.width > width:
         return []
     from cyberdeck.petdata import half_block_cells

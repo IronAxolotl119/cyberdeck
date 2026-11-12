@@ -451,6 +451,12 @@ class StreamCompanionLink(CompanionLink):
         self._last_rx = time.monotonic()
         pet = (message.payload or {}).get("pet")
         if isinstance(pet, dict):
+            # pet.status sends evolution beside the pet; keep the newest one with it.
+            evolution = (message.payload or {}).get("evolution")
+            if not isinstance(evolution, dict) and "evolution" not in pet and self._snapshot:
+                evolution = self._snapshot[1].get("evolution")
+            if isinstance(evolution, dict):
+                pet = dict(pet, evolution=evolution)
             self._snapshot = (time.monotonic(), pet)
         if message.id == self._hello_id and self.state == "handshake":
             if message.type == TYPE_HELLO_OK:

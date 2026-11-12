@@ -39,6 +39,16 @@ Handler = Callable[["Context", list[str]], list[str] | None]
 # A handler gets (ctx, args) exactly like a command, args[0] is the action.
 PET_ACTIONS: dict[str, Handler] = {}
 
+# Tab completion for those actions' own words: action -> fn(ctx, words after it).
+PET_COMPLETERS: dict[str, Callable[["Context", list[str]], list[str]]] = {}
+
+
+def _pet_complete(ctx: "Context", args: list[str]) -> list[str]:
+    if not args:
+        return list(PET_ACTIONS)
+    completer = PET_COMPLETERS.get(args[0].lower())
+    return completer(ctx, args[1:]) if completer else []
+
 # Functions called after the companion answers a pet action, as
 # hook(ctx, action, reply_payload). The pet event log uses this.
 PET_HOOKS: list[Callable[["Context", str, dict], None]] = []
@@ -315,17 +325,20 @@ def build_registry(include_plugins: bool = True) -> Registry:
     # pet: talk to the companion. Default action is status.
     @reg.command(
         "pet",
-        "Query the companion pet: status, feed, or play.",
-        usage="pet [status|feed|play|…]",
+        "Look after the companion pet: status, feed, play, rest, sleep, evolve, avatar…",
+        usage="pet [status|feed|play|rest|sleep|evolve|avatar|…]",
         subcommands=("status", "feed", "play"),
-        completer=lambda ctx, args: list(PET_ACTIONS) if not args else [],
+        completer=_pet_complete,
     )
     def cmd_pet(ctx: Context, args: list[str]) -> list[str]:
         action = (args[0].lower() if args else "status")
         ctx.services.pop("pet_cache", None)  # make the pet pane re-read soon
         if action in {"status", "st"}:
             reply = ctx.companion.request(TYPE_PET_STATUS, {})
-            pet = (reply.payload or {}).get("pet") or {}
+            payload = reply.payload or {}
+            pet = payload.get("pet") or {}
+            if isinstance(payload.get("evolution"), dict):
+                pet = dict(pet, evolution=payload["evolution"])   # pet.status carries it beside the pet
             return _format_pet(pet)
         if action == "feed":
             item = args[1] if len(args) > 1 else "ration"
@@ -414,7 +427,7 @@ def _format_pet(raw: dict[str, Any]) -> list[str]:
     Shows whatever species/form the companion reports, and the optional
     stats (level, hp, moves…) only when it sends them.
     """
-    from cyberdeck.petdata import normalize_pet, stats_line
+    from cyberdeck.petdata import choice_line, evolution_line, normalize_pet, stats_line
 
     if not raw:
         return ["pet: (empty payload)"]
@@ -425,7 +438,7 @@ def _format_pet(raw: dict[str, Any]) -> list[str]:
         return f"{_bar(value)}  {value if value is not None else '--'}"
 
     lines = [
-        f"{pet['name']}  ·  {pet['species']}  ·  {pet['stage']}",
+        f"{pet['name']}  ·  {pet['species']}  ·  {pet['stage']}" + ("  ·  asleep zZ" if pet["asleep"] else ""),
         f"mood     {pet['mood']}",
         f"hunger   {need('hunger')}   (0 = full)",
         f"happy    {need('happiness')}",
@@ -440,6 +453,13 @@ def _format_pet(raw: dict[str, Any]) -> list[str]:
         lines.append(f"mistakes {pet['care_mistakes']}")
     if pet["age_hours"] is not None:
         lines.append(f"age      {pet['age_hours']}h")
+    evolution = pet["evolution"]
+    if evolution:
+        lines.append(f"evolve   {evolution_line(evolution)}")
+        if evolution["ready"]:
+            lines += [f"         {'✓' if c['available'] else '×'} {choice_line(c)}" for c in evolution["choices"]]
+            if any(c["available"] for c in evolution["choices"]):
+                lines.append("         pick one with `pet evolve`")
     return lines
 
 

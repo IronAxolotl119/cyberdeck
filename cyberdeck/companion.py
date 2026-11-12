@@ -246,6 +246,8 @@ class PetState:
     def sleep(self, on: bool) -> dict[str, Any]:
         """Fall asleep (energy refills each tick, 'woke' when full) or wake up."""
         was = self.asleep
+        if on and not was and self.energy >= 100:
+            return {"asleep": False, "changed": False, "reason": "not tired", "pet": self.as_payload()}
         self.asleep = bool(on)
         if was and not on:
             self.events.append(("woke", {"reason": "woken"}))
