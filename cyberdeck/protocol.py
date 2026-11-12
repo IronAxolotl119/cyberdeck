@@ -34,6 +34,8 @@ TYPE_PET_FEED = "pet.feed"
 TYPE_PET_FEED_OK = "pet.feed.ok"
 TYPE_PET_PLAY = "pet.play"
 TYPE_PET_PLAY_OK = "pet.play.ok"
+TYPE_PET_GIFT = "pet.gift"
+TYPE_PET_GIFT_OK = "pet.gift.ok"
 TYPE_ERROR = "error"
 
 # Every valid message must have these three keys.

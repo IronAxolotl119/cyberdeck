@@ -73,6 +73,7 @@ with `error` and code `proto_mismatch`.
 | `pet.status`  | `pet.status.ok` | `{}`                    | `pet` object (see below) |
 | `pet.feed`    | `pet.feed.ok`   | `item` (string)         | `item`, `hunger_delta`, `pet` |
 | `pet.play`    | `pet.play.ok`   | `game` (string)         | `game`, `played` (bool), optional `reason`, `pet` |
+| `pet.gift`    | `pet.gift.ok`   | `item` (object, below)  | `accepted`, `item`, `reaction`, `effects`, `pet` |
 |               | `error`         |                         | `code`, `message` |
 
 ### Pet object
@@ -86,9 +87,13 @@ with `error` and code `proto_mismatch`.
   "happiness": 72,
   "energy": 80,
   "mood": "playful",
-  "age_hours": 11.5
+  "age_hours": 11.5,
+  "gifts": 3
 }
 ```
+
+`gifts` (added with `pet.gift`) is how many gifts the pet has kept.
+Older readers can ignore it.
 
 Need values (`hunger`, `happiness`, `energy`) are integers 0–100.
 `mood` is a short word derived from those needs (`content`,
@@ -98,13 +103,51 @@ If the pet is too tired to play, `played` is `false` and `reason`
 explains why. That is still a successful `pet.play.ok`, not an
 `error`.
 
+### Gifts (`pet.gift`)
+
+The main deck sends loot found in the dungeon game to the pet. The
+request payload has one `item` object:
+
+| Field    | Type    | Meaning |
+|----------|---------|---------|
+| `name`   | string  | Required. What the item is called, e.g. `"glitch berry"`. |
+| `kind`   | string  | `food`, `toy`, `battery`, `evolve`, or `trinket`. Unknown kinds are treated as `trinket`. |
+| `power`  | integer | 0–100, how strong the effect is. Default 10. |
+| `rarity` | string  | Optional: `common`, `rare`, `legendary`. Cosmetic. |
+
+What the reference (sim) companion does with each kind:
+
+| kind      | effect |
+|-----------|--------|
+| `food`    | hunger − power, happiness + 5 |
+| `toy`     | happiness + power, energy − 5 |
+| `battery` | energy + power |
+| `evolve`  | moves one stage up: egg → baby → rookie → champion → ultimate → mega |
+| `trinket` | happiness + 10 (kept as a keepsake) |
+
+The reply says whether the gift was `accepted`, echoes the cleaned-up
+`item`, gives a one-line `reaction` to show on screen, and lists
+`effects` as deltas (`hunger`, `happiness`, `energy`) plus `stage`
+(the new stage, or `null` if it did not change). A real companion may
+react differently (refuse food when full, animate, etc.) as long as the
+reply has this shape.
+
+```json
+{"type":"pet.gift","id":"c3d4...","payload":{"item":{"name":"glitch berry","kind":"food","power":20,"rarity":"common"}}}
+{"type":"pet.gift.ok","id":"c3d4...","payload":{"accepted":true,"item":{"name":"glitch berry","kind":"food","power":20},"reaction":"PULSE munches the glitch berry. nom.","effects":{"hunger":-20,"happiness":5,"energy":0,"stage":null},"pet":{...}}}
+```
+
+A request without `item.name` gets an `error` reply with code
+`bad_item`. Like `pet.feed`, gifts change state, so they must not be
+retried automatically.
+
 ### Errors
 
 ```json
 {"type":"error","id":"<same as the request>","payload":{"code":"unknown_type","message":"unsupported message type: foo"}}
 ```
 
-Suggested codes: `unknown_type`, `bad_payload`, `timeout`,
+Suggested codes: `unknown_type`, `bad_payload`, `bad_item`, `timeout`,
 `proto_mismatch`, `unavailable`.
 
 ## Timeouts and retries
@@ -113,7 +156,7 @@ Recommended on the main board when a real link exists:
 
 - Wait up to 1 second for a reply with the matching `id`.
 - If a line cannot be parsed, discard it and keep listening.
-- Do not retry `pet.feed` or `pet.play` automatically (they change
+- Do not retry `pet.feed`, `pet.play`, or `pet.gift` automatically (they change
   state). `ping` and `pet.status` may be retried once.
 
 ## Example exchange

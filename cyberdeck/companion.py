@@ -27,6 +27,8 @@ from cyberdeck.protocol import (
     TYPE_HELLO_OK,
     TYPE_PET_FEED,
     TYPE_PET_FEED_OK,
+    TYPE_PET_GIFT,
+    TYPE_PET_GIFT_OK,
     TYPE_PET_PLAY,
     TYPE_PET_PLAY_OK,
     TYPE_PET_STATUS,
@@ -50,6 +52,13 @@ def _clamp(value: float, lo: float, hi: float) -> float:
     return lo if value < lo else hi if value > hi else value
 
 
+# Growth stages in order. Gifting an "evolve" item moves one step up.
+STAGES = ["egg", "baby", "rookie", "champion", "ultimate", "mega"]
+
+# Item kinds the pet understands in a pet.gift message (see PROTOCOL.md).
+GIFT_KINDS = {"food", "toy", "battery", "evolve", "trinket"}
+
+
 # The fake (and later, reported) pet. Hunger, happiness, and energy
 # are 0-100. mood() is derived from those numbers, not stored itself.
 @dataclass(slots=True)
@@ -63,6 +72,8 @@ class PetState:
     happiness: float = 72.0
     energy: float = 80.0
     age_hours: float = 11.5
+    # Gifts PULSE has received (names, newest last). Kept short.
+    inventory: list[str] = field(default_factory=list)
 
     def mood(self) -> str:
         """Pick a short mood word from the current needs."""
@@ -89,6 +100,7 @@ class PetState:
             "energy": int(round(self.energy)),
             "mood": self.mood(),
             "age_hours": round(self.age_hours, 2),
+            "gifts": len(self.inventory),
         }
 
     def tick(self, dt: float) -> None:
@@ -136,6 +148,52 @@ class PetState:
             "played": True,
             "happiness_delta": int(round(self.happiness - before_h)),
             "energy_delta": int(round(self.energy - before_e)),
+            "pet": self.as_payload(),
+        }
+
+    def gift(self, item: dict[str, Any]) -> dict[str, Any]:
+        """Receive an item from the main deck (dungeon loot). See PROTOCOL.md."""
+        name = str(item.get("name") or "").strip()
+        kind = str(item.get("kind") or "trinket").lower()
+        if kind not in GIFT_KINDS:
+            kind = "trinket"
+        try:
+            power = max(0.0, min(100.0, float(item.get("power", 10))))
+        except (TypeError, ValueError):
+            power = 10.0
+        before = (self.hunger, self.happiness, self.energy, self.stage)
+        if kind == "food":
+            self.hunger = _clamp(self.hunger - power, 0.0, 100.0)
+            self.happiness = _clamp(self.happiness + 5.0, 0.0, 100.0)
+            reaction = f"{self.name} munches the {name}. nom."
+        elif kind == "toy":
+            self.happiness = _clamp(self.happiness + power, 0.0, 100.0)
+            self.energy = _clamp(self.energy - 5.0, 0.0, 100.0)
+            reaction = f"{self.name} bats the {name} around happily!"
+        elif kind == "battery":
+            self.energy = _clamp(self.energy + power, 0.0, 100.0)
+            reaction = f"{self.name} plugs into the {name}. charged up!"
+        elif kind == "evolve":
+            index = STAGES.index(self.stage) if self.stage in STAGES else 2
+            if index < len(STAGES) - 1:
+                self.stage = STAGES[index + 1]
+                reaction = f"the {name} glows... {self.name} evolved into {self.stage}!"
+            else:
+                reaction = f"{self.name} is already at max stage. it keeps the {name} as a trophy."
+        else:
+            self.happiness = _clamp(self.happiness + 10.0, 0.0, 100.0)
+            reaction = f"{self.name} adds the {name} to its hoard."
+        self.inventory = (self.inventory + [name])[-20:]
+        return {
+            "accepted": True,
+            "item": {"name": name, "kind": kind, "power": int(power)},
+            "reaction": reaction,
+            "effects": {
+                "hunger": int(round(self.hunger - before[0])),
+                "happiness": int(round(self.happiness - before[1])),
+                "energy": int(round(self.energy - before[2])),
+                "stage": self.stage if self.stage != before[3] else None,
+            },
             "pet": self.as_payload(),
         }
 
@@ -242,6 +300,11 @@ class SimCompanionLink(CompanionLink):
         if typ == TYPE_PET_PLAY:
             game = str((message.payload or {}).get("game") or "spar")
             return message.reply(TYPE_PET_PLAY_OK, self.pet.play(game))
+        if typ == TYPE_PET_GIFT:
+            item = (message.payload or {}).get("item")
+            if not isinstance(item, dict) or not str(item.get("name") or "").strip():
+                return message.error("bad_item", "pet.gift needs payload.item with a name")
+            return message.reply(TYPE_PET_GIFT_OK, self.pet.gift(item))
         return message.error("unknown_type", f"unsupported message type: {typ}")
 
     def _tick(self) -> None:
