@@ -324,7 +324,9 @@ class EntryPoints(unittest.TestCase):
             self.assertEqual(res.returncode, 0, res.stderr)
             text = Path(f"{tmp}/s.txt").read_text(encoding="utf-8")
             self.assertTrue(Path(f"{tmp}/s.svg").exists())
-        self.assertIn("CK//MAIN", text)                   # (the logo glitches a letter now and then)
+        # The logo glitches a random letter now and then, so allow 2 swapped characters.
+        logo = text.split("▓▒░ ", 1)[1][:15] if "▓▒░ " in text else ""
+        self.assertGreaterEqual(sum(a == b for a, b in zip(logo, "CYBERDECK//MAIN")), 13, logo)
         self.assertIn("▶ DUNGEON", text)
 
 
