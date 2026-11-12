@@ -14,7 +14,9 @@ from pathlib import Path
 from pet.creature import Creature
 
 
-SAVE_VERSION = 1
+# 2 adds the creature's "life" block (bond, memory, diary, ...). Version-1
+# saves still load; their pet simply gets a fresh life with default values.
+SAVE_VERSION = 2
 
 
 def save_creature(creature: Creature, path: str | Path) -> Path:

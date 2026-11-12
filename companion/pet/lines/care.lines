@@ -1,0 +1,461 @@
+# ---------------------------------------------------------------------------
+# Feeding
+# ---------------------------------------------------------------------------
+[feed.normal]
+nom nom. thanks for the {food}!
+mm, {food}. tasty.
+*munch munch* that hit the spot.
+{food}! my favorite. well, one of them.
+crunchy. i approve.
+thanks! my tummy says hi.
+i ate it all. look, empty.
+yum. more later?
+that was a good {food}.
+*happy chewing noises*
+food acquired. mood improved.
+delicious bytes.
+my hunger meter thanks you.
+i could get used to {food}.
+*nibbles* *nibbles* *gulp*
+ahh, refueled.
+tasty! i feel stronger already.
+nom. nom. nom. done.
+that {food} was perfectly rendered.
+okay, that was good. really good.
+*licks lips*
+best {food} in the whole network.
+crumbs everywhere. worth it.
+energy... restoring...
+munchies satisfied.
+you always know what i like. mostly.
+i will remember this {food}.
+that tasted like a fresh download.
+thank you, {name} approves.
+*burp* sorry. thank you.
+[feed.like]
+WAIT. {food}?! my absolute favorite!
+oh oh oh {food}! you remembered!
+this is the best {food} of my LIFE.
+*happy dance* {food}! {food}!
+you know me so well.
+i would evolve for this {food}.
+{food} is the meaning of life.
+my favorite flavor! {flavor}!
+i love love love {flavor} things.
+best gift ever. it is food. it is perfect.
+eee! {food}! *nom* *nom* *nom*
+i am going to remember this forever.
+you are the best caretaker in the spectrum.
+yesss, {flavor} and crunchy.
+this makes up for everything.
+my antenna is doing backflips.
+i could eat {food} every day.
+this one goes in my diary.
+okay you win, i love you.
+the perfect {food} exists and i just ate it.
+[feed.hate]
+ew. {food}? really?
+*spits it out* no thank you.
+that is very {flavor}. i hate {flavor}.
+blegh. i ate it, but blegh.
+my circuits reject this {food}.
+why would you do this to me.
+*gags dramatically*
+nope. nope nope nope.
+i will eat it. but i will complain.
+this tastes like corrupted data.
+i am filing a complaint about {food}.
+*holds nose* fine.
+yuck! {flavor} is the worst.
+i am never forgiving this {food}.
+ugh, it is still in my mouth.
+please, anything but {food}.
+i ate it to be polite. do not do it again.
+my tongue is sad now.
+this is a crime against snacks.
+*pushes the {food} away*
+[feed.bored]
+{food} again? okay...
+this is like the {count}th {food} in a row.
+mm. same as last time.
+i am getting a little tired of {food}.
+{food}. again. wow.
+it is fine. it is just... {food}.
+can we try something new next time?
+i know exactly what {food} tastes like now.
+*chews slowly*
+my taste sensors are bored.
+another {food}. very predictable.
+eh. it is food.
+i ate it but my heart was not in it.
+variety is the spice of life, you know.
+*sigh* {food}.
+[feed.refuse]
+no more {food}. i refuse.
+*turns away from the {food}*
+i will not eat another {food}. not today.
+{food}? absolutely not. five in a row is too many.
+nope. try something else.
+*closes mouth tightly*
+i am on a {food} strike.
+if i see one more {food} i will glitch.
+no thank you. i want something different.
+mmm-mm. *shakes head*
+i am boycotting {food}.
+please, anything else.
+{food} detected. rejecting.
+the answer is no.
+i love you, but no.
+[feed.stuffed]
+oof, i am so full.
+i cannot eat another byte.
+*rolls over* too much food.
+my tummy is about to overflow.
+stuffed. completely stuffed.
+i think i ate too much.
+my belly is a full buffer.
+one more and i will pop.
+*groans happily* no more.
+please, mercy, no more snacks.
+[feed.asleep]
+*sleep-chews* mm... {food}...
+zzz... nom... zzz.
+*munches in its sleep*
+
+# ---------------------------------------------------------------------------
+# Playing
+# ---------------------------------------------------------------------------
+[play.fun]
+that was fun! again!
+i got better at {game}!
+woo! {game} is great.
+did you see that move?
+we should play {game} more.
+i am getting so strong.
+that was a workout!
+hehe, i won. i think. did i win?
+my {stat} is going up!
+best game ever.
+*pants happily*
+ready for round two!
+i love playing with you.
+i felt so fast just now.
+we are unstoppable.
+okay that was awesome.
+i am sweaty. digitally.
+practice makes perfect!
+that made me feel brave.
+i want a rematch already.
+yay, {game}! i am a natural.
+i think i invented a new trick.
+let us do it again later!
+my muscles have muscles now.
+that was the best {game} ever.
+*victory pose*
+i am basically a pro now.
+haha, that tickled.
+i feel {stat}-er already.
+games make the day shinier.
+[play.bored]
+{game} again? sure, i guess.
+this is the {count}th time. it is getting old.
+i know all the moves in {game} now.
+mm. that was fine.
+can we play something else next?
+i played but i did not feel it.
+{game}... yawn.
+same game, same result.
+i am a little bored of {game}.
+okay. done. that was {game}.
+my excitement meter barely moved.
+predictable. but okay.
+i could play {game} in my sleep.
+let us mix it up next time.
+*plays half-heartedly*
+[play.refuse]
+not {game} again. no.
+i refuse to play {game}. pick something else.
+*sits down and does not move*
+nope. too much {game}.
+i am on strike from {game}.
+please, a different game.
+*yawns at {game}*
+{game}? hard pass.
+i will play anything but {game}.
+no. just no.
+[play.tired]
+too tired to play...
+maybe after a nap?
+my legs are noodles.
+i need to rest first.
+*flops over*
+[play.sick]
+i feel too glitchy to play.
+can we play when i am better?
+*cough* no games right now.
+
+# ---------------------------------------------------------------------------
+# Rest / sleep
+# ---------------------------------------------------------------------------
+[rest.ok]
+ahh. that helped.
+a little break. nice.
+*sighs contentedly*
+recharging... done-ish.
+i feel a bit better.
+thanks for the breather.
+mm, cozy.
+my battery is filling up.
+that was the perfect pause.
+okay, back in action.
+[sleep.on]
+goodnight...
+*curls up* zzz.
+sweet dreams to me.
+see you in sleep mode.
+nighty night, {name} out.
+*yawns* okay, bedtime.
+i will dream of {network}.
+tuck me in?
+lights out.
+zzz... already... zzz.
+[sleep.off]
+huh? i am up! i am up!
+*stretches* morning? is it morning?
+five more minutes...
+okay, awake. mostly.
+*blinks a lot* hello.
+i had the weirdest dream.
+awake and ready. well, awake.
+who woke me? oh, it is you.
+*yawns enormously*
+good morning, world.
+[woke]
+*stretches* i feel brand new!
+fully charged and ready!
+good morning! did you miss me?
+zzz... huh? oh! hi!
+i slept so well.
+battery: one hundred percent.
+i dreamed about {network}. weird.
+up and at them!
+that was the best nap.
+what did i miss?
+
+# ---------------------------------------------------------------------------
+# Praise and scold
+# ---------------------------------------------------------------------------
+Good morning! Or whatever time it is!
+I had the weirdest dream.
+I am up! I am up! What did I miss?
+Fully charged and ready to go!
+Yawn. Okay. Hi.
+Five more minutes... no? Fine.
+I feel brand new. Mostly.
+Back online! Did you miss me?
+Boot complete. Personality loaded.
+Mmm. Is it snack time yet?
+
+[praise.normal]
+hehe, thank you!
+i am a good {species}!
+*beams*
+really? you mean it?
+i will keep doing my best!
+that makes my antenna glow.
+yay! praise acquired.
+i feel so proud.
+you are nice to me.
+*blushes in pixels*
+best compliment ever.
+i will remember that.
+i am going to be even better.
+hehe. say it again.
+okay now i am smiling.
+that warmed my circuits.
+*happy wiggle*
+i love being your pet.
+thanks, {name} needed that.
+*does a little salute*
+[praise.spam]
+okay okay, i know i am good.
+you keep saying that.
+hehe, alright, alright.
+my head is getting big.
+i get it, i am the best.
+praise overflow detected.
+you are going to spoil me.
+mm, thanks. again.
+[praise.low_bond]
+...oh. thanks?
+huh. okay.
+*looks at you suspiciously*
+are you being nice to me?
+um. thank you, stranger.
+i do not know what to say.
+[scold.deserved]
+...sorry.
+okay, i will listen next time.
+*ears droop* fine.
+i know. i messed up.
+i will try harder.
+you are right. sorry.
+*looks at the floor*
+okay. understood.
+i did not mean to.
+i will behave. probably.
+[scold.undeserved]
+what did i even do?
+hey! that is not fair.
+i was being good!
+*confused beep*
+why are you mad at me?
+that hurt my feelings.
+i did not do anything!
+*pouts*
+rude.
+you are being mean.
+[scold.sulky]
+hmph. fine. scold me.
+i am not listening.
+*turns its back*
+whatever.
+la la la i cannot hear you.
+you always scold me.
+
+# ---------------------------------------------------------------------------
+# Rename
+# ---------------------------------------------------------------------------
+[rename.happy]
+{nickname}? i love it!
+i am {nickname} now! wow!
+{nickname}... yes. that is me.
+*repeats it quietly* {nickname}. {nickname}!
+a new name! i feel brand new.
+{nickname} sounds strong.
+i will wear it with pride.
+best name ever. {nickname}!
+yes! call me {nickname} forever.
+it fits like a good case.
+[rename.confused]
+{nickname}? who is that?
+um... am i {nickname} now?
+*tilts head* {nickname}?
+i thought i was {old}...
+okay... {nickname}. i will try.
+that is a strange name.
+huh? me? {nickname}?
+i do not know you well enough for nicknames.
+...{nickname}. sure. okay.
+*looks around for {nickname}*
+[rename.again]
+another new name? i am getting dizzy.
+wait, i was {old} five minutes ago.
+make up your mind!
+okay, {nickname}. final answer?
+my name tag is running out of room.
+i will just answer to everything.
+
+# ---------------------------------------------------------------------------
+# Tantrums
+# ---------------------------------------------------------------------------
+[tantrum.start]
+NO. i am not doing anything.
+hmph! leave me alone!
+*throws a tiny tantrum*
+i am NOT listening to you!
+*stomps pixels*
+nobody listens to ME!
+i am pouting. do not talk to me.
+*rolls on the floor* waaah!
+you ignored me! now i ignore you!
+i am on strike!
+*puffs cheeks*
+too much! i quit!
+i do not want to!
+*hides behind the battery icon*
+[tantrum.during]
+*still pouting*
+nope.
+i said NO.
+*ignores you*
+hmph.
+not talking.
+*turns away*
+la la la.
+...
+i am busy being mad.
+[tantrum.over]
+...okay. i am done being mad.
+*sniffs* fine, i forgive you.
+sorry about that.
+can we start over?
+i feel better now.
+okay, i am back.
+that was a lot. sorry.
+*peeks out* hi again.
+
+# ---------------------------------------------------------------------------
+# Sickness
+# ---------------------------------------------------------------------------
+[sick.glitch]
+*bzzt* something is wrong... i feel glitchy.
+my pixels are jumping around.
+i think i caught a glitch.
+everything looks doubled... doubled.
+*flickers* i do not feel so good.
+help... my frame rate is dropping.
+uh oh. i am glitching.
+i ate too much and now i am buzzing wrong.
+my circuits feel all wobbly.
+*error noise* not good, not good.
+[sick.corrupted]
+i feel... c0rrupt3d...
+my data is all scrambled.
+i forgot my own name for a second.
+something got into my memory banks.
+*static cough* i need a patch.
+my bytes are out of order.
+error: pet.exe has encountered a problem.
+i think i was neglected too long. i feel broken.
+everything tastes like noise.
+[sick.during]
+*cough* still glitchy.
+can you get me some medicine?
+i do not feel like playing.
+my pixels hurt.
+*shivers in static*
+please... a patch...
+i am not getting better on my own.
+everything is fuzzy.
+[sick.refuse]
+too sick for that...
+*coughs* maybe later.
+i just want to lie down.
+[healed]
+ahh! i feel so much better!
+all patched up!
+my pixels are back in place!
+thank you! i am cured!
+no more glitches! wheee!
+*stretches* good as new.
+data integrity restored!
+you saved me!
+i feel like a fresh install.
+i will never eat that much again. probably.
+I feel so much better! Thank you!
+No more glitches! I am all me again!
+My pixels are back in order.
+That was awful. You are the best.
+Debugged and happy!
+Wow, I can think straight again.
+Thanks for taking care of me.
+All systems green!
+I was so fuzzy. Now I am just regular fuzzy.
+Healthy again! Let us play!
+
+[heal.not_sick]
+i am not sick, silly.
+medicine? i feel fine!
+*sniffs the medicine* no thanks, i am healthy.
+save it for later.

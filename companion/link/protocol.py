@@ -55,6 +55,33 @@ TYPE_PET_EVOLVE = "pet.evolve"
 TYPE_PET_EVOLVE_OK = "pet.evolve.ok"
 TYPE_PET_DISCOVERY = "pet.discovery"
 TYPE_PET_DISCOVERY_OK = "pet.discovery.ok"
+# "Aliveness" extensions (all optional for the deck; see docs/ALIVE.md).
+TYPE_PET_RENAME = "pet.rename"
+TYPE_PET_RENAME_OK = "pet.rename.ok"
+TYPE_PET_PRAISE = "pet.praise"
+TYPE_PET_PRAISE_OK = "pet.praise.ok"
+TYPE_PET_SCOLD = "pet.scold"
+TYPE_PET_SCOLD_OK = "pet.scold.ok"
+TYPE_PET_HEAL = "pet.heal"
+TYPE_PET_HEAL_OK = "pet.heal.ok"
+TYPE_PET_DIARY = "pet.diary"
+TYPE_PET_DIARY_OK = "pet.diary.ok"
+TYPE_PET_SHELF = "pet.shelf"
+TYPE_PET_SHELF_OK = "pet.shelf.ok"
+TYPE_PET_ACTIVITY = "pet.activity"
+TYPE_PET_ACTIVITY_OK = "pet.activity.ok"
+TYPE_PET_EGG = "pet.egg"
+TYPE_PET_EGG_OK = "pet.egg.ok"
+TYPE_PET_SAY = "pet.say"
+TYPE_PET_SAY_OK = "pet.say.ok"
+TYPE_PET_RIVAL = "pet.rival"
+TYPE_PET_RIVAL_OK = "pet.rival.ok"
+TYPE_PET_ADVENTURE = "pet.adventure"
+TYPE_PET_ADVENTURE_OK = "pet.adventure.ok"
+TYPE_PET_LIFE = "pet.life"
+TYPE_PET_LIFE_OK = "pet.life.ok"
+TYPE_PET_RESET = "pet.reset"
+TYPE_PET_RESET_OK = "pet.reset.ok"
 # Opt-in extension: unsolicited pushes when hello.payload.events is true.
 # Only emitted after the main deck asks for them. detail is a dict.
 TYPE_PET_EVENT = "pet.event"
@@ -71,6 +98,47 @@ EVENT_KINDS = (
     "evolving",
     "evolve_choice",
     "move_strengthened",
+    # aliveness (docs/ALIVE.md)
+    "speech",
+    "greeting",
+    "reunion",
+    "lonely",
+    "idle",
+    "ask",
+    "ask_answered",
+    "ask_ignored",
+    "dream",
+    "sneeze",
+    "hiccup",
+    "sick",
+    "healed",
+    "tantrum",
+    "tantrum_over",
+    "preference_learned",
+    "gift_back",
+    "adventure_start",
+    "adventure_return",
+    "treasure",
+    "recognize",
+    "suspicious",
+    "new_place",
+    "busy_place",
+    "empty_place",
+    "hot",
+    "cold",
+    "sleepy",
+    "hyper",
+    "weather",
+    "jealous",
+    "rival_appears",
+    "rival_result",
+    "rival_leaves",
+    "birthday",
+    "hatchday",
+    "holiday",
+    "diary",
+    "egg_laid",
+    "egg_hatched",
 )
 
 # Every valid message must have these three keys.

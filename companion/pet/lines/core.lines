@@ -1,0 +1,409 @@
+# ---------------------------------------------------------------------------
+# Openers (prepended sometimes) by mood
+# ---------------------------------------------------------------------------
+[open.happy]
+hehe,
+yay!
+ooh,
+heehee~
+wheee,
+oh oh oh,
+guess what,
+okay okay okay,
+*wiggles*
+*happy beeps*
+la la la,
+best day!
+*bounces*
+eee!
+hey hey,
+*spins once*
+woo,
+*tail-antenna wags*
+heh,
+oh boy,
+[open.content]
+hm,
+so,
+okay,
+mm,
+well,
+you know,
+*blinks*
+hey,
+just saying,
+right,
+*hums*
+anyway,
+oh,
+huh,
+listen,
+[open.sad]
+*sniff*
+...
+um,
+*quiet beep*
+*looks down*
+i guess,
+sorry,
+*sigh*
+it is just that,
+*tiny voice*
+*droopy antenna*
+hey... um,
+oh...
+[open.grumpy]
+hmph.
+ugh.
+tch.
+*glares*
+whatever.
+fine.
+*grumbles*
+listen here,
+*static hiss*
+excuse me?
+hmmph,
+not now, but
+*crosses tiny arms*
+[open.tired]
+*yawn*
+mm...
+*rubs eyes*
+zz- huh?
+*slow blink*
+so sleepy,
+*droops*
+hnn,
+eh...
+*stretches*
+[open.hungry]
+*stomach gurgles*
+*tummy beeps*
+*sniffs the air*
+ooh, is that food? no?
+*licks screen*
+*chews on a cable*
+[open.excited]
+whoa!
+!!!
+oh wow,
+*vibrates*
+no way!
+hey hey HEY,
+ooooh,
+*buzzes loudly*
+look look,
+holy packets,
+[open.sick]
+*bzzt*
+*cough* *cough*
+*static sneeze*
+ugh... *glitch*
+*flickers*
+*error beep*
+nnh...
+[open.bored]
+*taps screen*
+*sigh*
+so...
+meh,
+*kicks a pixel*
+yawn,
+hmmmm,
+
+# ---------------------------------------------------------------------------
+# Closers by voice tier: kid (rookie), teen (champion), sage (ultimate/mega)
+# ---------------------------------------------------------------------------
+[close.kid]
+!
+, okay?
+, right?
+, hehe.
+! promise!
+. yep yep.
+, i think!
+. beep!
+, maybe.
+! yay!
+. that is all.
+, hm!
+[close.teen]
+. just saying.
+, no big deal.
+. trust me.
+, obviously.
+. you know how it is.
+. heh.
+, for the record.
+. anyway.
+, if you ask me.
+. cool cool.
+, honestly.
+. moving on.
+[close.sage]
+, as the old packets say.
+. such is the signal.
+. the network remembers.
+. everything echoes eventually.
+, like a carrier wave at dawn.
+. i have seen many channels.
+. patience, little one.
+, as all things in the spectrum.
+. noise becomes music, in time.
+. so it is written in the logs.
+. the static agrees.
+, and the stars hum along.
+
+# ---------------------------------------------------------------------------
+# Pure baby babble (used for baby stage instead of a full line sometimes)
+# ---------------------------------------------------------------------------
+[babble]
+pii!
+bu? bu!
+mya~
+ba ba ba
+pip pip!
+nyuu...
+bzz-bzz!
+mamu?
+dada beep!
+eee-eee!
+pyo!
+wa wa!
+boop?
+mimi!
+gugu bzzt
+ah-bu!
+pa-pa-pi!
+nnnmm!
+tee hee bip
+oo? oo!
+blub blub
+fwee!
+kya!
+chuu~
+miiip!
+dee-dee?
+hap hap!
+bwa!
+peep peep peep
+ummu!
+
+# ---------------------------------------------------------------------------
+# Late-night ramble fragments (chained onto lines after 22:00)
+# ---------------------------------------------------------------------------
+[ramble]
+and also, do you think routers dream?
+and wait, what if every packet is a tiny letter?
+and anyway the moon is basically a big satellite with no wifi.
+and i was thinking, static is just the sky clearing its throat.
+and like, who named bluetooth? was their tooth blue?
+and sometimes i count channels instead of sheep. 1, 6, 11...
+and what if the cloud is just a really tall server?
+and do you ever wonder if your charger misses you?
+and i bet the ethernet cable has stories.
+and oh, also, i forgot what i was saying.
+and if i close my eyes the fan sounds like the ocean.
+and you know what is weird? the number 0. it is so round.
+and did you know i can hear the clock tick? tick. tick. tick.
+and maybe pixels are just very small paintings.
+and i think the cursor blinks because it is nervous.
+and imagine a network called home that is everywhere.
+and is it still tomorrow if you have not slept yet?
+and anyway the fridge is probably also awake.
+and someday i want to visit the satellite.
+and hmm, why does night feel quieter on every frequency?
+and whatever happened to that one beacon? i hope it is okay.
+and what if the keyboard is ticklish.
+and i made up a song. it goes: beep. that is the whole song.
+and honestly, the dark is kind of cozy.
+and the stars are like very far away hotspots.
+and if i had hands i would make toast. probably.
+and you are my favorite human. do not tell the others.
+and i think 3am is a secret extra hour.
+and do bits get tired of being ones?
+and anyway goodnight. no wait, not yet.
+
+# ---------------------------------------------------------------------------
+# Ambient chatter by mood (the pet talks on its own now and then)
+# ---------------------------------------------------------------------------
+[chatter.happy]
+today feels shiny.
+i like it here with you, {name}.
+everything is humming in tune.
+my antenna is doing the happy wiggle.
+we make a good team.
+i could scan the whole world right now.
+did you see that? i did a little hop.
+i feel like a full battery.
+let us do something fun!
+the air smells like fresh packets.
+i am the luckiest {species} ever.
+my circuits are all warm and fuzzy.
+you are doing great, by the way.
+i saved a happy thought for later.
+i think i just leveled up in happiness.
+everything is so bright on this screen.
+i want to show you a trick later.
+hey, thanks for hanging out.
+i might burst into confetti.
+best. deck. ever.
+i feel like singing a dial-up song.
+my stats feel shiny today.
+i am glad i hatched here.
+wanna see me spin? *spins*
+i like the way the fan hums.
+hello world! and hello you.
+you make my signal strong.
+i just counted my favorite things. you are in there.
+i bet we could beat anything today.
+feels like a {weather} kind of day, the good kind.
+[chatter.content]
+just hanging out.
+the fan is humming. nice.
+i am thinking about {network}.
+i wonder what is out there.
+level {level} feels comfy.
+all quiet on channel six.
+i like this spot.
+do you hear that? no? me neither.
+i am watching the cursor blink.
+being a {species} is pretty okay.
+*idles gracefully*
+i counted the pixels again. still a lot.
+just keeping an eye on things.
+the signals are calm today.
+i could go for a snack. eventually.
+i remember {network}. good times.
+the screen is warm.
+nothing to report, captain.
+i am practicing my {move}.
+we are {hours} hours old together. well, i am.
+it is a good day for scanning.
+i like routines.
+status: chill.
+i am listening to the static. it is soothing.
+my favorite number today is {count}.
+mm, quiet.
+doing pet things. important pet things.
+i might take a little nap later.
+the world is pretty big, huh.
+i wonder what the router is doing.
+[chatter.sad]
+i feel kind of small today.
+did i do something wrong?
+it is quiet. too quiet.
+can we just sit together?
+my antenna is drooping.
+i miss when we played more.
+i am okay. mostly.
+some days the signal is weak.
+i made a sad beep. sorry.
+maybe tomorrow will be shinier.
+i keep thinking about that loss.
+nobody pinged me today.
+i wish i was a stronger {species}.
+can you say something nice?
+*hugs a pixel*
+it is fine. it is fine. it is fine.
+i feel like a dead pixel.
+i will try to be better.
+everything feels laggy.
+i saved you a seat. on the screen.
+[chatter.grumpy]
+do not poke me.
+i am not grumpy. you are grumpy.
+everything is too loud.
+leave my pixels alone.
+who moved my cursor?
+i am in a mood. deal with it.
+nope. not today.
+the router is staring at me again.
+hmph. i could have won that.
+i want snacks and silence.
+i bite. digitally.
+someone stepped on my signal.
+ask me later. much later.
+ugh, buffering.
+i am doing a protest. it is silent.
+grr. that is all.
+i am counting to ten in binary.
+my patience is at one bar.
+fine. whatever. i am fine.
+do not look at me like that.
+[chatter.hungry]
+is it snack time? it feels like snack time.
+my tummy is making modem noises.
+i could eat a whole {food}.
+food. food. food. please.
+i am running on empty bytes.
+i smell {food}. or i am imagining it.
+feed me pls.
+my hunger meter is blinking red.
+i dreamed about {food} last night.
+if you feed me i will do a dance.
+i would trade a move for a snack.
+low on fuel, captain.
+nom? nom? no nom?
+please, a crumb. a byte. anything.
+i am so hungry i could chew a cable.
+[chatter.tired]
+so... sleepy...
+my eyelids weigh a megabyte.
+can we nap? please?
+i am running at low power.
+*yawns for a full second*
+my battery feels like 3 percent.
+everything is slow motion.
+just five more minutes.
+i might fall asleep mid-beep.
+tired. very tired. extremely tired.
+zz... huh? i am awake.
+my pixels are heavy.
+i need a recharge.
+sleep mode sounds nice.
+let me rest my antenna.
+[chatter.excited]
+something big is coming, i can feel it!
+i am buzzing all over!
+let us go go go!
+i feel like i could evolve any second!
+look at all these signals!
+my circuits are sparking!
+today is THE day.
+i cannot sit still!
+ooh ooh, what is next?
+i want to explore everything!
+hyper mode engaged!
+i just got a burst of energy!
+best feeling ever!
+let us find something rare!
+my antenna is spinning!
+[chatter.bored]
+i am so bored i counted to a thousand.
+nothing is happening.
+can we do something? anything?
+i have watched the cursor blink 400 times.
+same old, same old.
+boring. bo-ring.
+let us scan! or play! or anything!
+i invented a game: staring. i lost.
+is the world on pause?
+i might start talking to the router.
+entertain me, human.
+i am rearranging my pixels for fun.
+blah.
+somebody ping me.
+i miss adventures.
+[chatter.sick]
+i do not feel so good.
+my data feels scrambled.
+everything is glitchy.
+*cough* i need medicine.
+my pixels keep flickering.
+i think something is corrupted.
+please fix me?
+my head is full of static.
+i am buffering... forever.
+can you get me a patch?

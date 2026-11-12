@@ -147,6 +147,13 @@ def _sync_events_flag(handler: CompanionHandler, any_opted_in: bool) -> None:
         handler.drain_events()
 
 
+def _link_changed(handler: CompanionHandler, active: bool) -> None:
+    """Tell the pet the link went quiet (it gets lonely; hello = reunion)."""
+    hook = getattr(handler, "link_changed", None)
+    if hook is not None:
+        hook(active)
+
+
 def _fan_out(sessions: list[ClientSession], events: list[Message]) -> None:
     for event in events:
         for session in sessions:
@@ -240,6 +247,7 @@ def _session_loop(
             # A lone UART client dropping should turn events off. The TCP
             # multi-client loop handles this itself and does not use this path.
             _sync_events_flag(handler, False)
+            _link_changed(handler, False)
 
 
 class TcpServer:
@@ -404,6 +412,8 @@ class TcpServer:
                 sessions.pop(key, None)
         with self.lock:
             _sync_events_flag(self.handler, any(s.events_enabled for s in sessions.values()))
+            if not sessions:
+                _link_changed(self.handler, False)
 
     @staticmethod
     def _close_socket(sock: socket.socket) -> None:

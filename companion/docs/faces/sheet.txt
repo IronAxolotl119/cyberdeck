@@ -12,6 +12,15 @@ Moods (baby accent):
   fainted    (x_x) /   ...   |   (X_X) /   ...   |   (x_x) /   ...   |   (_ _) /   ...
   excited    (*_*)   |   (^o^)   |   (*o*)   |   (^_^)/
   evolving   (*_*)   |   (o*o)   |   (*o*)   |   (+_+)
+  sick       (x~x)   |   (@_@)   |   (x~x);   |   (%_%)
+  pouting    (>3<)   |   (-3-)   |   (>3<)   |   ( -3-)
+  party      \(^o^)/   |   (^_^)/   |   \(^v^)/   |   (^o^)
+  dreaming   (-_-) zZ /    o O ( ~ )   |   (-_-) zZz /   o O ( ~~ )   |   (u_u) zZ /    o O (~~~)   |   (-_-) zZz /   o O ( ~ )
+  love       (^_^)<3   |   (^o^)<3   |   (*^_^*)   |   (^v^)<3
+  nervous    (o_o;)   |   (;o_o)   |   (O_O;)   |   (o_o;)
+  suspicious (¬_¬)   |   (¬_¬ )   |   ( ¬_¬)   |   (¬.¬)
+  hot        (>_<);;   |   (@_@);;   |   (-_-);;   |   (>o<);;
+  lonely     (._.)   |   ( ._.)   |   (._. )   |   (;_;)
 
 Stage accents (content face, frame 0):
   baby          (-_-)
@@ -20,3 +29,54 @@ Stage accents (content face, frame 0):
   champion      {(-_-)}
   ultimate      <(-_-)>
   mega          «(-_-)»
+
+Animations (idle life, quirks, dances):
+  look_around          (o_o )   |   ( o_o)   |   (o_o )   |   (o_o)
+  yawn                 (-o-)   |   (-O-)   |   (-o-)   |   (-_-)
+  doze                 (-_-)   |   (-_-) z   |   (-.-) zZ   |   (o_o)!
+  chase_bug            (o_o)  *   |   (o_o) *    |    (o_o)*   |   (^o^)/*
+  stretch              \(-_-)/   |   (-_-)   |   \(-o-)/   |   (^_^)
+  hum                  (-_-)~   |   (-o-)~~   |   (-_-)~   |   (^_^)~
+  stare                (O_O)   |   (O_O)   |   (o_o)   |   (O_O)
+  show_off             (^_^)b   |   (^o^)b   |   (*_*)b   |   (^v^)b
+  count                (o_o) 1   |   (o_o) 2   |   (o_o) 3   |   (^_^) !
+  talk_router          (o_o) ?   |   (o_o) ..   |   (-_-) ...   |   (o_o) ?
+  night                (-_-) *   |   (-_-)  .   |   (o_o) *   |   (-_-) .
+  waiting              (o_o)   |   (o_o) ?   |   ( o_o)   |   (o_o) ?
+  away                    ...   |   (o_o)>>   |     >>   |      ...
+  return               (^o^)/   |   (^_^)   |   \(^o^)/   |   (^_^)
+  reunion              \(^o^)/   |   (T_T)<3   |   \(^v^)/   |   (^_^)<3
+  treasure             (*o*)   |   (*_*)!   |   (*o*)!!   |   (^o^)/
+  gift                 (^_^)>[]   |   (^o^)>[]   |   (^_^)>[]   |   (^v^)<3
+  pout                 (>3<)   |   (-3-)   |   (>3<)   |   ( -3-)
+  hiccup:hiccup        (o_o) hic!   |   (o_O)   |   (O_o) hic!   |   (-_-)
+  sneeze:tiny          (>_<)   |   (>.<) pip!   |   (-_-)   |   (o_o)
+  sneeze:explosive     (o_O)   |   (>O<) ACHOO!   |   (@_@)   |   (-_-)
+  sneeze:static        (>_<)   |   (>_<) kshh~   |   (=_=)   |   (o_o)
+  sneeze:double        (>_<) ah-   |   (>o<) CHOO!   |   (>o<) CHOO!   |   (-_-)
+  dance:robot shuffle  (o_o)>   |   <(o_o)   |   (o_o)>   |   <(o_o)
+  dance:happy wiggle   ~(^_^)~   |   (^_^)   |   ~(^o^)~   |   (^_^)
+  dance:antenna twirl  (^_^)/   |   \(^_^)   |   (^o^)/   |   \(^o^)
+  dance:pixel shuffle  [^_^]   |   ]^_^[   |   [^o^]   |   ]^o^[
+  dance:moonwalk       (^_^)  <   |    (^_^) <   |     (^_^)<   |    (^_^) <
+  dance:spin cycle     (^_^)   |   (  ^_)   |   (  _ )   |   (_^  )
+  dance:bounce         (^_^)   |    (^o^)   |   (^_^)   |    (^o^)
+  dance:jazz hands     *(^_^)*   |   (^o^)   |   *(^v^)*   |   (^o^)
+
+Costumes (holidays and birthdays, shown on the happy face):
+  party            🥳 [(^_^)]
+  new_year         🎉 [(^_^)]
+  valentines       ♥ [(^_^)]
+  pi_day           π [(^_^)]
+  st_patricks      ☘ [(^_^)]
+  april_fools      🃏 [(^_^)]
+  earth_day        🌍 [(^_^)]
+  star_wars        ⚔ [(^_^)]
+  solstice         ☀ [(^_^)]
+  independence     🎆 [(^_^)]
+  programmers_day  💾 [(^_^)]
+  halloween        🎃 [(^_^)]
+  thanksgiving     🦃 [(^_^)]
+  christmas        🎄 [(^_^)]
+  leap_day         🐸 [(^_^)]
+  friday_13        ☠ [(^_^)]

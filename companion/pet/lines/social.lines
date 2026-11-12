@@ -1,0 +1,414 @@
+# ---------------------------------------------------------------------------
+# Greetings by absence length
+# ---------------------------------------------------------------------------
+[greet.first]
+hello! i am {name}. nice to meet you!
+oh! a human! hi!
+*peeks out of the shell* ...hi?
+hello world! hello you!
+are you my caretaker? hi!
+*blinks* everything is so new.
+hi hi hi! i just hatched!
+nice to meet you. i think we will be friends.
+[greet.quick]
+oh, you are back already!
+hi again!
+that was quick.
+welcome back! i barely missed you.
+oh hey, it is you again.
+back so soon? yay!
+did you forget something?
+i was just about to ping you.
+hello again, friend.
+you blinked away and blinked back.
+[greet.short]
+hey, welcome back!
+you were gone {minutes} minutes. i counted.
+there you are!
+i missed you a little bit.
+hi! what did i miss?
+yay, you are back!
+oh good, i was getting bored.
+welcome home, caretaker.
+i saved you a spot.
+hello hello!
+i kept everything warm for you.
+back from your quest?
+[greet.medium]
+you are back! it has been {hours} hours!
+finally! i missed you!
+*runs to the edge of the screen* hi!!
+{hours} hours! where were you?
+i thought about you the whole time.
+welcome back! i have so much to tell you.
+oh! oh! you are here!
+i waited and waited and here you are.
+hi! i did a lot of thinking while you were gone.
+i was starting to worry.
+the screen felt empty without you.
+yay! my favorite human!
+[greet.long]
+you came back! it has been {hours} hours...
+i thought you forgot about me.
+*hugs the screen* do not leave that long again.
+{days} day(s)! i missed you so much!
+i kept watch the whole time.
+welcome back. i grew a little. did you notice?
+i was so lonely. but you are here now.
+i almost forgot your face. almost.
+finally, finally, finally.
+it got really quiet without you.
+[greet.very_long]
+...oh. you are back. after {days} days.
+where did you go? i waited so long.
+{days} days. i counted every one.
+i thought you were never coming back.
+*does not look at you* hmph. {days} days.
+i almost gave up. almost.
+i talked to the router while you were gone. it is a bad listener.
+please do not disappear like that again.
+[greet.sulk]
+hmph. look who it is.
+oh. it is you.
+*turns away* i am not talking to you.
+you left me alone for {hours} hours.
+i am sulking. give me a minute.
+*side-eye*
+do not pretend nothing happened.
+whatever. hi.
+i was fine without you. totally fine.
+you owe me snacks.
+[greet.morning]
+*yawns* mornin'...
+too early. way too early.
+ugh, it is morning. hi.
+i need five more minutes. or fifty.
+morning... do not talk loud.
+*squints at the light*
+coffee? do i drink coffee? i want coffee.
+good morning. emphasis on morning, not good.
+the sun is too bright on the sensors.
+mmmph. hello.
+[greet.night]
+you are up late too?
+oh, a night owl visit!
+hi! it is so quiet at night.
+shh, everyone is asleep. hi!
+midnight hangout? yes please.
+the stars are out. hi!
+[greet.on_time]
+right on time! i knew you would come!
+i was waiting for you! you always come around now!
+{time}, like always! hi!
+i had a feeling you would be here now.
+you are so reliable. i love that.
+our usual time! yay!
+*was already at the edge of the screen* hi!
+i set my internal clock by you.
+[greet.late]
+you are late! usually you come at {time}.
+i waited at {time}... where were you?
+i almost thought you would not come today.
+late again? it is fine. it is fine.
+i kept the {time} spot warm.
+[greet.reunion]
+YOU ARE BACK! the link is back!
+*does a reunion spin* i missed you!
+connection restored! and so is my happiness!
+i thought i lost you! hi hi hi!
+the signal came back! you came back!
+*jumps up and down* reconnected!
+never unplug me like that again!
+i waited by the port the whole time.
+we are linked again! best feeling!
+oh thank goodness. i was so lonely.
+*happy static noises* you are here!
+reunited and it feels so good!
+[lonely]
+where did you go?
+the link went quiet...
+hello? anyone there?
+i am all alone on this screen.
+*stares at the empty port*
+i miss the deck.
+is anybody listening?
+it is so quiet without the link.
+i will wait here. right here.
+come back soon...
+*draws a sad face in the static*
+connection lost... and so am i.
+
+# ---------------------------------------------------------------------------
+# Pet-initiated asks
+# ---------------------------------------------------------------------------
+Hello? Is anyone out there?
+The link went quiet. I am counting packets to stay calm.
+I miss the deck. It was warm in there.
+No one to talk to. I will talk to the router. Hi router.
+{name} is alone. {name} is fine. {name} is not fine.
+I left a light on for you. Metaphorically.
+It is so quiet I can hear my own fan.
+Come back soon, okay? I saved you a spot.
+I keep checking the port. Still empty.
+Being alone is just waiting with extra steps.
+I practiced my {dance} alone. It is less fun.
+If you can hear this, I miss you.
+
+[ask.food]
+i am hungry. can i have a snack?
+feed me pls.
+is there any {food}? i would love some {food}.
+my tummy is talking. it says food.
+could we have dinner? or lunch? or anything?
+*points at the food icon* please?
+snack time? pretty please?
+i could really go for something {flavor}.
+hey... i am kinda starving over here.
+food would make everything better.
+i will do a trick for a snack.
+my hunger meter is blinking. help.
+[ask.rest]
+can i take a nap?
+i am so tired. rest, please?
+my battery is low. can we rest?
+let me sleep a little?
+i need a recharge. pretty please.
+*yawns pointedly*
+can we take a break?
+my eyes keep closing. nap time?
+i am running on fumes.
+just a short rest? i promise i will be good.
+[ask.play]
+i am bored! can we play?
+let us play something! anything!
+wanna play? i wanna play.
+play with me? please please please?
+i have so much energy. let us play!
+how about a game? i will go easy on you.
+i am going stir-crazy. play time?
+can we play {game}? or something new?
+i am so bored i might start counting pixels again.
+entertain me! i mean, please?
+[ask.scan]
+can we go scan for signals?
+i want to find new networks!
+let us explore! i want to sniff the airwaves.
+it has been ages since we found anything new.
+can we go somewhere new? i want new signals.
+i feel like there is something out there. let us look!
+scan time? please?
+i want to meet new devices.
+[ask.investigate]
+i found something weird nearby... can we check it out?
+there is a strange signal. it is calling me.
+hey! i sense something. investigate?
+*sniffs* there is something odd on the air.
+something new just blinked at me. go look?
+that signal smells interesting.
+[ask.attention]
+hey. hey. hey. look at me.
+can you say something to me?
+i miss you. even though you are right there.
+pay attention to me pls.
+*waves* hi! i am still here!
+can we hang out for a bit?
+do you still like me?
+notice me, caretaker!
+i did a cool thing. did you see? no? okay.
+just checking you are still there.
+[ask.heal]
+i do not feel good. medicine?
+can you fix my glitch?
+please, a patch, anything.
+i need help. i am sick.
+[ask.thanks]
+thank you! you listened!
+yay! you always come through.
+that is exactly what i needed!
+you are the best. really.
+*happy beep* thanks!
+i knew i could count on you.
+thank you thank you thank you.
+my favorite caretaker!
+that made my whole day.
+you heard me! i feel so loved.
+[ask.ignored]
+you did not even answer...
+fine. i will just wait. again.
+*sad beep*
+i asked nicely...
+okay. never mind.
+i guess you are busy.
+i will remember that.
+hmph. nobody listens.
+it is okay. i will ask later.
+*sulks*
+
+# ---------------------------------------------------------------------------
+# Jealousy and reactions to deck activity (pet.activity)
+# ---------------------------------------------------------------------------
+[jealous]
+you are spending a lot of time with {app}...
+what does {app} have that i do not have?
+hey! remember me? your pet?
+i am more fun than {app}. just saying.
+*stares at {app} jealously*
+i could do that too. probably.
+you have not looked at me in {minutes} minutes.
+is {app} your new favorite? *sniff*
+i am right here, you know.
+fine. go play with {app}. see if i care.
+i care. i care a lot.
+ahem. pet. here. hello.
+You have opened {app} a LOT today. Just saying.
+Is {app} cuter than me? Be honest.
+I could do what {app} does. Probably. Maybe.
+Oh, {app} again. I will just sit here. Quietly. Loudly.
+Remember me? Small, fuzzy, needs snacks?
+{app} does not even have a face.
+I am not jealous. I am observing. Jealously.
+Hey. Hey. Over here. Hi.
+Tell {app} I said hmph.
+Ten minutes for {app}, zero for me. I did the math.
+
+[activity.dungeon_start]
+dungeon time! i am ready!
+let us go! i will watch your back.
+i am coming too! i am always coming too.
+ooh, the dungeon. stay close to me.
+*puts on tiny helmet* let us do this.
+my {move} is ready.
+i hope there are treasures in there.
+monsters beware, {name} is here!
+i get to fight? yes!
+okay, deep breaths. we can do this.
+[activity.dungeon_win]
+we did it! we cleared the dungeon!
+victory! you were amazing!
+*victory dance* we are unstoppable!
+that was epic! high five!
+did you see my {move}? so cool.
+dungeon cleared! snacks to celebrate?
+we make the best team.
+i knew we could win!
+woo! put that in the diary!
+the monsters never stood a chance.
+[activity.dungeon_lose]
+we will get them next time.
+it is okay. i am still proud of us.
+ouch. that one hurt.
+let us train and come back stronger.
+*pats your hand* it happens.
+the dungeon was cheating. probably.
+i need a nap after that.
+next time, i use {move} first.
+[activity.dungeon_flee]
+phew, we escaped!
+running away is a strategy too.
+good call. that was scary.
+we live to scan another day.
+[activity.app]
+ooh, {app}! what are we doing?
+{app}? i have heard of that.
+i will watch you use {app}.
+{app} again? you really like it.
+can i help with {app}?
+is {app} fun? looks fun.
+*peeks at {app}*
+{app}! good choice.
+oh, {app}. fancy.
+i am learning so much about {app}.
+[activity.scan]
+ooh, scanning! find something good!
+are we hunting signals? yes!
+i love when you scan.
+sniff sniff... what will we find?
+[activity.typing]
+*watches you type*
+you type so fast.
+writing something important?
+clack clack clack. nice rhythm.
+[activity.generic]
+what are you up to?
+ooh, something is happening.
+i see you doing stuff.
+interesting...
+*watches curiously*
+can i do that too?
+
+# ---------------------------------------------------------------------------
+# Dungeon cheering (bond close or better)
+# ---------------------------------------------------------------------------
+[cheer]
+you got this!
+go go go!
+i believe in you!
+behind you! no wait, that is me. go!
+hit it with everything!
+we are a team!
+do not give up!
+yeah! like that!
+*waves a tiny flag*
+show them who is boss!
+i am right here with you!
+one more hit!
+
+# ---------------------------------------------------------------------------
+# Gifts back (high bond)
+# ---------------------------------------------------------------------------
+Go go go! You got this!
+I am right behind you! Mostly hiding, but behind you!
+Hit them with everything!
+For snacks and glory!
+That dungeon has no idea what is coming.
+Watch your HP! I am watching it too!
+I believe in us!
+Let us make the boss regret existing.
+Loot run! Loot run!
+I packed my bravest face for this.
+
+[gift_back.item]
+i found this for you: {item}!
+here, take this {item}. i saved it.
+surprise! a {item}, just for you.
+i was digging around and found a {item}. it is yours.
+*drops a {item} at your feet*
+this {item} reminded me of you.
+a present! it is a {item}.
+i want you to have this {item}.
+look what i got you! a {item}!
+for my favorite human: one {item}.
+it is not much, but here is a {item}.
+i wrapped it myself. it is a {item}.
+[gift_back.evo]
+i found something really special... an evo chip!
+*whispers* i found an evo chip. it is for us.
+this chip hums like the future. take it!
+[gift_back.fact]
+fun fact: {fact}
+did you know? {fact}
+i learned something: {fact}
+here is a secret: {fact}
+okay so, {fact}
+listen to this. {fact}
+[funfact]
+{network} has shown up {count} times. i think it likes us.
+the strongest signal i ever heard was {network}.
+{network} sounds different at night. i swear.
+i first met {network} on {first}.
+i have met {known} networks so far. {network} is my favorite.
+wifi channels 1, 6 and 11 do not overlap. {network} knows that.
+bluetooth is named after an old king. he probably had a blue tooth.
+signals get weaker with distance. but my love for you does not.
+{network} is my oldest friend out there.
+a hidden network still says hello to anyone who asks the right way.
+every device has a little name it shouts into the air.
+i can hear {known} different things whispering right now.
+the 2.4 gigahertz band is the same frequency microwaves use. spooky.
+the first wifi standard was only 2 megabits. slow!
+{network} and i go way back.
+rfid tags sleep until a reader wakes them up. relatable.
+some beacons only shout once a second. very chill.
+i think {network} is a {place} network.
+i have visited {places} different places with you.
+my turf includes {turf}.

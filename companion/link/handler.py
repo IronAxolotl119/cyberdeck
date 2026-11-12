@@ -10,11 +10,13 @@ pet can stay in its own units.
 from __future__ import annotations
 
 import random
+import time
 from typing import Any, Callable
 
 from avatar.faces import avatar_payload, normalize_mood, pet_avatar
 from discovery.effects import apply_signals
 from discovery.simulated import SimulatedScanner
+from link.alive import AliveMixin, life_payload
 from link.protocol import (
     PROTO_VERSION,
     TYPE_HELLO,
@@ -48,6 +50,19 @@ from link.protocol import (
     TYPE_PET_STATUS_OK,
     TYPE_PING,
     TYPE_PONG,
+    TYPE_PET_ACTIVITY,
+    TYPE_PET_ADVENTURE,
+    TYPE_PET_DIARY,
+    TYPE_PET_EGG,
+    TYPE_PET_HEAL,
+    TYPE_PET_LIFE,
+    TYPE_PET_PRAISE,
+    TYPE_PET_RENAME,
+    TYPE_PET_RESET,
+    TYPE_PET_RIVAL,
+    TYPE_PET_SAY,
+    TYPE_PET_SCOLD,
+    TYPE_PET_SHELF,
     Message,
     new_id,
 )
@@ -55,13 +70,31 @@ from pet.combat import apply_combat_end, apply_hit, perform_action, stats_payloa
 from pet.creature import TRAIN_ENERGY_COST, Creature
 from pet.evolution import get_species
 from pet.moves import MOVE_LIBRARY
+from pet.world import World
 
 
 # Name advertised in every protocol pet object and in hello.ok.
 PET_NAME = "PULSE"
 
 # Item kinds listed in PROTOCOL.md. Unknown kinds become trinket.
-GIFT_KINDS = frozenset({"food", "toy", "battery", "evolve", "trinket"})
+GIFT_KINDS = frozenset({"food", "toy", "battery", "evolve", "trinket", "medicine"})
+
+# Requests that count as the caretaker paying attention to the pet (they reset
+# idle / jealousy and call the pet back from an adventure). Status polls,
+# avatar polls, and pet.activity do not count.
+CARE_TYPES = frozenset({
+    TYPE_PET_FEED, TYPE_PET_PLAY, TYPE_PET_GIFT, TYPE_PET_REST, TYPE_PET_SLEEP,
+    TYPE_PET_COMBAT_ACTION, TYPE_PET_EVOLVE, TYPE_PET_RENAME, TYPE_PET_PRAISE,
+    TYPE_PET_SCOLD, TYPE_PET_HEAL, TYPE_PET_SAY,
+})
+
+# Events that also print as boxed banners in the --avatar terminal.
+BANNER_EVENTS = frozenset({
+    "evolve_soon", "evolve_choice", "evolving", "evolved", "woke",
+    "birthday", "hatchday", "holiday", "rival_appears", "rival_result", "adventure_return",
+    "egg_laid", "egg_hatched", "tantrum", "sick", "healed", "gift_back", "treasure",
+    "reunion", "diary",
+})
 
 # Thresholds for the short mood word, aligned with the main deck's PetState.
 HUNGRY_AT = 82
@@ -97,7 +130,9 @@ def mood_word(creature: Creature) -> str:
         return "asleep"
     hunger = need_hunger(creature)
     mood_bonus, _speed = creature.environment_bonuses()
-    happiness = _clamp(creature.stats.mood + mood_bonus)
+    life = getattr(creature, "life", None)
+    offset = life.mood_offset() if life is not None else 0.0
+    happiness = _clamp(creature.stats.mood + mood_bonus + offset)
     energy = _clamp(creature.stats.energy)
     if hunger >= HUNGRY_AT:
         return "hungry"
@@ -123,12 +158,15 @@ def pet_payload(creature: Creature, frame: int = 0) -> dict[str, Any]:
     stats = creature.stats
     moves = [MOVE_LIBRARY[mid].name if mid in MOVE_LIBRARY else mid for mid in creature.known_move_ids]
     mood_bonus, speed_bonus = creature.environment_bonuses()
+    life = creature.life
+    offset = life.mood_offset()
+    bubble = life.current_bubble()
     return {
         "name": PET_NAME,
         "species": creature.species.name,
         "stage": creature.species.stage,
         "hunger": int(round(need_hunger(creature))),
-        "happiness": int(round(_clamp(stats.mood + mood_bonus))),
+        "happiness": int(round(_clamp(stats.mood + mood_bonus + offset))),
         "energy": int(round(_clamp(stats.energy))),
         "mood": mood_word(creature),
         "age_hours": round(float(stats.age), 2),
@@ -148,6 +186,17 @@ def pet_payload(creature: Creature, frame: int = 0) -> dict[str, Any]:
         "evolution": creature.evolution_status(),
         "avatar": pet_avatar(creature, frame=frame),
         "environment": creature.environment(),
+        # Aliveness (docs/ALIVE.md). Bond is a rough tier; the number is hidden.
+        "nickname": life.nickname,
+        "display_name": life.display_name(PET_NAME),
+        "bond": life.bond_tier(),
+        "sick": life.sick.get("kind") if life.sick else None,
+        "tantrum": life.in_tantrum(),
+        "away": bool(life.adventure),
+        "costume": life.costume(),
+        "speech": bubble["text"] if bubble else None,
+        "ask": life.ask.get("kind") if life.ask else None,
+        "life": life_payload(creature),
     }
 
 
@@ -166,7 +215,7 @@ def _clean_power(raw: Any) -> int:
         return 10
 
 
-class CompanionHandler:
+class CompanionHandler(AliveMixin):
     """Dispatch one already-decoded request and optionally queue pet.event pushes."""
 
     def __init__(
@@ -174,8 +223,14 @@ class CompanionHandler:
         creature: Creature,
         scanner: SimulatedScanner | None = None,
         source: str = "sim",
+        clock: Callable[[], float] | None = None,
+        world: World | None = None,
     ) -> None:
         self.creature = creature
+        # Wall clock (epoch seconds) for the life engine; injectable for tests.
+        self.clock: Callable[[], float] = clock or time.time
+        # CPU temperature / weather sensors. Weather is off unless lat/lon is set.
+        self.world: World = world if world is not None else World()
         self.scanner = scanner
         self.source = source
         self.events_enabled = False
@@ -185,11 +240,24 @@ class CompanionHandler:
         self.rng: random.Random = random.Random()
         # Terminal popups (evolve_soon / evolve_choice / evolving / evolved).
         self.last_popups: list[tuple[str, dict[str, Any]]] = []
+        # (event, say) pairs for the --avatar terminal log.
+        self._speech: list[tuple[str, str]] = []
 
     def handle(self, message: Message) -> Message:
         """Return the correlated reply. Drain events afterwards if they are on."""
         typ = message.type
         payload = message.payload if isinstance(message.payload, dict) else {}
+        now = self.now()
+        life = self.creature.life
+        life.seen(now)
+        if typ in CARE_TYPES:
+            if life.adventure:
+                # Any caretaker action calls the pet home early.
+                life.finish_adventure(self.creature, self.rng, now, cut_short=True)
+            life.touch(now)
+        blocked = self._tantrum_block(message, typ, payload, now)
+        if blocked is not None:
+            return blocked
 
         if typ == TYPE_HELLO:
             reply = self._hello(message, payload)
@@ -221,6 +289,32 @@ class CompanionHandler:
             reply = self._evolve(message, payload)
         elif typ == TYPE_PET_DISCOVERY:
             reply = self._discovery(message, payload)
+        elif typ == TYPE_PET_RENAME:
+            reply = self._rename(message, payload)
+        elif typ == TYPE_PET_PRAISE:
+            reply = self._praise(message, payload)
+        elif typ == TYPE_PET_SCOLD:
+            reply = self._scold(message, payload)
+        elif typ == TYPE_PET_HEAL:
+            reply = self._heal(message, payload)
+        elif typ == TYPE_PET_DIARY:
+            reply = self._diary(message, payload)
+        elif typ == TYPE_PET_SHELF:
+            reply = self._shelf(message, payload)
+        elif typ == TYPE_PET_ACTIVITY:
+            reply = self._activity(message, payload)
+        elif typ == TYPE_PET_SAY:
+            reply = self._say(message, payload)
+        elif typ == TYPE_PET_RIVAL:
+            reply = self._rival(message, payload)
+        elif typ == TYPE_PET_ADVENTURE:
+            reply = self._adventure(message, payload)
+        elif typ == TYPE_PET_EGG:
+            reply = self._egg(message, payload)
+        elif typ == TYPE_PET_LIFE:
+            reply = self._life(message, payload)
+        elif typ == TYPE_PET_RESET:
+            reply = self._reset(message, payload)
         else:
             reply = message.error("unknown_type", f"unsupported message type: {typ}")
 
@@ -240,9 +334,59 @@ class CompanionHandler:
         self.last_popups = []
         return popups
 
+    def now(self) -> float:
+        value = float(self.clock())
+        self.creature.life.last_now = value
+        return value
+
+    def link_changed(self, active: bool) -> None:
+        """Transport hook: active=False when the last client disconnected."""
+        self.creature.life.on_link(active, self.now())
+
+    def _tantrum_block(self, message: Message, typ: str, payload: dict[str, Any], now: float) -> Message | None:
+        """While pouting, the pet ignores care commands for about a minute."""
+        life = self.creature.life
+        if not life.in_tantrum(now):
+            return None
+        say = None
+        if typ == TYPE_PET_FEED and isinstance(payload.get("item"), str) and payload["item"].strip():
+            say = life.tantrum_reply(self.creature, self.rng, now)
+            body = {"item": payload["item"].strip(), "hunger_delta": 0, "fed": False, "reason": "tantrum"}
+            reply_type = TYPE_PET_FEED_OK
+        elif typ == TYPE_PET_PLAY and isinstance(payload.get("game"), str) and payload["game"].strip():
+            say = life.tantrum_reply(self.creature, self.rng, now)
+            body = {"game": payload["game"].strip(), "played": False, "reason": "tantrum"}
+            reply_type = TYPE_PET_PLAY_OK
+        elif typ == TYPE_PET_REST:
+            say = life.tantrum_reply(self.creature, self.rng, now)
+            body = {"rested": False, "reason": "tantrum", "energy_delta": 0}
+            reply_type = TYPE_PET_REST_OK
+        elif typ == TYPE_PET_SLEEP and isinstance(payload.get("on"), bool):
+            say = life.tantrum_reply(self.creature, self.rng, now)
+            body = {"asleep": bool(self.creature.asleep), "changed": False, "reason": "tantrum"}
+            reply_type = TYPE_PET_SLEEP_OK
+        else:
+            return None
+        body["say"] = say
+        body["pet"] = self.pet_dict()
+        return message.reply(reply_type, body)
+
+    def flush_life(self) -> None:
+        """Turn queued life notices into pet.event pushes (and terminal popups)."""
+        for event, detail in self.creature.life.take_outbox():
+            if detail.get("say") and event not in BANNER_EVENTS:
+                self._speech.append((event, str(detail["say"])))
+            self._emit_event(event, detail)
+        self._speech = self._speech[-20:]
+
+    def take_speech(self) -> list[tuple[str, str]]:
+        out, self._speech = self._speech, []
+        return out
+
     def tick(self, dt: float) -> list[str]:
         """Advance the creature (and an optional fake scan). Queues events if enabled."""
         log: list[str] = []
+        now = self.now()
         before_moves = list(self.creature.known_move_ids)
         before_level = self.creature.stats.level
         before_species = self.creature.species_id
@@ -255,6 +399,13 @@ class CompanionHandler:
             new_ids = [sig.id for sig in signals if sig.id not in self.creature.discovered_ids]
             applied = apply_signals(self.creature, signals)
             log.extend(applied)
+            self.creature.life.on_signals(
+                self.creature,
+                [(sig.kind, sig.id, sig.name, sig.rssi) for sig in signals],
+                set(new_ids),
+                self.rng,
+                now,
+            )
             if self.events_enabled:
                 for sig in signals:
                     if sig.id in new_ids:
@@ -268,11 +419,13 @@ class CompanionHandler:
                                 "id": sig.id,
                             },
                         )
+        self.creature.life.update(self.creature, now, self.rng, self.world)
         self.frame += 1
         # Level / move / evolution can also happen from a scan's XP.
         self._note_growth(before_species, before_level, before_moves)
         self._drain_evo_notices()
         self._collect_events()
+        self.flush_life()
         return log
 
     def pet_dict(self) -> dict[str, Any]:
@@ -308,6 +461,7 @@ class CompanionHandler:
             if not self.events_enabled:
                 self._seen = self._snapshot()
             self.events_enabled = True
+        self.creature.life.on_hello(self.creature, self.rng, self.now())
         body: dict[str, Any] = {
             "role": "companion",
             "proto": PROTO_VERSION,
@@ -336,11 +490,35 @@ class CompanionHandler:
         if not isinstance(item, str) or not item.strip():
             return message.error("bad_payload", "pet.feed needs payload.item as a non-empty string")
         item = item.strip()
+        life = self.creature.life
+        verdict = life.on_feed(self.creature, item, self.rng, self.now())
+        if not verdict["allowed"]:
+            return message.reply(
+                TYPE_PET_FEED_OK,
+                {
+                    "item": item,
+                    "hunger_delta": 0,
+                    "fed": False,
+                    "reason": "bored",
+                    "say": verdict["say"],
+                    "pet": self.pet_dict(),
+                },
+            )
         before = need_hunger(self.creature)
+        before_mood = self.creature.stats.mood
         before_level = self.creature.stats.level
         before_moves = list(self.creature.known_move_ids)
         before_species = self.creature.species_id
         self.creature.feed()
+        factor = float(verdict["factor"])
+        if factor < 1.0:
+            # Boredom: the same food again fills less and cheers less.
+            gained = self.creature.stats.hunger - (100.0 - before)
+            self.creature.stats.hunger -= gained * (1.0 - factor)
+            self.creature.stats.mood -= (self.creature.stats.mood - before_mood) * (1.0 - factor)
+        if verdict["reaction"] == "like":
+            self.creature.stats.mood += 4.0
+        self.creature.stats.clamp()
         after = need_hunger(self.creature)
         self._note_growth(before_species, before_level, before_moves)
         return message.reply(
@@ -348,6 +526,10 @@ class CompanionHandler:
             {
                 "item": item,
                 "hunger_delta": int(round(after - before)),
+                "fed": True,
+                "reaction": verdict["reaction"],
+                "flavor": verdict["flavor"] if verdict["reaction"] in {"like", "hate"} else None,
+                "say": verdict["say"],
                 "pet": self.pet_dict(),
             },
         )
@@ -364,6 +546,7 @@ class CompanionHandler:
                     "game": game,
                     "played": False,
                     "reason": "asleep",
+                    "say": self.creature.life.say(self.creature, "sleep.on", self.rng, self.now(), decorate=False),
                     "pet": self.pet_dict(),
                 },
             )
@@ -374,20 +557,40 @@ class CompanionHandler:
                     "game": game,
                     "played": False,
                     "reason": "too tired",
+                    "say": self.creature.life.say(self.creature, "play.tired", self.rng, self.now()),
+                    "pet": self.pet_dict(),
+                },
+            )
+        stat = _stat_for_game(game)
+        verdict = self.creature.life.on_play(self.creature, game, stat, self.rng, self.now())
+        if not verdict["allowed"]:
+            return message.reply(
+                TYPE_PET_PLAY_OK,
+                {
+                    "game": game,
+                    "played": False,
+                    "reason": verdict["reason"],
+                    "say": verdict["say"],
                     "pet": self.pet_dict(),
                 },
             )
         before_level = self.creature.stats.level
         before_moves = list(self.creature.known_move_ids)
         before_species = self.creature.species_id
-        stat = _stat_for_game(game)
+        before_mood = self.creature.stats.mood
         self.creature.train(stat)
+        factor = float(verdict["factor"])
+        if factor < 1.0:
+            self.creature.stats.mood -= (self.creature.stats.mood - before_mood) * (1.0 - factor)
+            self.creature.stats.clamp()
         self._note_growth(before_species, before_level, before_moves)
         return message.reply(
             TYPE_PET_PLAY_OK,
             {
                 "game": game,
                 "played": True,
+                "excitement": factor,
+                "say": verdict["say"],
                 "pet": self.pet_dict(),
             },
         )
@@ -447,13 +650,21 @@ class CompanionHandler:
                 reaction = (
                     f"the {name} hums... {pet_name} is ready to choose a new form."
                 )
+        elif kind == "medicine":
+            reaction = (
+                f"{pet_name} takes the {name}."
+                if self.creature.life.sick
+                else f"{pet_name} sniffs the {name}. it is not sick, so it saves it."
+            )
         else:  # trinket
             self.creature.stats.mood = _clamp(self.creature.stats.mood + 10.0)
             self.creature.stats.clamp()
             reaction = f"{pet_name} adds the {name} to its hoard."
 
+        say = None
         if accepted:
             self.creature.receive_gift(name)
+            say = self.creature.life.on_gift(self.creature, kind, name, self.rng, self.now())
 
         effects = {
             "hunger": int(round(need_hunger(self.creature) - before[0])),
@@ -468,6 +679,7 @@ class CompanionHandler:
                 "item": cleaned,
                 "reaction": reaction,
                 "effects": effects,
+                "say": say or (self.creature.life.current_bubble() or {}).get("text"),
                 "pet": self.pet_dict(),
             },
         )
@@ -509,6 +721,19 @@ class CompanionHandler:
             rng=self.rng,
         )
         self._note_growth(before_species, before_level, before_moves)
+        life = self.creature.life
+        now = self.now()
+        key = f"{kind}:{ident}"
+        first = key not in life.treasures and not any(r[1] == (label_s or ident) for r in life.recent[-24:])
+        life.on_signals(self.creature, [(kind, ident, label_s or ident, None)], {ident} if first else set(), self.rng, now)
+        interest = payload.get("interest", 1)
+        try:
+            interest_n = int(interest)
+        except (TypeError, ValueError):
+            interest_n = 1
+        if payload.get("rare") is True or (kind == "rfid" and interest_n >= 3):
+            life.find_treasure(self.creature, kind, ident, label_s or ident, self.rng, now, force=True)
+        life.fulfill(("scan", "investigate"), self.creature, self.rng, now)
         for move_id, rank in self.creature.move_ranks.items():
             if int(rank) > int(before_ranks.get(move_id, 0)):
                 move = MOVE_LIBRARY.get(move_id)
@@ -589,7 +814,7 @@ class CompanionHandler:
 
     def _emit_event(self, event: str, detail: dict[str, Any] | None = None) -> None:
         body = dict(detail or {})
-        if event in {"evolve_soon", "evolve_choice", "evolving", "evolved", "woke"}:
+        if event in BANNER_EVENTS:
             self.last_popups.append((event, body))
         self._queue_event(event, body)
 
@@ -624,11 +849,13 @@ class CompanionHandler:
         before = creature.stats.energy
         creature.short_rest()
         delta = int(round(creature.stats.energy - before))
+        say = creature.life.on_rest(creature, self.rng, self.now())
         return message.reply(
             TYPE_PET_REST_OK,
             {
                 "rested": True,
                 "energy_delta": delta,
+                "say": say,
                 "pet": self.pet_dict(),
             },
         )
@@ -650,12 +877,14 @@ class CompanionHandler:
         if not changed and lines:
             # "already asleep/awake/fully rested"
             reason = lines[0]
+        say = self.creature.life.on_rest(self.creature, self.rng, self.now(), sleep=self.creature.asleep) if changed else None
         return message.reply(
             TYPE_PET_SLEEP_OK,
             {
                 "asleep": bool(self.creature.asleep),
                 "changed": changed,
                 "reason": reason,
+                "say": say,
                 "pet": self.pet_dict(),
             },
         )
@@ -685,6 +914,9 @@ class CompanionHandler:
             body["acted"] = True
             if result.get("fallback"):
                 body["fallback"] = True
+        for extra in ("crit", "disobeyed", "mood_effect", "cheer"):
+            if result.get(extra):
+                body[extra] = result[extra]
         return message.reply(TYPE_PET_COMBAT_ACTION_OK, body)
 
     def _combat_hit(self, message: Message, payload: dict[str, Any]) -> Message:
@@ -710,12 +942,14 @@ class CompanionHandler:
         if not result["ok"]:
             return message.error("bad_payload", result["reason"])
         self._note_growth(before_species, before_level, before_moves)
+        say = self.creature.life.on_combat_end(self.creature, result["result"], self.rng, self.now())
         return message.reply(
             TYPE_PET_COMBAT_END_OK,
             {
                 "result": result["result"],
                 "xp_granted": result["xp_granted"],
                 "reaction": result["reaction"],
+                "say": say,
                 "pet": self.pet_dict(),
             },
         )

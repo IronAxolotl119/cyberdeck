@@ -1,0 +1,449 @@
+# ---------------------------------------------------------------------------
+# Idle life
+# ---------------------------------------------------------------------------
+[idle.look_around]
+*looks left* *looks right*
+what is over there?
+*peers around the screen*
+hm? did something move?
+*scans the room*
+just checking the perimeter.
+*glances at the corner of the screen*
+all clear.
+*looks up at the top bar*
+i thought i heard something.
+*turns around slowly*
+anybody there?
+[idle.yawn]
+*big yawn*
+*yaaaawn*
+excuse me. *yawn*
+*yawns so hard its antenna shakes*
+mm... *yawn*
+*tiny yawn*
+yawning is contagious, you know.
+*yawn* not tired. just... *yawn*
+[idle.doze]
+*nods off*
+*eyes slowly close*
+zz... huh?
+*dozes for a second*
+just resting my eyes.
+*head bobs*
+*snores softly*
+*sleepy mumble*
+[idle.chase_bug]
+a bug! *chases it*
+get back here, little bug!
+*pounces* missed!
+there is a pixel bug on the screen! *hop hop*
+i will catch you, bug!
+*swats at a stray pixel*
+bug detected. engaging.
+*chases a glitch around the corner*
+it went that way!
+got it! oh, it was a dust speck.
+*stalks the bug carefully*
+come here, you!
+[idle.stretch]
+*stretches all its pixels*
+*long stretch* ahh.
+*does a little yoga pose*
+*cracks its virtual knuckles*
+*stretches its antenna up high*
+mmm, stretchy.
+[idle.hum]
+*hums a little tune*
+hm hm hmmm~
+*beeps a melody*
+la la la, la la.
+*whistles in dial-up*
+*hums the startup sound*
+doo doo doo~
+*taps out a rhythm*
+[idle.stare]
+*stares at you*
+...
+*stares intently*
+you were gone a while.
+*blinks slowly at you*
+i am watching you.
+*unblinking stare*
+are you still there?
+*stares into the camera*
+hi. still here. staring.
+[idle.show_off]
+look at my {trinket}! is it not shiny?
+*shows off the {trinket}*
+have you seen my {trinket}? it is my favorite.
+*polishes the {trinket}*
+my shelf is looking great. especially the {trinket}.
+i have {count} treasures now!
+*holds up the {trinket} proudly*
+the {trinket} sparkles when i am happy.
+[idle.dance]
+*does the {dance}*
+dance break! *{dance}*
+*busts out the {dance}*
+i call this one the {dance}!
+*{dance}* hehe.
+watch this! *{dance}*
+[idle.waiting]
+*waits by the edge of the screen*
+it is almost {time}... they always come around {time}.
+*watches the port*
+any minute now...
+*sits patiently*
+i bet they come soon.
+[idle.talk_router]
+hey router. you up?
+the router said nothing. as usual.
+i told the router a joke. it did not laugh.
+[idle.count]
+*counts its pixels* one, two, three...
+*counts known moves* {count}! nice.
+*counts friends* ...you. that is one. great.
+[idle.night]
+*watches the stars through the screen*
+the night is so quiet.
+*listens to the fan*
+everyone is asleep except us.
+
+# ---------------------------------------------------------------------------
+# Hiccups / sneezes
+# ---------------------------------------------------------------------------
+[hiccup]
+*hic!*
+*hic* ...*hic!*
+oh no, hiccups. *hic*
+*hic* sorry. *hic*
+*hiccups a stray packet*
+hic! hic! make it stop!
+*hic* i think i ate too fast.
+*hic* boo! did that scare them? *hic*
+*hiccups in binary* 1! 0! 1!
+*hic* excuse me.
+[sneeze]
+a- a- ACHOO!
+*sneezes static*
+achoo! sorry.
+*tiny sneeze* pip!
+*sneezes so hard its antenna spins*
+bless me.
+a- a- ...nope. ...ACHOO!
+*sneezes a pixel out*
+heh- heh- KSHH!
+*sneezes in dial-up*
+
+# ---------------------------------------------------------------------------
+# Dreams (shown as bubbles while asleep)
+# ---------------------------------------------------------------------------
+[dream.discovery]
+...{network}... so shiny...
+*mumbles* new signal... must... sniff...
+dreaming of {network} again...
+...the {network} is singing...
+zz... found you, {network}...
+...a whole sky full of {network}...
+*twitches* ...beacon... over there...
+...i am a router... i have so many friends...
+[dream.fight]
+...take that, {foe}... zz...
+*kicks in sleep* ...{move}!...
+...i won... i won the dungeon...
+...not again, {foe}...
+*growls softly* ...{rival}...
+...hit... dodge... {move}...
+[dream.food]
+...{food}... so much {food}...
+*chews in sleep* ...mmm {food}...
+...a mountain of {food}...
+...no more {food}... okay one more...
+[dream.adventure]
+...back at {place}... zz...
+...the {trinket}... i found it...
+...walking... walking... far away...
+...over the hills of {place}...
+[dream.friend]
+...{name} and me... best friends...
+...your hand... warm screen...
+*smiles in sleep* ...you came back...
+...we are flying... over the network...
+[dream.generic]
+zzz... zzz...
+*mumbles* five more minutes...
+...flying through the cables...
+...the stars are pixels...
+*sleep-beeps*
+...the clouds are made of bytes...
+...counting sheep... sheep.exe...
+...whoa... a giant cursor...
+...i can see every channel at once...
+...falling... no, floating...
+*snores like a fan*
+...am i evolving?... zz...
+
+# ---------------------------------------------------------------------------
+# Awareness of the real world
+# ---------------------------------------------------------------------------
+[aware.busy]
+wow, so many signals here!
+it is so lively! {count} things are talking at once!
+this place is buzzing!
+i love busy places! so much to sniff!
+everyone is broadcasting! i am excited!
+the air is crowded and i love it.
+so many new friends nearby!
+[aware.empty]
+it is so quiet... no signals at all.
+where did everyone go?
+i do not hear anything out there. it is creepy.
+no networks? are we in a cave?
+it is lonely without signals.
+*listens hard* ...nothing.
+[aware.hot]
+it is so hot... {temp} degrees!
+the deck is cooking me.
+*fans itself* hot hot hot.
+my pixels are melting at {temp}.
+can we cool down? it is {temp} in here.
+*pants* the cpu is a sauna.
+[aware.cold]
+brr, {temp} degrees. chilly.
+*shivers* it is cold in here.
+my circuits are frosty.
+[aware.night]
+it is so late... i am getting sleepy.
+should we not be asleep?
+*yawns* the clock says it is late.
+the night is for sleeping, you know.
+[tod.morning]
+*grumbles* it is morning.
+mornings are the worst.
+i am not a morning pet.
+do not talk to me until i have had my bytes.
+ugh. sunlight.
+the morning is too bright.
+five more minutes, i said.
+*grumpy noises*
+morning is a bug, not a feature.
+i woke up on the wrong side of the screen.
+[tod.afternoon]
+afternoon energy! let us gooo!
+i am SO awake right now!
+zoom zoom zoom!
+i could run laps around the screen!
+afternoon is the best time!
+*bounces off the edges*
+hyper mode! hyper mode!
+i have too much energy!
+let us do everything at once!
+whee! whee! whee!
+[tod.night]
+it is late and my thoughts are getting weird.
+you know what i think about at night?
+the night makes me philosophical.
+can i tell you something?
+i have been thinking...
+okay, hear me out.
+late night pet thoughts, incoming.
+it is so quiet. let me talk.
+
+# ---------------------------------------------------------------------------
+# Territory / memory of places
+# ---------------------------------------------------------------------------
+[territory.recognize]
+oh! we are at {place}! i know {network}!
+{network}! i remember you! this is {place}!
+hey, it is {place} again.
+i know this place. {place}!
+welcome back to {place}, me.
+*sniffs* {network}... yes, this is {place}.
+ooh, {place}! i like it here.
+i would recognize {network} anywhere.
+we have been to {place} {count} times now.
+{place} again! my favorite spot.
+[territory.turf]
+this is my turf. {network} is mine.
+i rule this place.
+*patrols its turf*
+everything here belongs to me. and you.
+home turf advantage!
+[territory.suspicious]
+who is {network}? that is not from around here.
+*narrows eyes* a new network on MY turf?
+hmm, {network}... i do not trust it.
+there is a stranger on our turf.
+{network}? never heard of you. suspicious.
+*growls at {network}*
+something new is here. i am watching it.
+i will keep an eye on {network}.
+[territory.nervous]
+where are we? i do not know any of these signals.
+this place is new... i am a little nervous.
+*hides behind you* so many strangers.
+i do not recognize anything here.
+new place, new signals... scary.
+*clings to the screen* where are we?
+everything smells different here.
+i hope this place is friendly.
+
+# ---------------------------------------------------------------------------
+# Treasure (rare signals)
+# ---------------------------------------------------------------------------
+[treasure]
+TREASURE! a rare signal: {network}!
+whoa whoa whoa, {network}?! that is rare!
+*eyes sparkle* {network}... i have never seen anything like it.
+a hidden one! i found a hidden one!
+jackpot! {network} goes on my shelf!
+this is the rarest thing i have ever sniffed!
+oh my bytes. {network}. treasure!
+i knew something special was out there!
+*does the treasure dance* {network}!
+legendary find! {network}!
+we are treasure hunters now.
+put this one in the history books: {network}.
+
+# ---------------------------------------------------------------------------
+# Weather
+# ---------------------------------------------------------------------------
+Ooh, what is this? A {trinket}!
+Look what I dug out of the noise. Mine now.
+A rare one! Straight to the shelf.
+Treasure detected. Happiness detected.
+I found a {trinket}! It hums when I hold it.
+This signal is weird and I love it.
+Nobody else has one of these. Probably.
+Shiny! Shiny shiny shiny.
+I am a treasure hunter now. Call me Captain {name}.
+Add it to the collection. That makes {count}!
+
+[weather.sunny]
+it is sunny out! i feel energetic!
+sunshine! my solar sensors are happy.
+what a bright day!
+the sun is out and so am i!
+perfect weather for scanning.
+[weather.cloudy]
+kind of cloudy today.
+grey skies. meh.
+the clouds look like big servers.
+[weather.rain]
+it is raining... i feel mopey.
+*listens to the rain* drip drip.
+rainy days make me sleepy and sad.
+i hope my circuits do not get wet.
+the rain sounds like static.
+[weather.snow]
+snow! is it cold? it looks cold.
+snowflakes are like tiny packets.
+brrr. snow day!
+[weather.storm]
+thunder! *hides*
+a storm! i do not like lightning.
+storms mess with my signals.
+[weather.fog]
+it is foggy. spooky.
+everything is blurry out there.
+
+# ---------------------------------------------------------------------------
+# Birthday / hatchday / holidays
+# ---------------------------------------------------------------------------
+[birthday]
+it is my birthday! i hatched {years} year(s) ago today!
+happy birthday to me! happy birthday to me!
+*puts on a party hat* it is my hatch day!
+{years} year(s) old! where is my cake?
+today is my special day!
+i am {years}! that is like a hundred in pet years!
+birthday mode activated!
+thank you for {years} amazing year(s)!
+*blows out a tiny candle*
+best birthday ever because you are here.
+Happy birthday to me! {years} year(s) of being awesome!
+Cake? Is there cake? Tell me there is cake.
+Another lap around the sun. I did not even get dizzy.
+Party mode: ON.
+I am {years} today! I feel wiser. And hungrier.
+Thanks for keeping me around another year.
+Birthday wish: more snacks, more you.
+I put on my party hat. Do not laugh. Okay, laugh.
+Today is my day. Everything is about me. As usual.
+{years} year(s)! Look how far we have come!
+
+[hatchday]
+i am {months} month(s) old today!
+happy hatch-month to me!
+another month together! yay!
+it has been {months} month(s) since i hatched!
+monthly party time! *tiny hat*
+{months} month(s)... i am growing up.
+[holiday.new_year]
+happy new year! *party horn*
+new year, new pet! well, same pet. but newer.
+my new year's resolution: more snacks.
+3, 2, 1... happy new year!
+let us make this year legendary!
+[holiday.valentines]
+happy valentine's day! *heart eyes*
+you are my favorite human. always.
+i made you a card. it says beep. it means love.
+*sends you a heart packet*
+will you be my valentine?
+[holiday.pi_day]
+happy pi day! 3.14159... i am a raspberry, after all!
+pi day is basically my birthday too.
+mmm, pie. or pi. either works.
+[holiday.st_patricks]
+happy st. patrick's day! i am wearing green pixels.
+*searches for a four-leaf clover*
+lucky me! lucky you!
+[holiday.april_fools]
+i evolved into a toaster! ...april fools!
+*face is upside down* happy april fools!
+your battery is at 1 percent! just kidding.
+i deleted all my moves! ...not really. april fools!
+[holiday.earth_day]
+happy earth day! the planet has the best wifi.
+let us plant a tree. a binary tree.
+[holiday.star_wars]
+may the fourth be with you!
+i am your pet. *heavy breathing*
+use the force. or the deck.
+[holiday.solstice]
+longest day of the year! so much sun!
+the sun is staying up late. like me.
+[holiday.independence]
+happy fourth of july! *fireworks*
+boom! pop! sparkle!
+fireworks look like signal bursts.
+[holiday.programmers_day]
+happy programmer's day! day 256!
+0x100 days into the year!
+thank a programmer today. thank you, programmers.
+[holiday.halloween]
+happy halloween! *wears a pumpkin*
+boo! did i scare you?
+trick or treat! i want treats. digital treats.
+i am a ghost in the machine!
+*spooky beeps*
+this is the spookiest night of the year!
+i am dressed up as a scary virus. rawr.
+[holiday.thanksgiving]
+happy thanksgiving! i am thankful for you.
+*gobble gobble*
+so much food today. i love this holiday.
+i am thankful for snacks, signals, and you.
+[holiday.christmas]
+merry christmas! *jingle beeps*
+is that a present for me?
+i have been a very good pet this year.
+*wears a santa hat* ho ho ho!
+let it snow, let it snow, let it bytes.
+[holiday.leap_day]
+leap day! a bonus day! *leaps*
+february 29 only comes every four years. so rare!
+[holiday.friday_13]
+friday the 13th... *nervous beeps*
+i am not superstitious. *knocks on the case*

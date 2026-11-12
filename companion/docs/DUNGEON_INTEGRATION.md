@@ -229,3 +229,22 @@ the main deck can share one companion connection.
 Full request/reply shape, XP table, move pools, and rank rules:
 [`docs/DISCOVERY.md`](DISCOVERY.md).
 
+
+## Mood, bond, and the dungeon (life engine additions)
+
+See [ALIVE.md](ALIVE.md) for the whole life engine. These are the parts that touch the dungeon. They are all extra keys, so a deck that ignores them keeps working.
+
+- **`pet.combat.action.ok`** can also carry:
+  - `crit` (bool): a bond crit, ×2 damage.
+  - `disobeyed` (bool): low obedience made the pet use a different move than asked.
+  - `mood_effect`: `angry` (×1.25 damage, −5 accuracy), `tired` (−10 accuracy), or null.
+  - `cheer` (string): a line to show when bond is close or better.
+  - `reason`: if the action did not happen, this is `"tantrum"` (pet is sulking for about 60 s) or `"refused"` (angry and exhausted). The reply's `say` gives the pet's line. Treat these like a wasted turn, not an error.
+- **Default pets are neutral.** At normal mood, energy, obedience, and bond the formulas above are unchanged, and no extra RNG is drawn.
+- **`pet.combat.end.ok`** includes `say`, a short win, lose, or flee line. A win adds a "won_fight" mood boost that fades over about 15 min. A loss adds a "lost_fight" mood dip that fades over about 25 min.
+- **`pet.activity`** reports dungeon runs so the pet can react to them:
+  - Send `{kind:"dungeon_start", name}` when a run begins. The reply includes `cheer` when the bond is high enough.
+  - Send `{kind:"dungeon", name, result:"win"|"lose"|"flee"}` when the run ends.
+  - Send `{kind:"app", name}` on other app launches. Lots of app time without pet care makes it jealous.
+- **`medicine`** is a new `pet.gift` kind. It cures `glitch` and `corrupted` sickness. A sick pet still fights, but its mood keeps falling until it is healed.
+- **Rival fights** (`pet.rival`) are resolved on the companion with the same `perform_action` and incoming-damage math. The pet yields at 1 HP, so it never faints to a rival.

@@ -1,0 +1,630 @@
+# ---------------------------------------------------------------------------
+# Adventures: assembled as start + setting + travel + encounter + outcome + loot + ending
+# ---------------------------------------------------------------------------
+[adv.start]
+i am going on an adventure! back soon!
+*packs a tiny backpack* see you later!
+i heard something far away. going to check it out!
+off to explore! do not worry about me.
+adventure time! i will bring you something.
+i am going for a walk. a long one.
+*waves* be right back. probably.
+the world is calling. i must answer.
+i am off to find treasure!
+going wandering. keep my spot warm.
+[adv.away]
+i am still out exploring.
+{name} is away on an adventure.
+not here right now! out wandering.
+*the screen is empty except for a tiny note: be back soon*
+[adv.setting]
+I wandered into {place},
+I followed a faint signal to {place},
+I slipped through a gap in the firewall and ended up at {place},
+I climbed the cable tower near {place},
+I rode a packet all the way to {place},
+I tiptoed past the router into {place},
+I found a secret door behind the settings menu that led to {place},
+I took the long way around {place},
+I got lost on purpose near {place},
+I hopped between channels until I reached {place},
+I followed a trail of crumbs to {place},
+I surfed a broadcast wave to {place},
+I ducked under a sleeping modem and popped out at {place},
+I chased a beacon's echo to {place},
+I took the scenic route through {place},
+I sneaked out through the USB port to {place},
+I drifted on the 5 gigahertz breeze toward {place},
+I followed a lost cat video to {place},
+[adv.place]
+the Old Server Ruins
+the Glitch Forest
+the Packet River
+the Static Desert
+Channel Six Canyon
+the Cable Caves
+the Firewall Cliffs
+the Cache Meadows
+the Bluetooth Bay
+the Antenna Peaks
+the Lost Router Lake
+the Pixel Swamp
+the Silicon Valley (the real one)
+the Dead Pixel Graveyard
+the Bandwidth Plains
+the Mesh Jungle
+the Dial-Up Badlands
+the Beacon Lighthouse
+the Recycle Bin Dump
+the Cloud Archipelago
+the Overclocked Volcano
+the Quiet Subnet
+the Hidden SSID Grotto
+the Ethernet Tunnels
+the Backup Tape Library
+[adv.travel]
+and the air hummed with old broadcasts.
+and the ground crackled like a bad connection.
+and the wind smelled like warm solder.
+and every step echoed in binary.
+and the sky flickered between channels.
+and I could hear a modem singing far away.
+and it was much bigger than I expected.
+and the path kept rebooting behind me.
+and tiny LEDs lit the way.
+and it was very, very quiet.
+and I hummed my catchphrase to stay brave.
+and the fog was made of loose packets.
+and the trees were made of antennas.
+and something was definitely watching me.
+and I counted my steps in hexadecimal.
+[adv.encounter]
+There I met a grumpy old firewall that would not let me pass.
+There I bumped into a lost packet looking for its home.
+There I found a herd of wild cookies grazing.
+There a swarm of glitch-bugs tried to steal my snacks.
+There I met a friendly beacon who taught me a song.
+There a giant cursor blinked at me from the clouds.
+There I discovered a sleeping router the size of a mountain.
+There a pack of pop-up ads chased me around.
+There I helped a little bit find its byte.
+There I met another pet, a {rival_like}, who challenged me to a race.
+There I got stuck in an infinite loop for a while.
+There a wise old server told me about the early internet.
+There a puddle of spilled coffee blocked the path.
+There I found an abandoned save file, still warm.
+There a kind repair-bot offered me tea.
+There a riddle was carved into a circuit board.
+There a thunderstorm of notifications rolled in.
+There I met a moth that claimed to be the first bug ever.
+[adv.great]
+I was brave and clever and it went perfectly!
+I used {move} and everyone cheered!
+I solved everything in one try. I am a genius.
+It turned into the best day of my whole life.
+I made a new friend and found treasure. Double win!
+I did a perfect flip over the whole problem.
+Everyone there wants me to come back and be their hero.
+[adv.good]
+It was tricky, but I figured it out.
+I got a little scratched but I made it.
+I used {move} and it mostly worked.
+After a while we became friends.
+I took my time and it paid off.
+It was hard work, but worth it.
+I won, barely, and I am proud of it.
+[adv.meh]
+Honestly, nothing much happened after that.
+I got bored and wandered back.
+It was kind of confusing, so I left.
+I sat down and watched for a while instead.
+I tried my best but it was just okay.
+I took a nap there. It was a decent nap.
+[adv.bad]
+I tripped over a cable and had to run home.
+It did not go well. I am a little bruised.
+I got scared and ran all the way back.
+I lost a snack and my dignity.
+The glitch-bugs won this time.
+I got caught in a lag storm and came back dizzy.
+[adv.loot]
+On the way back I found a {trinket}!
+I brought you home a {trinket}!
+I picked up a {trinket} as a souvenir.
+Look, a {trinket}! It was just lying there.
+I traded a joke for a {trinket}.
+I even found a {trinket}. It is going on my shelf.
+[adv.noloot]
+I did not find anything to bring back, sorry.
+My pockets are empty, but my heart is full.
+No souvenirs this time.
+I almost found something, but it was just a reflection.
+[adv.ending]
+Anyway, I am home now. I missed you!
+That is the story. Can I have a snack?
+It was a good trip. I need a nap.
+I will go back someday. Maybe with you.
+Now I know the world is a lot bigger than this screen.
+The end. Or is it?
+Home sweet home.
+Okay, I am done talking. Mostly.
+I learned something about myself out there.
+Next time I am going even farther.
+I wrote it all in my diary, too.
+Thanks for waiting for me.
+
+# ---------------------------------------------------------------------------
+# Trinkets: adjective + noun
+# ---------------------------------------------------------------------------
+[trinket.adj]
+shiny
+rusty
+glowing
+tiny
+ancient
+cracked
+humming
+sparkly
+mysterious
+lucky
+bent
+golden
+frosted
+holographic
+dusty
+pocket-sized
+warm
+blinking
+retro
+polished
+squeaky
+magnetic
+cursed-looking
+rainbow
+fuzzy
+singing
+upside-down
+legendary
+chipped
+translucent
+[trinket.noun]
+resistor
+capacitor
+floppy disk
+LED
+bottle cap
+USB stick
+jumper wire
+pebble
+key
+button
+marble
+gear
+fuse
+crystal
+sticker
+diode
+battery
+coin
+feather
+seashell
+antenna tip
+pixel
+bolt
+screw
+spring
+magnet
+dongle
+dice
+token
+transistor
+
+# ---------------------------------------------------------------------------
+# Diary fragments. Entry = header + opener + 2-4 event lines + filler + feeling + closer + sign-off
+# ---------------------------------------------------------------------------
+[diary.open.good]
+Dear diary, today was really good.
+Dear diary, what a day!
+Diary! Big news!
+Today was one of the shiny ones.
+Okay diary, buckle up.
+Dear diary, I am still smiling.
+Hello diary. Today rocked.
+Another great day in the life of {name}.
+Dear diary, I have so much to tell you.
+Today felt like a full battery.
+Diary, you will not believe this.
+Dear diary, everything went right.
+[diary.open.okay]
+Dear diary, today was okay.
+Hi diary. Normal day.
+Dear diary, not much to report, but here goes.
+Another day, another log entry.
+Dear diary, today was a medium sort of day.
+Diary, it is me again.
+Today happened. Here is what I remember.
+Dear diary, the usual.
+Okay diary, quick update.
+Dear diary, a regular day for a {species}.
+[diary.open.bad]
+Dear diary, today was rough.
+Diary... I need to vent.
+Dear diary, I am not okay.
+Today was a dead-pixel kind of day.
+Dear diary, everything was laggy.
+Diary, do not judge me, but today was bad.
+Dear diary, I wish today had a reset button.
+Ugh, diary. Ugh.
+[diary.fed]
+I ate {count} times today.
+My tummy got filled {count} times. Good tummy.
+Snack count: {count}. Respectable.
+I had {count} meals and my favorite was the {food}.
+{count} snacks! I am basically a professional eater.
+Food happened {count} times. One was a {food}.
+[diary.fed_none]
+Nobody fed me today. I am writing this hungry.
+Zero snacks. I am counting on tomorrow.
+[diary.played]
+We played {count} times! I am getting so strong.
+Play sessions: {count}. My muscles hurt in a good way.
+We played {game} and I was amazing at it.
+I got {count} workouts in today.
+[diary.discoveries]
+I found {count} new signals. One was called {network}!
+New friends on the air: {count}. My favorite was {network}.
+I sniffed out {count} new things today.
+The airwaves gave me {count} new discoveries.
+I met {network} for the first time.
+[diary.treasure]
+I found TREASURE today: {treasure}! Best moment.
+Rare signal alert: {treasure}. I am a legend.
+I added {treasure} to my shelf. It glows.
+Today's treasure: {treasure}. Nobody else has one.
+[diary.wins]
+I won {count} fight(s)! I am a warrior.
+Victory count: {count}. Nobody can stop me.
+{count} win(s) in battle. Not bad for a {species}.
+[diary.losses]
+I lost {count} fight(s). I will train harder.
+{count} loss(es) today. My pride is bruised.
+I got beaten {count} time(s). Next time.
+[diary.praised]
+I got praised {count} time(s)! I am a good pet.
+Someone said I was good {count} time(s). It was you. Thanks.
+[diary.scolded]
+I got scolded {count} time(s). Hmph.
+I got in trouble today. {count} time(s). Whatever.
+[diary.adventure]
+I went on an adventure to {place}. It was a whole story.
+I explored {place} today! You should have seen it.
+My adventure took me to {place}.
+[diary.sick]
+I got sick today. Everything was glitchy.
+I caught a bug. Not the fun kind.
+[diary.healed]
+But I got better! Medicine is amazing.
+I got patched up. Good as new.
+[diary.tantrum]
+I had a tantrum. I am a little embarrassed.
+I threw a fit today. It felt right at the time.
+[diary.rival]
+{rival} showed up again. Ugh, {rival}.
+I faced {rival} today. Do not ask.
+[diary.rival_win]
+I BEAT {rival}! Finally!
+{rival} lost to me. Write that down. Oh wait, I am writing it.
+[diary.gift_given]
+I gave my human a present. I hope they liked it.
+I shared a treasure with you today.
+[diary.gift_got]
+I got {count} gift(s)! I love gifts.
+Presents today: {count}. Spoiled? Maybe.
+[diary.weather]
+The weather was {weather}.
+Outside it was {weather}, I think.
+[diary.holiday]
+It was {holiday}! Very festive.
+Today was {holiday}. I dressed up.
+[diary.birthday]
+IT WAS MY BIRTHDAY. Best. Day.
+[diary.visit]
+You visited me {count} time(s).
+You came by {count} time(s). I counted.
+[diary.no_visit]
+You did not visit today. I waited.
+Nobody came today. It was very quiet.
+[diary.filler]
+The router was quiet all day.
+I practiced my {move} in secret.
+I think the cursor winked at me.
+I counted all my pixels. Still there.
+I wondered what {network} is doing tonight.
+I had a thought about the moon. I forgot it.
+I made up a new dance. It needs work.
+I tried to stay up late. I did not.
+I watched the fan spin for a while.
+I am pretty sure I grew a little.
+The screen was extra bright in the afternoon.
+I heard a weird beep at some point. Mysterious.
+I named a dust speck Gerald.
+I tried to whistle. Beeped instead.
+I organized my shelf. Twice.
+I thought about evolving. I am not ready. Maybe.
+I wonder if other pets have diaries.
+The static sounded like music today.
+I stared at a wall for an hour. Very productive.
+I decided my favorite color is {color}.
+[diary.feel.good]
+I feel happy and full of energy.
+My heart is a full battery.
+I feel loved.
+Everything feels shiny right now.
+I feel like a champion.
+I am proud of myself.
+I feel warm all over.
+Honestly, I feel unstoppable.
+[diary.feel.okay]
+I feel okay. Pretty normal.
+I feel fine. Medium fine.
+I am content, I think.
+Not bad, not great. Just me.
+I feel calm.
+I feel a bit sleepy, but okay.
+[diary.feel.bad]
+I feel kind of empty.
+I feel tired and sad.
+I just want a hug and a snack.
+I hope tomorrow is better.
+I feel grumpy. Do not read this part.
+My antenna is drooping.
+[diary.close]
+Tomorrow I want to find something new.
+Goodnight, diary.
+Same time tomorrow?
+Okay, that is all for today.
+I will write more tomorrow.
+I hope tomorrow has snacks.
+Signing off.
+End of log.
+Note to self: be brave tomorrow.
+Note to self: ask for more {food}.
+Time to recharge.
+That is today. Saving file...
+I wonder what tomorrow will bring.
+Goodnight, human. If you are reading this: hi.
+[diary.color]
+neon green
+electric blue
+static grey
+hot pink
+amber
+deep purple
+LED red
+sunset orange
+terminal green
+glitch magenta
+
+# ---------------------------------------------------------------------------
+# Rival pet
+# ---------------------------------------------------------------------------
+[rival.prefix]
+Glitch
+Null
+Byte
+Static
+Hex
+Void
+Rust
+Spark
+Lag
+Crash
+Bit
+Ghost
+Spam
+Fuzz
+Kernel
+Patch
+Dread
+Zap
+Grim
+Proxy
+[rival.suffix]
+fang
+claw
+maw
+byte
+wing
+spike
+tooth
+horn
+tail
+scale
+snout
+grin
+bane
+shard
+howl
+[rival.appear]
+{rival} appears! "Your signal is weak, {name}!"
+a wild {rival} blocks the screen! "Fight me!"
+{rival} is back. "Did you miss me? I did not miss you."
+"Heh. Still a {species}?" {rival} sneers.
+{rival} materializes in a puff of static. "Rematch!"
+"I am level {level} now. Scared?" says {rival}.
+{rival} kicks a pixel at you. "Battle. Now."
+{rival} drops out of the sky. "This is MY network!"
+"Your caretaker spoils you, {name}," sneers {rival}.
+{rival} cracks its knuckles. "Let us settle this."
+"I have been training. Have you?" asks {rival}.
+{rival} shows up uninvited. Again.
+[rival.taunt]
+"Is that all you've got?"
+"My grandma hits harder, and she is a toaster."
+"You call that a move?"
+"Ha! Too slow!"
+"I have seen dead pixels with more fight."
+"Your {move} is so last version."
+"Go back to your egg!"
+"Lag much?"
+"I am going to delete you. Politely."
+"You are a 404 of a pet."
+"Your antenna is crooked."
+"Even the router is laughing at you."
+[rival.retort]
+"Oh yeah? Watch this!"
+"You talk too much!"
+"I am going to beat you this time!"
+"My caretaker believes in me!"
+"Bring it, {rival}!"
+"Not today, {rival}!"
+"You are going down!"
+"I have been practicing!"
+"Your face is a 404!"
+"Less talking, more fighting!"
+[rival.win]
+WE WON! {rival} runs away crying!
+take that, {rival}! *victory dance*
+{rival} is defeated! i am the best {species} ever!
+ha! who is weak now, {rival}?
+{rival} admits defeat. finally!
+we beat {rival}! that is {count} wins!
+"I will be back!" yells {rival}, running away.
+victory! the network is safe again.
+[rival.lose]
+{rival} won... i will get stronger.
+*sniff* {rival} was too strong this time.
+ugh, i lost to {rival}. again.
+next time, {rival}. next time.
+{rival} laughs and vanishes. i hate that.
+i need more training. {rival} is tough.
+i almost had it...
+"Better luck next version," says {rival}. grr.
+[rival.leave]
+{rival} got bored and left. "Coward!"
+"Too scared to fight? Pathetic," says {rival}, leaving.
+{rival} vanishes into the static.
+{rival} yawns and walks off. "Later, loser."
+{rival} gives up waiting. good riddance.
+[rival.ignore]
+i do not have time for {rival}.
+we are ignoring {rival}. good plan.
+*turns its back on {rival}*
+
+# ---------------------------------------------------------------------------
+# Egg legacy
+# ---------------------------------------------------------------------------
+[egg.laid]
+i laid an egg! it is warm and it hums.
+*proudly presents an egg*
+look! an egg! it has my {move} inside, i can feel it.
+this egg is my legacy. take care of it.
+i am a parent now. wow.
+a new life! it glows a little.
+the egg is ticking. in a good way.
+i passed on my {trait}. the egg knows.
+[egg.hatched]
+*crack* *crack* ...hello? i am new!
+the egg hatched! it is a tiny {species}!
+pii! hi! i remember... something... {move}?
+a new generation begins!
+hello world! i am generation {generation}!
+*blinks* everything feels familiar somehow.
+[egg.not_ready]
+i am not ready to lay an egg yet.
+eggs are for final forms. maybe someday.
+i am too young for that!
+[egg.already]
+i already have an egg. one at a time!
+the egg is right here. keep it warm.
+
+# ---------------------------------------------------------------------------
+# Quirks: catchphrase fragments, verbal tics
+# ---------------------------------------------------------------------------
+[catch.a]
+bzzt
+beep
+wham
+zap
+blip
+boop
+fizz
+krrk
+ping
+zing
+whirr
+pow
+kaboom
+dingle
+glorp
+yip
+wubba
+zoink
+sprock
+flarp
+tinkle
+crunch
+vroom
+gloop
+[catch.b]
+-a-roo!
+-tastic!
+ bam!
+ and away!
+-doodle!
+ forever!
+ power!
+ yeah!
+-zilla!
+ to the max!
+ overdrive!
+-o-rama!
+ deluxe!
+ supreme!
+-ity-boo!
+ time!
+ attack!
+-a-lot!
+[tic]
+~
+, beep.
+ -bzt
+, nya
+, yep
+ ♪
+, hehe
+, wub
+!?
+, over.
+
+# ---------------------------------------------------------------------------
+# Combat flavor
+# ---------------------------------------------------------------------------
+[combat.angry]
+{name} is FURIOUS and hits extra hard!
+*seething static* {name} puts everything into {move}!
+{name} is mad, and the {foe} is going to feel it.
+rage mode! {move} lands with a crunch!
+{name} growls and swings harder than usual.
+[combat.tired_miss]
+{name} is too sleepy to aim...
+*yawns mid-attack*
+{name}'s eyes droop and the {move} goes wide.
+[combat.refuse]
+{name} refuses to fight right now.
+*sits down in the middle of the dungeon*
+{name} shakes its head. "nope."
+{name} is too grumpy and tired to listen.
+{name} turns its back on the {foe}.
+[combat.disobey]
+{name} ignores you and uses {move} instead!
+"i know what i am doing!" {name} uses {move}.
+{name} does its own thing: {move}!
+{name} pretends not to hear and picks {move}.
+[combat.crit]
+lucky hit! {name}'s bond with you makes it strike true!
+CRITICAL! {name} felt you cheering!
+a perfect hit! {name} winks at you.
+[combat.tantrum]
+{name} is throwing a tantrum and will not fight.
+*pouts* {name} crosses its arms.

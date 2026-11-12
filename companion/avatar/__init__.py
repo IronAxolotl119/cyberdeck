@@ -1,6 +1,10 @@
 """Text-face avatars for the cyberdeck pet (kaomoji, no images)."""
 
 from avatar.faces import (
+    ANIMS,
+    anim_frames,
+    apply_costume,
+    live_frames,
     DEFAULT_INTERVAL_MS,
     FACE_MOODS,
     avatar_payload,
@@ -16,6 +20,10 @@ from avatar.faces import (
 )
 
 __all__ = [
+    "ANIMS",
+    "anim_frames",
+    "apply_costume",
+    "live_frames",
     "DEFAULT_INTERVAL_MS",
     "FACE_MOODS",
     "avatar_payload",

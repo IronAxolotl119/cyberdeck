@@ -121,7 +121,10 @@ little, and a stage accent wraps the face (none for baby, `~...~` for
 in-training, `[...]` rookie, `{...}` champion, `<...>` ultimate, `«...»`
 mega; `--ascii` uses `*` for mega). Faces change with mood and stats:
 happy, content, hungry, tired, sleeping, sad, angry, hurt, fainted,
-excited (close to evolution), and an evolving animation. `pet.avatar.ok`
+excited (close to evolution), and an evolving animation. The life engine
+adds sick, pouting (tantrum), party, dreaming, love, nervous, suspicious,
+hot, and lonely faces. It also adds short animations (idle actions, dances,
+sneezes, and hiccups) and holiday costumes. `pet.avatar.ok`
 returns `{style:"face", mood, frame, frames, interval_ms}`; the pet object
 carries `{style:"face", mood, frame, text}`.
 
@@ -178,7 +181,9 @@ discovery forks), text-face avatars, learning moves from levels and from
 discovery events, a save/load round trip, protocol encode/decode, every
 link handler type and error code, event gating, coalescing and pacing of
 `pet.event` pushes, a TCP round trip including two clients at once, and
-(when `socat` is installed) a UART exchange over a PTY pair. If a checkout of the main cyberdeck is next to this repo (or
+(when `socat` is installed) a UART exchange over a PTY pair. They also cover
+every aliveness feature with a fake clock and a seeded RNG, including a
+test that the no-repeat picker cycles through its whole pool. If a checkout of the main cyberdeck is next to this repo (or
 `CYBERDECK_MAIN` points at one) and that tree has the TCP client, one extra
 test drives our companion with the deck's own `StreamCompanionLink`.
 
@@ -324,6 +329,61 @@ evolving; `from`/`to_candidates`/`next_stage`/`eta_hours` for evolve_soon;
 `ssid`/`name`/`kind`/`rssi` for signal_found).
 A hello may also include `client` (for example `"dash"`); it is ignored.
 Without that flag we stay request/reply only.
+
+## It feels alive
+
+The pet does more than tick stats. `pet/life.py` gives it a life of its own.
+[docs/ALIVE.md](docs/ALIVE.md) has the full list, the new protocol messages
+and events, and the tunables. In short:
+
+- **On its own:**
+  - It idles: yawns, chases bugs, dances, hums, and dozes.
+  - It asks you for things, and has secret favorite and hated foods.
+  - It hiccups and sneezes, dreams about real memories, and goes on short
+    adventures. It comes back with a generated story and loot.
+- **Remembers:**
+  - It greets you based on how long you were gone, and gets lonely when the
+    deck disconnects.
+  - It learns what time you usually show up.
+  - It recognizes networks (home, work, the café) and defends its turf.
+  - It keeps a nightly diary and a shelf of trinkets.
+- **Has a personality:**
+  - A hidden bond (stranger → soulmate) and obedience shaped by praise and
+    scolding.
+  - Lingering moods, tantrums, nicknames, and boredom if you feed it the same
+    snack again and again.
+  - Sickness that needs a cure, and jealousy when you use other apps.
+  - Mood and bond change how it fights.
+- **Knows the real world:**
+  - The clock, CPU temperature, how busy the airwaves are, and optional
+    weather (`--weather LAT,LON`).
+  - Birthdays and monthly hatchdays, plus 15 holidays with costumes.
+- **Long term:**
+  - A named rival that drops by every few hours.
+  - A mega form can lay an egg that starts a new generation, which inherits a
+    move, a trait, and memories.
+
+All its words come from about 2,000 lines in `pet/lines/*.lines` (218 pools).
+A no-repeat picker is saved with the pet, so a line won't come back until most
+of its pool has been used. Babies babble, in-training pets talk simply, and
+older forms sound like kids, then teens, then wise elders. Diaries and
+adventure stories are assembled from fragments, which gives hundreds of
+millions of combinations. You can add lines without touching any code.
+
+```bash
+# Fast-forward two simulated days with a fake clock (no network, no deck)
+python3 scripts/alive_demo.py --hours 48 --seed 11
+# Line counts per category and story combinations
+python3 scripts/line_stats.py
+```
+
+Companion flags for this:
+
+| Flag | Meaning |
+|---|---|
+| `--reset` | Start a brand-new pet. If `--save` points at an existing file, it is first copied to `.bak`. |
+| `--weather LAT,LON` | Optional real weather from Open-Meteo. It silently does nothing when offline. |
+| `--life-pace N` | Make idle life, chatter, adventures, and rivals N× more frequent. Useful for demos. |
 
 ## Roadmap
 

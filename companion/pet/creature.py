@@ -8,6 +8,9 @@ from_dict make the whole object JSON-friendly so save.py can be tiny.
 
 from __future__ import annotations
 
+import random
+import time
+
 from pet.evolution import (
     EVOLVE_SOON_PROGRESS,
     STARTER_SPECIES_ID,
@@ -19,6 +22,7 @@ from pet.evolution import (
     rules_from,
     time_gates_met,
 )
+from pet.life import Life
 from pet.moves import MOVE_LIBRARY, get_move, moves_for_level
 from pet.stats import Stats
 
@@ -97,6 +101,7 @@ class Creature:
         evolve_choice_announced: bool = False,
         sighting_keys: set[str] | None = None,
         move_ranks: dict[str, int] | None = None,
+        life: Life | None = None,
     ) -> None:
         self.name = name
         self.species_id = species_id
@@ -136,6 +141,8 @@ class Creature:
             ]
         else:
             self.known_move_ids = list(known_move_ids)
+        # Bond, memory, moods, quirks, diary... (see pet/life.py).
+        self.life: Life = life if life is not None else Life.new(random.Random(), time.time())
 
     @property
     def species(self) -> Species:
@@ -581,7 +588,7 @@ class Creature:
         s = self.stats
         moves = ", ".join(move.name for move in self.known_moves()) or "none"
         return (
-            f"{self.name} the {self.species.name} [{self.species.stage}] "
+            f"{self.life.nickname or self.name} the {self.species.name} [{self.species.stage}] "
             f"Lv{s.level} XP={s.xp} age={s.age:.1f}h  "
             f"HP={s.hp}/{s.max_hp} ATK={s.attack} DEF={s.defense} SPD={s.speed}  "
             f"hunger={s.hunger:.0f} energy={s.energy:.0f} mood={s.mood:.0f}  "
@@ -603,6 +610,7 @@ class Creature:
             "evolve_choice_announced": self.evolve_choice_announced,
             "sighting_keys": sorted(self.sighting_keys),
             "move_ranks": {k: int(v) for k, v in sorted(self.move_ranks.items())},
+            "life": self.life.to_dict(),
         }
 
     @classmethod
@@ -622,4 +630,42 @@ class Creature:
             evolve_choice_announced=bool(data.get("evolve_choice_announced", False)),
             sighting_keys=set(data.get("sighting_keys") or []),
             move_ranks=dict(data.get("move_ranks") or {}),
+            life=Life.from_dict(data.get("life"), now=time.time()),
         )
+
+    # ------------------------------------------------------------------
+    # Egg legacy and full reset
+    # ------------------------------------------------------------------
+
+    def hatch_from_egg(self, now: float, rng: random.Random) -> dict:
+        """Replace this pet with the hatchling from its egg (in place).
+
+        The new pet starts as a fresh Chirplet that already knows the
+        inherited move and carries the inherited trait. Household memory
+        (networks, schedule, diary, rival, one heirloom trinket) carries over.
+        """
+        old_life = self.life
+        egg = dict(old_life.egg or {})
+        if not egg:
+            raise ValueError("no egg to hatch")
+        parent_species = self.species.name
+        legacy = {
+            "move": egg.get("move"),
+            "trait": egg.get("trait"),
+            "trait_value": egg.get("trait_value"),
+            "generation": int(egg.get("generation", old_life.generation + 1)),
+            "parent": egg.get("parent"),
+        }
+        fresh_life = Life.new(rng, now, legacy=legacy)
+        fresh_life.inherit_from(old_life, egg, parent_species)
+        fresh = Creature(name=self.name, life=fresh_life)
+        move_id = egg.get("move")
+        if move_id and move_id in MOVE_LIBRARY and move_id not in fresh.known_move_ids:
+            fresh.known_move_ids.append(move_id)
+        self.__dict__.update(fresh.__dict__)
+        return legacy
+
+    def reset(self, now: float | None = None, rng: random.Random | None = None) -> None:
+        """Start over with a brand-new hatchling (nothing is inherited)."""
+        fresh = Creature(name=self.name, life=Life.new(rng or random.Random(), time.time() if now is None else now))
+        self.__dict__.update(fresh.__dict__)

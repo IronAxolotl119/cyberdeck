@@ -19,7 +19,7 @@ import threading
 import time
 from pathlib import Path
 
-from avatar.faces import evolution_banner, face_mood, face_text
+from avatar.faces import evolution_banner, life_banner, live_frames, speech_line
 from discovery.simulated import SimulatedScanner
 from link.handler import PET_NAME, CompanionHandler, mood_word, need_hunger
 from pet.evolution import apply_evolution_config
@@ -32,6 +32,7 @@ from link.transport import (
     parse_host_port,
 )
 from pet.creature import Creature
+from pet.world import World
 from save import load_creature, save_creature
 
 
@@ -70,6 +71,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="RNG seed for fake Wi-Fi / BT scans.")
     parser.add_argument("--save", type=str, default=None, help="Autosave JSON path.")
     parser.add_argument("--load", type=str, default=None, help="Load a JSON save at start.")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Start a brand-new pet even if --load is given (the old --save file is kept as .bak).",
+    )
+    parser.add_argument(
+        "--weather",
+        metavar="LAT,LON",
+        default=None,
+        help="Optional: fetch real weather from Open-Meteo for this location (needs internet).",
+    )
+    parser.add_argument(
+        "--life-pace",
+        type=float,
+        default=1.0,
+        help="Speed up idle life / chatter / adventures / rivals for demos (2.0 = twice as often).",
+    )
     parser.add_argument("--avatar", action="store_true", help="Draw the text face on each tick.")
     parser.add_argument("--ascii", action="store_true", help="Plain-ASCII face accents.")
     parser.add_argument(
@@ -102,8 +120,11 @@ def serial_path(cli_value: str | None) -> str:
 
 
 def print_avatar(creature: Creature, frame: int, ascii_mode: bool = False) -> None:
-    word = face_mood(creature)
-    text = face_text(word, creature.species.stage, frame=frame, ascii_mode=ascii_mode)
+    _word, frames, _anim, _costume = live_frames(creature, ascii_mode=ascii_mode)
+    text = frames[frame % len(frames)] if frames else ""
+    bubble = creature.life.current_bubble()
+    if bubble:
+        print(f"  {speech_line(bubble['text'])}")
     for line in text.splitlines():
         print(f"  {line}")
 
@@ -116,7 +137,10 @@ def print_popups(handler: CompanionHandler, name: str) -> None:
     deck (or any protocol client).
     """
     for kind, detail in handler.take_popups():
-        banner = evolution_banner(kind, detail, name=name)
+        if kind in {"evolve_soon", "evolve_choice", "evolving", "evolved", "woke"}:
+            banner = evolution_banner(kind, detail, name=name)
+        else:
+            banner = life_banner(kind, detail, name=name)
         for line in banner.splitlines():
             print(f"  {line}")
 
@@ -149,7 +173,26 @@ def run(args: argparse.Namespace) -> int:
         host, port = parse_host_port(args.tcp or f"{DEFAULT_TCP_HOST}:{DEFAULT_TCP_PORT}")
         endpoint = f"TCP {host}:{port}"
 
-    if args.load:
+    weather = None
+    if args.weather:
+        try:
+            lat_s, lon_s = args.weather.split(",", 1)
+            weather = (float(lat_s), float(lon_s))
+        except ValueError:
+            print("--weather must look like LAT,LON (for example 33.45,-112.07)", file=sys.stderr)
+            return 2
+    if args.life_pace <= 0:
+        print("--life-pace must be > 0", file=sys.stderr)
+        return 2
+
+    if args.reset:
+        if args.save and Path(args.save).exists():
+            backup = Path(args.save).with_suffix(Path(args.save).suffix + ".bak")
+            backup.write_bytes(Path(args.save).read_bytes())
+            print(f"--reset: old save copied to {backup}")
+        creature = Creature(name=PET_NAME)
+        origin = "new hatchling (--reset)"
+    elif args.load:
         creature = load_creature(args.load)
         origin = f"loaded from {args.load}"
     else:
@@ -157,7 +200,9 @@ def run(args: argparse.Namespace) -> int:
         origin = "new hatchling"
 
     scanner = SimulatedScanner(seed=args.seed)
-    handler = CompanionHandler(creature, scanner=scanner, source=args.source)
+    world = World(lat=weather[0], lon=weather[1]) if weather else World()
+    handler = CompanionHandler(creature, scanner=scanner, source=args.source, world=world)
+    creature.life.pace = args.life_pace
     lock = threading.Lock()
     stop = threading.Event()
 
@@ -175,6 +220,7 @@ def run(args: argparse.Namespace) -> int:
         while not stop.wait(args.tick_seconds):
             with lock:
                 handler.tick(args.dt)
+                speech_log = list(handler.take_speech())
                 autosave()
                 snapshot = creature.summary()
                 frame = handler.frame
@@ -182,6 +228,8 @@ def run(args: argparse.Namespace) -> int:
                 word = mood_word(creature)
             print(f"[tick] need_hunger={need:.0f} mood={word}  {snapshot}")
             if args.avatar:
+                for line in speech_log:
+                    print(f"  [{line[0]}] {speech_line(line[1], 90)}")
                 print_avatar(creature, frame, ascii_mode=args.ascii)
                 print_popups(handler, creature.name)
 

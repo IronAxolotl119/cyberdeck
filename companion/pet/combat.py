@@ -167,6 +167,50 @@ def incoming_taken(raw_damage: int, defense: int, guarding: bool) -> int:
     return taken
 
 
+def combat_mods(creature: Creature) -> dict[str, Any]:
+    """Mood / bond / obedience modifiers from creature.life (all neutral by default).
+
+    angry  (mood incl. lingering modifiers <= 28): damage x1.25, accuracy -5
+    tired  (energy < 25): accuracy -10; tired *and* angry: 30% chance to refuse
+    obedience < 40: up to 40% chance to ignore the requested move
+    bond > 40: +1 accuracy per 15 bond; bond >= 45: crit chance (bond-40)/300
+    """
+    life = getattr(creature, "life", None)
+    mods = {"angry": False, "tired": False, "accuracy": 0, "damage_mult": 1.0,
+            "refuse_chance": 0.0, "disobey_chance": 0.0, "crit_chance": 0.0,
+            "tantrum": False, "cheer": False}
+    if life is None:
+        return mods
+    mood = creature.stats.mood + life.mood_offset()
+    mods["angry"] = mood <= 28
+    mods["tired"] = creature.stats.energy < 25
+    if mods["angry"]:
+        mods["damage_mult"] = 1.25
+        mods["accuracy"] -= 5
+    if mods["tired"]:
+        mods["accuracy"] -= 10
+    if mods["angry"] and mods["tired"]:
+        mods["refuse_chance"] = 0.3
+    if life.obedience < 40:
+        mods["disobey_chance"] = min(0.4, (40 - life.obedience) / 100)
+    if life.bond > 40:
+        mods["accuracy"] += int((life.bond - 40) // 15)
+    if life.bond >= 45:
+        mods["crit_chance"] = (life.bond - 40) / 300
+        mods["cheer"] = True
+    mods["tantrum"] = life.in_tantrum()
+    return mods
+
+
+def _flavor(creature: Creature, key: str, slots: dict[str, Any], rng: random.Random) -> str:
+    life = getattr(creature, "life", None)
+    if life is None:
+        return ""
+    from pet.speech import fill
+
+    return fill(life.picker.pick(key, rng), dict(life.slots(creature, life.last_now), **slots))
+
+
 def perform_action(
     creature: Creature,
     requested: str | None,
@@ -175,7 +219,23 @@ def perform_action(
 ) -> dict[str, Any]:
     """Resolve one pet.combat.action. Mutates the creature (energy, guard, etc.)."""
     move, fallback, reason = pick_move(creature, requested)
+    mods = combat_mods(creature)
+    foe = parse_enemy(enemy)
+    if not reason and mods["tantrum"]:
+        reason = "tantrum"
+    if not reason and mods["refuse_chance"] and rng.random() < mods["refuse_chance"]:
+        reason = "refused"
     if reason:
+        if reason == "asleep":
+            reaction = f"PULSE is {reason} and cannot fight."
+        elif reason == "fainted":
+            reaction = "PULSE is fainted and cannot fight until it rests."
+        else:
+            key = "combat.tantrum" if reason == "tantrum" else "combat.refuse"
+            reaction = _flavor(creature, key, {"foe": foe["name"]}, rng) or f"PULSE refuses to fight ({reason})."
+            life = getattr(creature, "life", None)
+            if life is not None:
+                life.note_misbehave(life.last_now)
         return {
             "acted": False,
             "reason": reason,
@@ -186,19 +246,35 @@ def perform_action(
             "energy_spent": 0,
             "pet_hp": creature.stats.hp,
             "fallback": False,
-            "reaction": (
-                f"PULSE is {reason} and cannot fight."
-                if reason == "asleep"
-                else "PULSE is fainted and cannot fight until it rests."
-            ),
+            "reaction": reaction,
+            "mood_effect": "angry" if mods["angry"] else "tired" if mods["tired"] else None,
         }
 
-    foe = parse_enemy(enemy)
+    disobeyed = False
+    if mods["disobey_chance"] and not fallback and rng.random() < mods["disobey_chance"]:
+        options = [
+            MOVE_LIBRARY[m] for m in creature.known_move_ids
+            if m in MOVE_LIBRARY and m != move.id and MOVE_LIBRARY[m].energy_cost <= creature.stats.energy
+        ]
+        if options:
+            move = rng.choice(options)
+            disobeyed = True
+            life = getattr(creature, "life", None)
+            if life is not None:
+                life.note_misbehave(life.last_now)
+
     _mood, speed_bonus = creature.environment_bonuses()
     chance = outgoing_accuracy(move, creature.stats.speed + speed_bonus, foe["speed"])
+    chance = clamp_int(chance + int(mods["accuracy"]), 5, 100)
     hit = rng.randint(1, 100) <= chance
     power = creature.effective_power(move)
     damage = outgoing_damage(move, creature.stats.attack, foe["defense"], power=power) if hit else 0
+    crit = False
+    if hit and damage and mods["damage_mult"] != 1.0:
+        damage = max(1, int(round(damage * mods["damage_mult"])))
+    if hit and damage and mods["crit_chance"] and rng.random() < mods["crit_chance"]:
+        damage *= 2
+        crit = True
     if move.effect == "guard":
         creature.guarding = True
         hit = True
@@ -216,8 +292,21 @@ def perform_action(
     if fallback:
         asked = (requested or "that move").strip() or "that move"
         reaction = f"too tired for {asked}; {reaction}"
+    extras: list[str] = []
+    slots = {"foe": foe["name"], "move": move.name}
+    if disobeyed:
+        extras.append(_flavor(creature, "combat.disobey", slots, rng))
+    if crit:
+        extras.append(_flavor(creature, "combat.crit", slots, rng))
+    elif hit and damage and mods["angry"]:
+        extras.append(_flavor(creature, "combat.angry", slots, rng))
+    elif not hit and mods["tired"] and move.effect != "guard":
+        extras.append(_flavor(creature, "combat.tired_miss", slots, rng))
+    extras = [e for e in extras if e]
+    if extras:
+        reaction = f"{reaction} {' '.join(extras)}"
 
-    return {
+    result = {
         "acted": True,
         "reason": None,
         "move": move.name,
@@ -228,7 +317,15 @@ def perform_action(
         "pet_hp": creature.stats.hp,
         "fallback": fallback,
         "reaction": reaction,
+        "crit": crit,
+        "disobeyed": disobeyed,
+        "mood_effect": "angry" if mods["angry"] else "tired" if mods["tired"] else None,
     }
+    if mods["cheer"]:
+        life = getattr(creature, "life", None)
+        if life is not None:
+            result["cheer"] = life.say(creature, "cheer", rng, life.last_now, decorate=False)
+    return result
 
 
 def apply_hit(creature: Creature, payload: dict[str, Any]) -> dict[str, Any]:
