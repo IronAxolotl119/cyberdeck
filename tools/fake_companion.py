@@ -9,17 +9,21 @@ companion program will:
     python3 tools/fake_companion.py --tcp 0.0.0.0:7777   # reachable from other machines
     python3 tools/fake_companion.py --serial /dev/pts/5  # a serial device / socat pty
     python3 tools/fake_companion.py --speed 30           # pet lives 30x faster (gets hungry soon)
+    python3 tools/fake_companion.py --evolution-speed 500  # evolution progress 500x faster
 
 Then start the deck with  python3 -m cyberdeck --link tcp  (or --link serial).
 
 What it does:
   * prints every line it receives (<-) and sends (->), so you can watch
     the conversation
-  * answers hello, ping, pet.status, pet.feed, pet.play, pet.gift, pet.avatar;
-    anything else gets an `error` reply with code unknown_type
-  * pushes pet.event messages (hungry, tired, sad, evolved, level_up,
-    learned_move, signal_found) — but only to a deck whose hello said
-    "events": true
+  * answers hello, ping, pet.status (with evolution progress and
+    choices), pet.feed, pet.play, pet.gift, pet.avatar (animated text
+    face), pet.rest, pet.sleep, pet.evolve, and the dungeon's
+    pet.combat.stats / action / hit / heal / end; anything else gets an
+    `error` reply with code unknown_type
+  * pushes pet.event messages (hungry, tired, sad, woke, evolve_soon,
+    evolve_choice, evolving, evolved, level_up, learned_move,
+    signal_found) — but only to a deck whose hello said "events": true
   * every --demo-every seconds it does something on purpose so you can
     see events arrive: finds a fake wifi signal, or gets peckish
 
@@ -136,6 +140,8 @@ class Server:
         pet = self.link.pet
         if step % 2 == 0:
             ssid = DEMO_SIGNALS[(step // 2) % len(DEMO_SIGNALS)]
+            with self.link._lock:
+                pet.discoveries += 1      # unique finds unlock some evolution branches
             event = Message(TYPE_PET_EVENT, new_id(), {
                 "event": "signal_found",
                 "detail": {"ssid": ssid, "rssi": -48 - (step * 7) % 40},
@@ -255,6 +261,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--serial-driver", default="auto", choices=("auto", "stdlib", "pyserial"))
     p.add_argument("--speed", type=float, default=1.0, help="pet time runs this many times faster")
+    p.add_argument("--evolution-speed", type=float, default=1.0,
+                   help="evolution progress runs this many times faster (on top of --speed)")
     p.add_argument("--demo-every", type=float, default=45.0, help="seconds between demo events (0 = off)")
     p.add_argument("--stage", default="rookie", help="starting stage (egg … mega)")
     p.add_argument("--name", default="PULSE")
@@ -264,7 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def make_link(args) -> SimCompanionLink:
     start = time.monotonic()
-    pet = PetState(name=args.name, stage=args.stage)
+    pet = PetState(name=args.name, stage=args.stage, evolution_speed=max(0.0, args.evolution_speed))
     link = SimCompanionLink(pet=pet, clock=lambda: start + (time.monotonic() - start) * args.speed,
                             source="fake_companion")
     link._linked = True

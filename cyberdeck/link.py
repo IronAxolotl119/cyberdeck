@@ -550,7 +550,15 @@ def _short_error(exc: BaseException) -> str:
 def open_link(ls: LinkSettings) -> CompanionLink:
     """Build the link chosen in hardware.ini / on the command line."""
     if ls.mode == "sim":
-        return SimCompanionLink()
+        # CYBERDECK_EVOLUTION_SPEED=200 makes the sim pet evolve 200x sooner
+        # (the same knob as fake_companion's --evolution-speed).
+        from cyberdeck.companion import PetState
+
+        try:
+            speed = max(0.0, float(os.environ.get("CYBERDECK_EVOLUTION_SPEED", "1")))
+        except ValueError:
+            speed = 1.0
+        return SimCompanionLink(pet=PetState(evolution_speed=speed))
     if ls.mode == "tcp":
         return StreamCompanionLink(lambda: TcpTransport(ls.host, ls.port, max(1.0, ls.timeout * 2)), ls,
                                    f"TCP {ls.port}")
