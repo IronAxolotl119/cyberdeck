@@ -70,6 +70,29 @@ class RenderSnapshot(unittest.TestCase):
     def test_small_screen_does_not_crash(self):
         self.assertIn("CYBERDECK", render(self.dash, 60, 20))
 
+    def test_pulse_panel_shows_companion_environment(self):
+        class Link:
+            online = True
+            pet = {"name": "PULSE", "species": "Chirplet", "level": 2, "xp": 14,
+                   "energy": 80, "moves": ["Signal Sniff", "Tag Bite"],
+                   "environment": {"busy": 0.625, "buff": "busy airwaves"},
+                   "mood": "playful", "stage": "baby"}
+            status = "linked 127.0.0.1:9"
+
+        self.dash.link = Link()
+        self.dash.pet.link = Link()
+        self.dash.pet.combat = {"moves": [{"name": "Tag Bite", "power": 16, "rank": 2, "bonus": 4},
+                                          {"name": "Signal Sniff", "power": 10, "rank": 0, "bonus": 0}]}
+        self.dash.pet.last_reaction = {"reaction": "PULSE logged cafe-guest (+7 XP).",
+                                       "source": "companion", "xp": 7}
+        self.dash.go_to_panel("pet")
+        text = render(self.dash)
+        self.assertIn("LINK", text)
+        self.assertIn("0.62", text)
+        self.assertIn("busy airwaves", text)
+        self.assertIn("PULSE logged cafe-guest", text)
+        self.assertIn("Tag Bite r2 +4", text)
+
 
 @unittest.skipUnless(HAVE_RICH, "rich not installed")
 class Interaction(unittest.TestCase):
