@@ -59,7 +59,7 @@ MAX_LINE = 64 * 1024   # a line longer than this is garbage; throw it away
 class LinkSettings:
     """config/hardware.ini [link], after command-line overrides."""
 
-    mode: str = "sim"              # sim | tcp | serial
+    mode: str = "sim"              # sim | tcp | serial | auto (tcp if a companion answers, else sim)
     host: str = "127.0.0.1"
     port: int = 7777
     device: str = "/dev/serial0"
@@ -76,6 +76,8 @@ class LinkSettings:
             return f"TCP {self.host}:{self.port}"
         if self.mode == "serial":
             return f"UART {self.device} {self.baud} 8N1"
+        if self.mode == "auto":
+            return f"auto (TCP {self.host}:{self.port}, else sim)"
         return "in-process sim"
 
 
@@ -547,8 +549,29 @@ def _short_error(exc: BaseException) -> str:
 
 # --- factory ----------------------------------------------------------------------------
 
+def companion_listening(host: str, port: int, timeout: float = 0.4) -> bool:
+    """True if something accepts a TCP connection at host:port right now."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def resolve_auto(ls: LinkSettings) -> LinkSettings:
+    """mode = auto: use TCP if the companion is already running, else the sim pet.
+
+    Checked once at start-up. Start the companion first (or pass
+    --link tcp, which keeps retrying until it appears).
+    """
+    if ls.mode != "auto":
+        return ls
+    return replace(ls, mode="tcp" if companion_listening(ls.host, ls.port) else "sim")
+
+
 def open_link(ls: LinkSettings) -> CompanionLink:
     """Build the link chosen in hardware.ini / on the command line."""
+    ls = resolve_auto(ls)
     if ls.mode == "sim":
         # CYBERDECK_EVOLUTION_SPEED=200 makes the sim pet evolve 200x sooner
         # (the same knob as fake_companion's --evolution-speed).
@@ -566,8 +589,9 @@ def open_link(ls: LinkSettings) -> CompanionLink:
         device = ls.device or os_serial_default()
         return StreamCompanionLink(lambda: SerialTransport(device, ls.baud, ls.serial_driver), ls,
                                    f"UART {os.path.basename(device)}")
-    raise ValueError(f"unknown link mode {ls.mode!r}; expected sim, tcp, or serial")
+    raise ValueError(f"unknown link mode {ls.mode!r}; expected sim, tcp, serial, or auto")
 
 
 __all__ = ["LinkSettings", "load_link_settings", "with_overrides", "Transport", "TcpTransport",
-           "SerialTransport", "configure_tty", "StreamCompanionLink", "open_link"]
+           "SerialTransport", "configure_tty", "StreamCompanionLink", "open_link", "resolve_auto",
+           "companion_listening"]

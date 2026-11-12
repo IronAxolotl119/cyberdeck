@@ -242,8 +242,23 @@ class LinkSettingsTests(unittest.TestCase):
         ls = load_link_settings(Settings.from_text(""))
         self.assertEqual((ls.mode, ls.host, ls.port, ls.device, ls.baud), ("sim", "127.0.0.1", 7777, "/dev/serial0", 115200))
 
-    def test_shipped_config_is_sim(self):
-        self.assertEqual(load_link_settings(Settings.load("hardware.ini")).mode, "sim")
+    def test_shipped_config_is_auto_and_falls_back_to_sim(self):
+        # Shipped as auto: the companion if it is already running, else the
+        # sim pet, so a fresh checkout still works with nothing else running.
+        ls = load_link_settings(Settings.load("hardware.ini"))
+        self.assertEqual(ls.mode, "auto")
+        with socket.socket() as probe:              # a port nothing listens on
+            probe.bind(("127.0.0.1", 0))
+            free = probe.getsockname()[1]
+        self.assertIsInstance(open_link(with_overrides(ls, port=free)), SimCompanionLink)
+
+    def test_auto_picks_tcp_when_companion_listens(self):
+        with socket.socket() as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(1)
+            port = server.getsockname()[1]
+            link = open_link(LinkSettings(mode="auto", port=port))
+            self.assertIsInstance(link, StreamCompanionLink)
 
     def test_file_then_overrides(self):
         ls = load_link_settings(Settings.from_text("[link]\nmode = serial\ndevice = /dev/ttyUSB0\nbaud = 9600\n"))
