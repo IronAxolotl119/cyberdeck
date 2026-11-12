@@ -1,0 +1,90 @@
+Cyberdeck Pet — sprite catalog
+Each form has two idle frames; moods are a face overlay.
+
+    Chirplet           Wavling            Aethling          Staticore
+      baby           in-training           rookie             rookie
+
+neutral (idle frame 0)
+                                             OO           ;    #       ;
+        O               #####               O#O#O           ##,,,,,##
+       #@#            ##+OOO+##            #OoOoO#         #,::,,::,,#
+        @            #+:OOOOO:+#          #OO@@@OO#       ##,:::::::,##
+      #***#          #+:O@OOO:+#          #O@@@@@O#       #,::@::::::,# ;
+    #*oooo*#         #+:OOOOOO:+#        ##O@@@@@OO#      #,::@#::@#,##
+   #*oooooo*#        #+:@#OO@#:+#        #O@#@@@#OO#      #,::::::::,,#
+   #oooooooo#        #+:OOOOOO:+#        #OO@@@@@OO#      #,:::###::,#
+  #*o@#o@#oo*#        #+:O##O:+# O        #OO##@OO# O      #,:::::::,# ;
+  #*oooooooo*#         ##+:+## O          ##OOOO## O       ##,:,,:,##
+   #*oo##oo*#         #  #+#  O O          #OooO# O       ;  #####   ;
+    #*oooo*#                 O              #o o#          #   ;   #  ;
+     #o#oo#                 O O             #   #         #         #
+      #   #                  O               # #           #       #
+                                              #
+
+happy
+                                             OO           ;    #       ;
+        O               #####               O#O#O           ##,,,,,##
+       #@#            ##+OOO+##            #OoOoO#         #,::,,::,,#
+        @            #+:OOOOO:+#          #OO@@@OO#       ##,:::::::,##
+      #***#          #+:O@OOO:+#          #O@@@@@O#       #,::@::::::,# ;
+    #*oooo*#         #+:OOOOOO:+#        ##O@@@@@OO#      #,:;@::::@;##
+   #*oooooo*#        #+*@OOOO@*+#        #*@@@@@@*O#      #,::#::::#,,#
+   #oooooooo#        #+:#OOOO#:+#        #O#@@@@#OO#      #,:::#::#:,#
+  #**@ooo@*o*#        #+:#OO#:+# O        #O#@@#OO# O      #,:::##::,# ;
+  #*o#ooo#oo*#         ##+#### O          ##O##O## O       ##,:,,:,##
+   #*o#o#oo*#         #  #+#  O O          #OooO# O       ;  #####   ;
+    #*o#oo*#                 O              #o o#          #   ;   #  ;
+     #o#oo#                 O O             #   #         #         #
+      #   #                  O               # #           #       #
+                                              #
+
+hungry / tired
+                                             OO           ;    #       ;
+        O               #####               O#O#O           ##,,,,,##
+       #@#            ##+OOO+##            #OoOoO#         #,::,,::,,#
+        @            #+:OOOOO:+#          #OO@@@OO#       ##,:::::::,##
+      #***#          #+:O@OOO:+#          #O@@@@@O#       #,::@*::*::,# ;
+    #*oooo*#         #+:O*OO*O:+#        ##O*@@*@OO#      #,::#::::#,##
+   #*oooooo*#        #+:#OOOO#:+#        #O#@@@@#OO#      #,::::::::,,#
+   #oo*ooo*o#        #+:OOOOOO:+#        #OO@@@@@OO#      #,:::#@#::,#
+  #*o#ooo#oo*#        #+:O#@#:+# O        #OO#@#OO# O      #,:::::::,# ;
+  #*oooooooo*#         ##+:+## O          ##OOOO## O       ##,:,,:,##
+   #*o#@#oo*#         #  #+#  O O          #OooO# O       ;  #####   ;
+    #*oooo*#                 O              #o o#          #   ;   #  ;
+     #o#oo#                 O O             #   #         #         #
+      #   #                  O               # #           #       #
+                                              #
+
+sad
+                                             OO           ;    #       ;
+        O               #####               O#O#O           ##,,,,,##
+       #@#            ##+OOO+##            #OoOoO#         #,::,,::,,#
+        @            #+:OOOOO:+#          #OO@@@OO#       ##,:::::::,##
+      #***#          #+:O@OOO:+#          #O@@@@@O#       #,::@#::#::,# ;
+    #*oooo*#         #+:O#OO#O:+#        ##O#@@#@OO#      #,::@#::@#;##
+   #*oooooo*#        #+:@#OO@#*+#        #O@#@@@#*O#      #,:::::::;,,#
+   #oo#ooo#o#        #+:OOOOO*:+#        #OO@@@@*OO#      #,::::#:::,#
+  #*o@#o@#*o*#        #+:O#OO:+# O        #OO#@@OO# O      #,::#::#:,# ;
+  #*ooo*oooo*#         ###:+## O          ###OO### O       ##,:,,:,##
+   #*oo#ooo*#         #  #+#  O O          #OooO# O       ;  #####   ;
+    #*#o#o*#                 O              #o o#          #   ;   #  ;
+     #o#oo#                 O O             #   #         #         #
+      #   #                  O               # #           #       #
+                                              #
+
+neutral (idle frame 1)
+                                            O  O         ;      #     ;
+       O                #####                O#O#           ##,,,,,##  ;
+      #@#             ##+OOO+##            #OoOoO#         #,,::,::,,#
+       @O            #+:OOOOO:+#          #OO@@@OO#       ##,:::::::,##
+      #***#          #+:OOO@OO+#          #O@@@@@O#      ;#,::::@::::,#
+    #*oooo*#         #+:OOOOOO:+#        ##O@@@@@OO#      #,::@#::@#,##
+   #*oooooo*#        #+:@#OO@#:+#        #O@#@@@#OO#      #,::::::::,,#
+   #oooooooo#        #+:OOOOOO:+#        #OO@@@@@OO#      #,:::###::,# ;
+  #*o@#o@#oo*#        #+:O##O:+#O         #OO##@OO#O       #,:::::::,#
+  #*oooooooo*#         ##+:+##O O         ##OOOO##O        ##,:,,:,## ;
+   #*oo##oo*#         #  #+# O             #OooO#            #####    ;
+    #*oooo*#                O O             #o o# O      ; #     ; #
+     #o#oo#                  O              #   #         #         #
+       # #                  O O              # #           #       #
+                                             #

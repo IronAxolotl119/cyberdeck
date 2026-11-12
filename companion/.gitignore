@@ -1,0 +1,24 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments (none required today, but handy later)
+.venv/
+venv/
+env/
+
+# Local save files produced by running the simulator
+*.save.json
+save.json
+saves/
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.swp
+.DS_Store
