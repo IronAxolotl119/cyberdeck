@@ -9,8 +9,9 @@ what actually gets shown, in this order:
   2. field mode: only priority >= field_min_priority (ALERT) interrupts;
   3. quiet hours: only priority >= quiet_allow_priority, and silently;
   4. de-dupe: the same message key again within dedupe_seconds is dropped;
-  5. rate limit: a token bucket (max_per_minute, burst); alerts may dip
-     2 tokens into reserve so a real alert is rarely lost;
+  5. rate limit: a token bucket (max_per_minute, burst) for info and
+     notices. ALERTs skip the bucket (they still use up tokens), so an
+     evil twin or unknown tag is never lost behind a burst of PULSE news;
   6. the queue holds at most max_queue; when full the oldest,
      least important message makes room.
 
@@ -126,8 +127,7 @@ class NotifyQueue:
         if last is not None and now - last < self.dedupe_seconds:
             return "dup"
         self._refill(now)
-        floor = -2.0 if msg.priority >= ALERT else 0.0
-        if self.tokens - 1.0 < floor:
+        if msg.priority < ALERT and self.tokens < 1.0:
             return "rate"
         return "ok"
 
@@ -140,7 +140,7 @@ class NotifyQueue:
         if decision != "ok":
             return decision
         if msg.priority < MANUAL:
-            self.tokens -= 1.0
+            self.tokens = max(-self.capacity, self.tokens - 1.0)
             self._seen[msg.dedupe_key()] = now
             if len(self._seen) > 500:            # forget the oldest keys
                 for k, _ in sorted(self._seen.items(), key=lambda kv: kv[1])[:250]:

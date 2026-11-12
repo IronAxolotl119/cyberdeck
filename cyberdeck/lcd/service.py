@@ -282,7 +282,9 @@ class LcdService:
         if event == "new":
             name = f"NEW {kind.upper()}"
         title = KIND_GLYPH.get(kind, "{bell}") + name
-        if not label or label.lower() in name.lower() or label.lower().startswith("unknown"):
+        if kind == "lan" and ident:
+            body = f"{ident} {label}".strip()   # IP first, then the MAC
+        elif not label or label.lower() in name.lower() or label.lower().startswith("unknown"):
             body = ident or label           # e.g. UNKNOWN TAG / de:ad:10:42
         else:
             body = label if not ident or ident == label else f"{label} {ident}"

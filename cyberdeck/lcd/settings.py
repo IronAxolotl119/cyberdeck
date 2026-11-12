@@ -49,7 +49,7 @@ class LcdSettings:
 
     # [filter] — keep the screen calm
     dedupe_seconds: float = 90.0    # same message again within this = dropped
-    max_per_minute: int = 6         # notifications per minute (alerts get 2 extra)
+    max_per_minute: int = 6         # info/notice pop-ups per minute (ALERTs are never rate-dropped)
     burst: int = 3
     max_queue: int = 8
     field_min_priority: int = 3     # field mode: only ALERTs interrupt

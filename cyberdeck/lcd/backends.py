@@ -67,7 +67,7 @@ class SimScreen:
             return [top + lamp] + body + [top]
         top = "┌" + "─" * self.cols + "┐"
         body = [f"│{sim_view(line)}│" for line in lines]
-        lamp = " ☀ on" if light else " ☾ off"
+        lamp = " ● on" if light else " ○ off"
         return [top + lamp] + body + ["└" + "─" * self.cols + "┘"]
 
     def _mirror(self) -> None:

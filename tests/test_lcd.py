@@ -110,14 +110,14 @@ class Queue(unittest.TestCase):
         self.assertEqual(q.push(LcdMessage("x later", key="k"), T0 + 61), "ok")
         self.assertEqual(q.counts["dup"], 1)
 
-    def test_rate_limit_with_alert_reserve(self):
-        q = NotifyQueue(dedupe_seconds=0, max_per_minute=6, burst=2)
+    def test_rate_limit_never_drops_alerts(self):
+        q = NotifyQueue(dedupe_seconds=0, max_per_minute=6, burst=2, max_queue=20)
         res = [q.push(LcdMessage(f"n{i}", priority=NOTICE), T0) for i in range(3)]
         self.assertEqual(res, ["ok", "ok", "rate"])
-        self.assertEqual(q.push(LcdMessage("alert1", priority=ALERT), T0), "ok")   # reserve
-        self.assertEqual(q.push(LcdMessage("alert2", priority=ALERT), T0), "ok")
-        self.assertEqual(q.push(LcdMessage("alert3", priority=ALERT), T0), "rate")
-        self.assertEqual(q.push(LcdMessage("later", priority=NOTICE), T0 + 60), "ok")  # refilled
+        for i in range(4):                                     # a burst of real alerts all get through
+            self.assertEqual(q.push(LcdMessage(f"alert{i}", priority=ALERT), T0), "ok")
+        self.assertEqual(q.push(LcdMessage("notice", priority=NOTICE), T0 + 10), "rate")   # alerts used the tokens
+        self.assertEqual(q.push(LcdMessage("later", priority=NOTICE), T0 + 60), "ok")      # refilled
 
     def test_manual_bypasses_everything(self):
         q = NotifyQueue(max_per_minute=1, burst=1)
@@ -367,7 +367,7 @@ class SimRender(unittest.TestCase):
         sc.write_line(0, G["heart"] + "hello")
         sc.write_line(1, "world")
         box = sc.render()
-        self.assertEqual(box[0], "┌" + "─" * 16 + "┐ ☀ on")
+        self.assertEqual(box[0], "┌" + "─" * 16 + "┐ ● on")
         self.assertEqual(box[1], "│♥hello          │")
         sc.set_backlight(False)
         ascii_box = sc.render(ascii_only=True)

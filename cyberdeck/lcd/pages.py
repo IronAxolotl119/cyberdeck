@@ -34,6 +34,10 @@ MOOD_GROUPS = {
     "sleeping": "sleeping", "asleep": "sleeping",
 }
 
+# Short forms for the PULSE page when the mood word does not fit.
+MOOD_SHORT = {"fainted": "KO", "sleeping": "zZ", "excited": "!!", "content": "ok", "playful": "play",
+              "joyful": "joy", "hungry": "hngry", "grumpy": "grr", "happy": "yay", "tired": "tired"}
+
 # Used when text/lcd_blurbs.txt is missing.
 FALLBACK_BLURBS = {
     "any": ["{name} is watching the airwaves", "{heart} hi, operator!", "{wifi} listening..."],
@@ -189,6 +193,8 @@ def pulse_page(pet: dict, cols: int = 16, rows: int = 2) -> Screen:
     left = f"{G['face']}{name}" + (f" L{level}" if level is not None else "")
     mood = "zZ" if pet.get("asleep") else to_lcd(str(pet.get("mood") or ""))
     room = cols - len(left) - 1
+    if len(mood) > room:
+        mood = MOOD_SHORT.get(mood.lower(), mood)
     line1 = left + (" " + mood[:room].rjust(room) if room > 0 and mood else "")
     line2 = " ".join([_stat(G["food"], pet.get("hunger")), _stat(G["bolt"], pet.get("energy")),
                       _stat(G["heart"], pet.get("happiness", pet.get("mood_value")))])

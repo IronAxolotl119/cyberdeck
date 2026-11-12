@@ -89,8 +89,12 @@ def run_demo(lcd: LcdService, seconds: float, live: bool, out=sys.stdout) -> Non
         lcd._close_hw()
 
 
-def snapshot(lcd: LcdService, path: str, seconds: float = 75.0) -> list[str]:
-    """Run the demo on a fake clock and save one frame of every screen shown."""
+def snapshot(lcd: LcdService, path: str, seconds: float = 75.0, svg: str | None = None) -> list[str]:
+    """Run the demo on a fake clock and save one frame of every screen shown.
+
+    svg: also draw the frames as lit blue LCDs into an SVG (needs Rich).
+    """
+    frames: list[tuple[str, list[str], bool]] = []
     start = 1_800_000_000.0
     script = demo_script(lcd)
     out = ["CYBERDECK//MAIN - simulated 16x2 LCD (python3 -m cyberdeck.lcd --snapshot)",
@@ -110,10 +114,45 @@ def snapshot(lcd: LcdService, path: str, seconds: float = 75.0) -> list[str]:
                      else f"idle page: {lcd.page.name}")
             out.append(f"t={t:4.1f}s  {label}")
             out += ["  " + line for line in lcd.screen.render()] + [""]
+            frames.append((f"{t:4.1f}s  {label}", list(lcd.screen.lines), True))
         t = round(t + 1.0 / lcd.s.fps, 4)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out) + "\n")
+    if svg:
+        save_svg(frames, svg)
     return out
+
+
+def save_svg(frames, path: str, columns: int = 2) -> None:
+    """Draw demo frames as little lit LCDs in a grid (docs/lcd_sim.svg)."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich.text import Text
+
+    from .text import sim_view
+
+    lit, bezel = "bold #eaf4ff on #1f4fd8", "#2b3a67"
+    grid = Table.grid(padding=(0, 3))
+    for _ in range(columns):
+        grid.add_column()
+    cells = []
+    for label, lines, _light in frames:
+        t = Text(label + "\n", style="#ff2bd6")
+        t.append("╭" + "─" * (len(lines[0]) + 2) + "╮\n", style=bezel)
+        for line in lines:
+            t.append("│ ", style=bezel)
+            t.append(sim_view(line), style=lit)
+            t.append(" │\n", style=bezel)
+        t.append("╰" + "─" * (len(lines[0]) + 2) + "╯", style=bezel)
+        cells.append(t)
+    for i in range(0, len(cells), columns):
+        row = cells[i:i + columns]
+        grid.add_row(*(row + [Text("")] * (columns - len(row))))
+    console = Console(record=True, width=24 * columns + 6, force_terminal=True, color_system="truecolor",
+                      file=__import__("io").StringIO())
+    console.print(Text("CYBERDECK//MAIN · 16x2 LCD (simulated)", style="bold #00f0ff"))
+    console.print(grid)
+    console.save_svg(path, title="LCD1602 sim")
 
 
 def main(argv=None) -> int:
@@ -125,6 +164,7 @@ def main(argv=None) -> int:
     p.add_argument("--say", default=None, metavar="TEXT", help="show this text for 8 seconds and exit")
     p.add_argument("--scan", action="store_true", help="look for the LCD backpack on I2C bus 1 and exit")
     p.add_argument("--snapshot", metavar="FILE", default=None, help="write demo frames as text to FILE and exit")
+    p.add_argument("--svg", metavar="FILE", default=None, help="with --snapshot: also draw the frames as an SVG")
     p.add_argument("--seed", type=int, default=7, help="random seed for blurb order in --snapshot")
     p.add_argument("--config-dir", default=None, help="folder with lcd.ini (default ./config)")
     args = p.parse_args(argv)
@@ -144,7 +184,7 @@ def main(argv=None) -> int:
         return 0
     lcd = build(args)
     if args.snapshot:
-        for line in snapshot(lcd, args.snapshot):
+        for line in snapshot(lcd, args.snapshot, svg=args.svg):
             print(line)
         return 0
     if args.say:

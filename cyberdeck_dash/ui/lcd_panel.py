@@ -31,7 +31,7 @@ def lcd_screen_text(lcd, bezel: str) -> Text:
     cols = lcd.s.cols
     out = Text()
     out.append("╭" + "─" * (cols + 2) + "╮", style=bezel)
-    out.append("  ☀ BL on" if light else "  ☾ BL off", style="bold #ffd23f" if light else "#5a6688")
+    out.append("  ● BL on" if light else "  ○ BL off", style="bold #ffd23f" if light else "#5a6688")
     out.append("\n")
     for line in lines:
         out.append("│ ", style=bezel)
