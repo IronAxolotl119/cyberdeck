@@ -103,6 +103,15 @@ cyberdeck-main/
       dungeon.py        roguelike rules (Game), PULSE as an ally (PulseAlly), loot bag, gifts, `loot`
       weather.py        weather / sun / moon commands, ASCII icons, sky panel
       iss.py            ISS passes, position, TLE fallback, pass alerts
+      lcd.py            `lcd` command, lcd pane, PULSE event hook, headless --lcd-sim
+    lcd/                the 16x2 I2C LCD (docs/LCD.md)
+      text.py           ASCII mapping, 8 custom glyphs, word-wrap, marquee
+      messages.py       priorities, NotifyQueue: dedupe, rate limit, quiet hours, field mode
+      pages.py          idle pages (pulse / blurb / clock), blurb file, line layout
+      backends.py       SimScreen (always) + I2cLcd (RPLCD or a tiny smbus2 driver)
+      service.py        LcdService: background thread, feeds, notification rules
+      settings.py       config/lcd.ini
+      __main__.py       python3 -m cyberdeck.lcd --demo / --scan / --say / --snapshot
     link.py             companion link over TCP or UART: background thread, ids, events, reconnect
     petdata.py          tolerant pet parsing: needs, asleep, evolution, faces, combat stats, event text
     netcache.py         cached web downloads with offline fallback (data/cache/)
@@ -132,7 +141,7 @@ cyberdeck-main/
     deck_bridge.py      the deck minus curses: console, history, completion, activities, jobs
     shared_link.py      the deck's one companion link, shared with the dashboard
     app.py              the Dashboard: tabs, scanners, alerts, key routing (incl. deck tabs)
-    ui/                 screen layout, panels, deck panels, rows -> Rich text
+    ui/                 screen layout, panels, deck panels, rows -> Rich text (lcd_panel.py: the LCD tile)
     scanners/, rules.py, journal.py, field.py, diag.py …  awareness side (see DASHBOARD.md)
 ```
 
@@ -358,6 +367,14 @@ Only a command you type (`pet feed`) can wait, at most `timeout` (1.5 s).
   `ui_tick(ctx, now)` each frame; the watcher only polls the companion
   every `poll_seconds`. `PetWatcher.check()` is pure logic (pet dict +
   time → events), so alert rules are unit-tested.
+- **The 16x2 LCD.** `features/lcd.py` puts `start_lcd` in `UI_STARTUP`
+  and adds a hook to `petwatch.EVENT_HOOKS`, so every PULSE event the
+  watcher handles also reaches `LcdService.pet_event()`. The service's
+  `ui_tick` (UI thread) only feeds it the pet status, link state and battery;
+  its own thread picks the screen, scrolls, blinks and writes changed lines
+  to the real LCD, so I2C never slows the UI. In the Rich interface the
+  Dashboard also sends awareness alerts, `pet.discovery.ok` reactions and
+  field mode. Details: [LCD.md](LCD.md).
 - **Status badges.** Any service with `status_badge()` can put a short
   flashing label on the right of the status bar (`! HUNGRY`, or
   `zZ ASLEEP` while PULSE sleeps).

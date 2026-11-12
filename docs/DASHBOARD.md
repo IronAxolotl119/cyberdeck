@@ -87,7 +87,7 @@ Panels are grouped into **tabs** (set in `[tabs]` / `[tab.*]` of
 | Tab | Panels | What it is for |
 |-----|--------|----------------|
 | **Awareness & Diagnostics** | Wi-Fi, Bluetooth, LAN map, RFID/NFC, Journal, Diagnostics, Checklist | passive awareness + ping/DNS |
-| **Deck & PULSE** | Field mode, PULSE, System | field mode, PULSE's discovery side, system health |
+| **Deck & PULSE** | Field mode, PULSE, LCD 16x2, System | field mode, PULSE's discovery side, the 16x2 LCD, system health |
 | **Console** | Console, PULSE (face) | the deck's command line: every command and plugin |
 | **Dungeon** | Dungeon, PULSE combat, Loot bag | start a run, PULSE's real combat sheet, gift loot |
 | **Notes & Todo** | Notes, Todo | `data/notes.txt`, `data/todo.txt` (same files as the commands) |
@@ -177,6 +177,12 @@ Per tab:
   `move_strengthened`). Header `LINK ◆` = the companion program,
   `LINK ◆ SIM` = the deck's built-in sim pet, `LINK DOWN` = waiting for
   it (the panel then uses a local stand-in for XP).
+- **LCD 16x2**: what the little I2C LCD shows right now (the real one on
+  the Pi, or the simulated one), its backlight, how many notifications
+  wait, and (zoomed) the last ones shown and the ones skipped. Alerts,
+  discovery reactions and field mode feed it. Console: `lcd test`,
+  `lcd say <text>`, `lcd backlight on|off|auto`, `lcd status`.
+  Setup: [LCD.md](LCD.md).
 - **System**: CPU, memory, temperature (`~` = simulated off-Pi), load,
   uptime, disk, and each scanner's backend and schedule.
 

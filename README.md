@@ -52,6 +52,17 @@ overrides it. See "Deck + pet on one computer" below.
 python3 -m cyberdeck --help
 ```
 
+### The 16x2 LCD
+
+The deck drives an I2C **LCD1602** (16x2, PCF8574 backpack) with PULSE's
+blurbs and short notifications (alerts, level-ups, new moves, link up/down).
+It is simulated until you plug it in, and you see it as the **LCD 16x2** tile
+in the Deck & PULSE tab. On the Pi: `pip install -r requirements-pi.txt`,
+set `backend = i2c` in `config/lcd.ini`, and test with
+`python3 -m cyberdeck.lcd --demo --backend i2c`. Console: `lcd test`,
+`lcd say <text>`, `lcd backlight on|off|auto`, `lcd status`. Wiring,
+`i2cdetect -y 1`, contrast and blurbs: [docs/LCD.md](docs/LCD.md).
+
 ## Tests
 
 ```bash

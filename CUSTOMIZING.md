@@ -32,6 +32,8 @@ marked **(Rich)** or **(classic)** in the table.
 | Pet alert thresholds, alert sound| `config/pet.ini` |
 | GPIO pin names, buzzer type      | `config/hardware.ini` |
 | Companion link (sim / tcp / serial) | `config/hardware.ini` `[link]` (see docs/TESTING_TWO_BOARDS.md) |
+| The 16x2 LCD (sim / i2c, address, timing, quiet hours) | `config/lcd.ini` (see docs/LCD.md) |
+| PULSE's lines on the LCD          | `text/lcd_blurbs.txt` (then `lcd reload`) |
 | Songs for the buzzer             | `songs/*.txt` |
 | Boot animation, visualizer, games| `config/fx.ini` |
 | The deck's sassy status lines    | `config/moods.ini` |
@@ -250,6 +252,29 @@ let you try alerts and evolutions without waiting. To speed up the sim
 pet's evolution clock, start the deck with `CYBERDECK_EVOLUTION_SPEED=200`
 (`tools/fake_companion.py --evolution-speed 200` does the same; the
 real companion has `--evolution-speed` too).
+
+### PULSE on the 16x2 LCD
+
+The same PULSE events (plus awareness alerts, the companion link and
+low battery) also pop up on the little LCD, with a backlight blink.
+Between them it rotates PULSE's status, PULSE's own lines and a clock.
+
+- **Your own PULSE lines:** `text/lcd_blurbs.txt`. A `[mood]` heading
+  groups lines by mood (`[any]` lines show for every mood). You can use
+  `{name}`, `{level}` and `{mood}`, plus symbols like `{heart}`, `{food}`
+  and `{wifi}`. After editing, type `lcd reload`.
+- **Which events pop up, how long they stay, quiet hours, field mode:**
+  `config/lcd.ini`.
+- **Try it:** `lcd test`, `lcd say hello`, `lcd backlight off`, `lcd status`.
+
+```ini
+[quiet]
+enabled = yes        ; only alerts between 22:00 and 07:00, no blinking
+start = 22:00
+end = 07:00
+```
+
+Wiring and the real screen: [docs/LCD.md](docs/LCD.md).
 
 ### Rest, sleep, and evolving
 

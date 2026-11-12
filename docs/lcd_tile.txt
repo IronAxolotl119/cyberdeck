@@ -1,0 +1,34 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ ▓▒░ CYBERDECK//MAIN ░▒▓                SIM   FIELD ○   LINK ◆ SIM   ⚠ 3                08:00:41 Fri 15 Jan ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  Awareness   ◢ DECK & PULSE ◣   Console   Dungeon   Notes   Fun   [ ] switch · 4 panels                      
+╭─  1  ⌖ FIELD MODE  ─────────────────────────────────╮╭─  2  ◆ PULSE  ──────────────────────────────────────╮
+│  FIELD OFF   alerts ≥ med                           ││ (^_^) PULSE Aethling L6 LINK                        │
+│ scan every 8s · cooldown 120s                       ││ xp 212  dash                                        │
+│ rate 1/3 · muted 0 · capped 0                       ││ nrg ■■■■■■■■··                                      │
+│ 08:00 unknown_tag unknown tag                       ││ env ■■■■■■■■ 1.00  busy airwaves                    │
+│ 08:00 evil_twin   AXOLOTL_NET                       ││ move ▸ peck → all                                   │
+│ 08:00 open_networ AXOLOTL_NET                       ││ new  + beacon burst, ^ tooth echo r1 +2, ^ tooth    │
+│                                                     ││ echo, ^ ping echo r2 +4, ^ ping echo r1 +2, +       │
+│ f toggles field mode · s scans now · alerts also    ││ signal burst                                        │
+│ blink the LED if wired                              ││ PULSE logged LE-Bose (+3 XP).                       │
+│                                                     ││                                                     │
+│                                                     ││ stage rookie · mood playful · link LINK UP · SIM    │
+│                                                     ││ all moves: peck, static zap, wave dash, channel     │
+╰─────────────────────────────────────────────────────╯╰─────────────────────────────────────────────────────╯
+┏━  3  ▭ LCD 16x2  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─  4  ▣ SYSTEM  ─────────────────────────────────────╮
+┃ ╭──────────────────╮  ● BL on                       ┃│ cpu      ■■■·······  26%                            │
+┃ │ ◆LEVEL UP!       │                                ┃│ mem      ■■■■■■■■··  78%                            │
+┃ │ PULSE reached le │                                ┃│ tmp      ■■■■······ 51C~                            │
+┃ ╰──────────────────╯                                ┃│ wifi     last scan 0s ago                           │
+┃ sim · 0 waiting                                     ┃│ bt       last scan 0s ago                           │
+┃                                                     ┃│ lan      last scan 0s ago                           │
+┃ last shown                                          ┃│ rfid     last scan 0s ago                           │
+┃  08:00:41 pet    ◆LEVEL UP! PULSE reached level 4!  ┃│ load     0.10                                       │
+┃  08:00:31 pet    ◆NEW MOVE! PULSE learned signal s… ┃│ up       4h12                                       │
+┃  08:00:21 alert  ΔUNKNOWN TAG de:ad:10:ca           ┃│ disk     4% used                                    │
+┃  08:00:20 pet    ◆NEW MOVE! PULSE learned signal s… ┃│ host     grok-bot-vm-519002929                      │
+┃  08:00:09 alert  ▟EVIL TWIN? AXOLOTL_NET de:ad:be:… ┃│ mode     SIM                                        │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰─────────────────────────────────────────────────────╯
+ ⟫ 08:00:40 PULSE logged LE-Bose (+3 XP).                                                                     
+ [ ]  tab  1-9  panel  ⏎  zoom/run  :  console  m  menu  s  scan  u  move  ?  keys  q  quit                   

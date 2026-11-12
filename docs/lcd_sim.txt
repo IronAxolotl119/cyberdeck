@@ -1,0 +1,57 @@
+CYBERDECK//MAIN - simulated 16x2 LCD (python3 -m cyberdeck.lcd --snapshot)
+One frame from each screen the demo shows, 2.5 s after it appears.
+
+t= 2.5s  notification (test)
+  ┌────────────────┐ ● on
+  │♥☺▟Δϟ◆♪● TEST   │
+  │0123456789ABCDEF│
+  └────────────────┘
+
+t= 6.0s  notification (pet)
+  ┌────────────────┐ ● on
+  │◆NEW MOVE!      │
+  │ learned Tag Bit│
+  └────────────────┘
+
+t=12.5s  notification (alert)
+  ┌────────────────┐ ● on
+  │ΔUNKNOWN TAG    │
+  │de:ad:10:42     │
+  └────────────────┘
+
+t=23.5s  notification (demo)
+  ┌────────────────┐ ● on
+  │ΔNOTICE         │
+  │notifications sc│
+  └────────────────┘
+
+t=40.2s  idle page: clock
+  ┌────────────────┐ ● on
+  │Fri 15 Jan 08:00│
+  │▟LINK UP    ϟ87%│
+  └────────────────┘
+
+t=46.2s  idle page: blurb
+  ┌────────────────┐ ● on
+  │☺PULSE says     │
+  │ sniffed out a n│
+  └────────────────┘
+
+t=60.8s  idle page: pulse
+  ┌────────────────┐ ● on
+  │☺PULSE L7  happy│
+  │●35 ϟ82 ♥76     │
+  └────────────────┘
+
+t=66.8s  idle page: blurb
+  ┌────────────────┐ ● on
+  │♥ hi, operator! │
+  │                │
+  └────────────────┘
+
+t=72.8s  idle page: clock
+  ┌────────────────┐ ● on
+  │Fri 15 Jan 08:01│
+  │▟LINK UP    ϟ87%│
+  └────────────────┘
+

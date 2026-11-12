@@ -1,0 +1,8 @@
+# Extra libraries for the real hardware on the Pi Zero 2 W.
+# Install on the Pi only:   pip install -r requirements-pi.txt
+# (On Raspberry Pi OS Bookworm use a venv, or add --break-system-packages.)
+# Your computer does not need these: everything falls back to simulation.
+
+# The 16x2 I2C LCD (LCD1602 + PCF8574 backpack) - docs/LCD.md
+RPLCD>=1.3
+smbus2>=0.4
