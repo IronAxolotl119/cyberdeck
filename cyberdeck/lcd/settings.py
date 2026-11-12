@@ -17,7 +17,10 @@ from cyberdeck.config import Settings
 # PULSE event names (pushed pet.event, plus the deck's own need alerts)
 # that pop up on the LCD by default. config/lcd.ini [notify] pet_events.
 DEFAULT_PET_EVENTS = ["hungry", "tired", "bored", "sad", "evolve_soon", "evolve_choice", "evolving", "evolved",
-                      "level_up", "learned_move", "move_strengthened", "woke", "signal_found"]
+                      "level_up", "learned_move", "move_strengthened", "woke", "signal_found",
+                      # companion life events (companion/docs/ALIVE.md)
+                      "ask", "sick", "tantrum", "treasure", "adventure_return", "rival_appears", "birthday",
+                      "hatchday", "egg_hatched", "suspicious"]
 
 
 @dataclass

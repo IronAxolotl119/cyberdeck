@@ -52,6 +52,19 @@ PET_TITLES = {
     "move_strengthened": ("{diamond}MOVE UP!", NOTICE),
     "woke": ("{face}{name} AWAKE", INFO),
     "signal_found": ("{wifi}SIGNAL FOUND", INFO),
+    # The companion's "life" events (companion/docs/ALIVE.md). Each one
+    # carries a ready-made `say` line; the ones listed here also pop up,
+    # every other one (speech, idle, dream, greeting…) just becomes a blurb.
+    "ask": ("{bell}{name} ASKS", NOTICE),
+    "sick": ("{heart}{name} IS SICK", NOTICE),
+    "tantrum": ("{bell}TANTRUM!", NOTICE),
+    "treasure": ("{diamond}TREASURE!", NOTICE),
+    "adventure_return": ("{face}{name} IS BACK", NOTICE),
+    "rival_appears": ("{bell}RIVAL!", NOTICE),
+    "birthday": ("{heart}BIRTHDAY!", NOTICE),
+    "hatchday": ("{heart}HATCHDAY!", NOTICE),
+    "egg_hatched": ("{diamond}EGG HATCHED!", NOTICE),
+    "suspicious": ("{wifi}{name} IS WARY", NOTICE),
 }
 
 ALERT_TITLES = {
@@ -241,6 +254,9 @@ class LcdService:
         if isinstance(payload.get("pet"), dict):
             self.set_pet(payload["pet"])
         name = str((payload.get("pet") or {}).get("name") or self.pet.get("name") or "PULSE")
+        say = detail.get("say") or payload.get("say")
+        if isinstance(say, str) and say.strip():
+            text = say                       # the companion's own ready-made line
         move = detail.get("move") or detail.get("name")
         if kind == "move_strengthened" and move:
             text = f"{name}'s {move} is now rank {detail.get('rank', '?')}" + \
@@ -249,7 +265,8 @@ class LcdService:
         if kind not in self.s.pet_events or kind not in PET_TITLES:
             return "skip"
         title, priority = PET_TITLES[kind]
-        key_bit = move or detail.get("level") or detail.get("to") or detail.get("form") or ""
+        key_bit = (move or detail.get("level") or detail.get("to") or detail.get("form") or detail.get("kind")
+                   or detail.get("rival") or detail.get("place") or "")
         return self.notify(text, title.replace("{name}", to_lcd(name)[:7]), priority, "pet",
                            f"pet:{kind}:{key_bit}", now=now)
 

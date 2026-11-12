@@ -10,7 +10,10 @@ and blinks its backlight:
   bait-named Wi-Fi network, a new LAN host, a Bluetooth device that lingers.
   These pass the same field-mode filter as the alert line.
 - **PULSE news**: hungry, tired, ready to evolve (pick a form), evolving,
-  evolved, level up, learned a move, a move got stronger, woke up.
+  evolved, level up, learned a move, a move got stronger, woke up. The
+  companion's life events pop up too: asks, sick, tantrum, treasure, back
+  from an adventure, rival, birthday, egg hatched. They show PULSE's own
+  `say` line. Its chatter (speech, idle, dreams, greetings) joins the blurbs.
 - **The companion link** dropping or coming back, and **low deck battery**
   (when a battery gauge is fitted).
 - Your own text: `lcd say hello`.

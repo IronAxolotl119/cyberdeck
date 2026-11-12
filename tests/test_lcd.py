@@ -299,6 +299,17 @@ class Service(unittest.TestCase):
         lcd.discovery_reaction({"reaction": "already logged", "xp": 0}, now=T0 + 2)
         self.assertNotIn("already logged", [t for _, t in lcd.blurbs.reactions])
 
+    def test_companion_say_lines(self):
+        lcd = service()
+        # A life event with `say` pops up (sick) and its line is what shows.
+        res = lcd.pet_event("sick", "PULSE: sick", {"detail": {"kind": "cold", "say": "achoo... I feel fuzzy"}}, now=T0)
+        self.assertEqual(res, "ok")
+        self.assertEqual(lcd.queue.items[-1].text, "achoo... I feel fuzzy")
+        # Chatter (speech) only becomes a blurb.
+        self.assertEqual(lcd.pet_event("speech", "x", {"detail": {"say": "beep boop, operator"}}, now=T0), "skip")
+        self.assertEqual(lcd.blurbs.next(PET, T0 + 1), "achoo... I feel fuzzy")
+        self.assertEqual(lcd.blurbs.next(PET, T0 + 2), "beep boop, operator")
+
     def test_awareness_alerts_and_field_mode(self):
         lcd = service()
         lcd.set_field_mode(True)
