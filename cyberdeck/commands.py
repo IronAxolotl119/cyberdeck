@@ -325,9 +325,13 @@ def build_registry(include_plugins: bool = True) -> Registry:
         return [f"usage: pet [status|feed [item]|play [game]]  (unknown action: {action})"]
 
     # ping: send a ping and show how quickly the companion answered.
-    @reg.command("ping", "Ping the companion board and report the reply.")
+    @reg.command("ping", "Ping the companion board, or a host: ping <name|address>.",
+                 usage="ping [host]", completer=lambda ctx, args: _host_names(ctx) if not args else [])
     def cmd_ping(ctx: Context, args: list[str]) -> list[str]:
-        del args
+        if args:  # `ping nas` checks a machine instead of the companion
+            from cyberdeck.features.netcheck import ping_lines
+
+            return ping_lines(ctx, args[0])
         started = time.perf_counter()
         reply = ctx.companion.request(TYPE_PING, {})
         rtt_ms = (time.perf_counter() - started) * 1000.0
@@ -346,6 +350,13 @@ def build_registry(include_plugins: bool = True) -> Registry:
         load_user_commands(reg)
 
     return reg
+
+
+def _host_names(ctx: Context) -> list[str]:
+    """Names from config/hosts.ini, for `ping <Tab>`."""
+    from cyberdeck.features.netcheck import host_names
+
+    return host_names(ctx)
 
 
 # --- small formatting helpers used by pet / status / sys ---
