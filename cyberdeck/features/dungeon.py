@@ -4,6 +4,8 @@
   loot               your loot bag (saved between runs)
   loot gift <n>      send item n to PULSE over the companion link
   loot drop <n>      throw item n away
+  loot add <item>    put a loot-table item in the bag without crawling
+                     (for scripts, tests and trying gifts: `loot add evo chip`)
   pet gift <n>       same as `loot gift`
 
 In the dungeon:
@@ -362,6 +364,21 @@ def gift(ctx: "Context", item: dict[str, Any]) -> tuple[bool, list[str]]:
     return accepted, lines
 
 
+def loot_named(name: str) -> dict[str, Any] | None:
+    """A loot-table item by name (case-insensitive; a unique prefix works too)."""
+    wanted = name.strip().lower()
+    exact = [row for row in LOOT_TABLE if row[0] == wanted]
+    rows = exact or [row for row in LOOT_TABLE if row[0].startswith(wanted)]
+    if len(rows) != 1:
+        return None
+    item_name, kind, power, rarity, _w = rows[0]
+    return {"name": item_name, "kind": kind, "power": power, "rarity": rarity, "depth": 0}
+
+
+EMPTY_BAG = ("loot bag empty — go `dungeon` crawling, or `loot add <item>` "
+             f"({', '.join(row[0] for row in LOOT_TABLE)})")
+
+
 def format_item(i: int, item: dict[str, Any]) -> str:
     return f"{i:>3}. {item['name']:<16} {item.get('kind', '?'):<8} power {item.get('power', 0):>3}  {item.get('rarity', '')}"
 
@@ -476,10 +493,20 @@ def register(reg: "Registry") -> None:
         action = args[0].lower() if args else "list"
         if action == "list":
             items = bag.items()
-            return [format_item(i, it) for i, it in enumerate(items, 1)] or ["loot bag empty — go `dungeon` crawling"]
+            return [format_item(i, it) for i, it in enumerate(items, 1)] or [EMPTY_BAG]
+        if action == "add":
+            if len(args) < 2:
+                return ["usage: loot add <item>   items: " + ", ".join(row[0] for row in LOOT_TABLE)]
+            item = loot_named(" ".join(args[1:]))
+            if item is None:
+                return [f"no loot called '{' '.join(args[1:])}' — try: " + ", ".join(row[0] for row in LOOT_TABLE)]
+            bag.add(item)
+            return [f"added {item['name']} ({item['rarity']} {item['kind']}) as #{len(bag.items())} — `pet gift {len(bag.items())}`"]
         if action in {"gift", "drop"}:
             if len(args) < 2:
                 return [f"usage: loot {action} <number|name>"]
+            if not bag.items():
+                return [EMPTY_BAG]
             try:
                 item = bag.take(" ".join(args[1:]))
             except KeyError as exc:
@@ -490,15 +517,17 @@ def register(reg: "Registry") -> None:
             if not ok:
                 bag.add(item)
             return lines
-        return ["usage: loot [list|gift <n>|drop <n>]"]
+        return ["usage: loot [list|gift <n>|drop <n>|add <item>]"]
 
     def loot_complete(ctx: "Context", args: list[str]) -> list[str]:
         if len(args) == 1 and args[0] in {"gift", "drop"}:
             return [str(i) for i in range(1, len(loot_bag(ctx).items()) + 1)]
+        if len(args) == 1 and args[0] == "add":
+            return [row[0].split()[0] for row in LOOT_TABLE]
         return []
 
-    reg.command("loot", "Your dungeon loot: list, gift <n> to PULSE, drop <n>.",
-                usage="loot [list|gift <n>|drop <n>]", subcommands=("list", "gift", "drop"),
+    reg.command("loot", "Your dungeon loot: list, gift <n> to PULSE, drop <n>, add <item>.",
+                usage="loot [list|gift <n>|drop <n>|add <item>]", subcommands=("list", "gift", "drop", "add"),
                 completer=loot_complete)(loot_cmd)
 
     # `pet gift 2` works too.
