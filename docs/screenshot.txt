@@ -1,0 +1,24 @@
+┌─ CYBERDECK / MAIN ──────────────────────────────────────────────── 05:14:36 ─┐
+│ 47.7C  CPU 17%  MEM 32%  BAT 87%+  DECK-NET -50dBm  LINK UP · SIM            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ type 'help' for commands, 'quit' to leave                                    │
+│ > help                                                                       │
+│ commands:                                                                    │
+│   help [command]         List commands, or describe one.                     │
+│   status                 Show deck sensors and companion link state.         │
+│   clear                  Clear the output pane.                              │
+│   quit                   Leave the deck UI.                                  │
+│   sys                    Print a slightly deeper system snapshot.            │
+│   pet [status|feed|play] Query the companion pet: status, feed, or play.     │
+│   ping                   Ping the companion board and report the reply.      │
+│   hello [name]           Say hello (example user command).                   │
+│ > pet status                                                                 │
+│ PULSE  ·  Bitling  ·  rookie                                                 │
+│ mood     playful                                                             │
+│ hunger   [####------]  38                                                    │
+│ happy    [#######---]  72                                                    │
+│ energy   [########--]  80                                                    │
+│ age      11.5h                                                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ >                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘

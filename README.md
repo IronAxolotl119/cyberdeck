@@ -1,0 +1,81 @@
+# CYBERDECK / MAIN
+
+Simulation-first scaffold for the main Raspberry Pi Zero 2 W
+cyberdeck: a custom full-screen terminal UI (not the Pi OS desktop)
+that talks to a companion board running a Digimon-style pet.
+
+Everything runs on a normal Linux terminal today. No Pi is required.
+Python 3 and the standard library (including curses) are enough.
+
+## Run it
+
+From this directory:
+
+```bash
+# Full-screen UI (sim sensors + sim companion pet)
+python3 -m cyberdeck
+
+# Headless: type commands, or pipe them in
+python3 -m cyberdeck --headless
+printf 'status\nping\npet status\nquit\n' | python3 -m cyberdeck --headless
+
+# Headless, one-shot scripts (repeat --script as needed)
+python3 -m cyberdeck --headless --script 'help' --script 'ping' --script 'pet status'
+```
+
+`--mode sim` is the default. You can also set `CYBERDECK_MODE=sim`.
+`--mode real` selects the Pi sensor stub and the UART companion stub
+(the serial link is not implemented yet; the UI will show the link
+down).
+
+```bash
+python3 -m cyberdeck --help
+```
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+## Layout
+
+```text
+config/theme.ini        colors for the full-screen UI
+config/layout.ini       title, prompt, clock, minimum size
+plugins/hello.py        example user command (auto-loaded)
+plugins/_template.py    copy this to add your own command
+cyberdeck/              the Python package
+docs/PROTOCOL.md        dual-board message protocol
+docs/ARCHITECTURE.md    how modules fit together
+docs/screenshot.txt     captured text snapshot of the UI
+CUSTOMIZING.md          how to change colors, layout, and commands
+tests/                  unit tests
+```
+
+## Customize
+
+This scaffold is meant to be edited. Start with
+[CUSTOMIZING.md](CUSTOMIZING.md): colors and layout are INI files,
+and new commands are just Python files dropped into `plugins/`.
+
+## Roadmap
+
+Next steps after this scaffold:
+
+1. **Real UART link** — implement `SerialCompanionLink` (115200 8N1,
+   newline-delimited JSON as in `docs/PROTOCOL.md`) and talk to the
+   companion board's firmware.
+2. **Pi deployment** — run this package on the main Pi Zero 2 W,
+   point `--mode real` at the live sysfs sensors and the serial
+   port, and confirm the curses UI on the deck's own screen.
+3. **Boot-to-UI** — start the deck interface automatically on boot
+   (a systemd service or getty) instead of a graphical desktop.
+
+## Protocol (short)
+
+Boards exchange newline-delimited JSON objects with three keys:
+`type`, `id`, and `payload`. Requests and replies share the same
+`id`. Current types: `hello`, `ping`, `pet.status`, `pet.feed`,
+`pet.play`, plus their `*.ok` replies and `error`. Full rules are
+in [docs/PROTOCOL.md](docs/PROTOCOL.md).

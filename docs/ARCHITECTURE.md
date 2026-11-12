@@ -1,0 +1,192 @@
+# Architecture walkthrough
+
+This is a plain-English map of how the main cyberdeck program is put
+together, and what happens after you press a key.
+
+You do not need to read this to *use* the deck. It is here so you can
+find the right file when you want to change something. For "how do I
+change colors or add a command?", see [CUSTOMIZING.md](../CUSTOMIZING.md)
+in the project root. For the two-board message format, see
+[PROTOCOL.md](PROTOCOL.md).
+
+## What this program is
+
+Two Raspberry Pi Zero 2 W boards are planned:
+
+- **Main board** — this project. A custom full-screen terminal UI
+  (not the Raspberry Pi desktop). You type commands here.
+- **Companion board** — a separate project, later. It hosts a
+  Digimon-style pet. This board talks to it with a small JSON
+  protocol.
+
+Right now there is no Pi and no second board. The program runs in a
+normal Linux terminal and *simulates* both the sensors and the pet.
+The seams are already in place so those simulations can be swapped
+for real hardware later.
+
+## Folder map
+
+```text
+cyberdeck-main/
+  config/               colors and layout (INI files you can edit)
+  plugins/              your extra commands; auto-loaded at startup
+  cyberdeck/            the Python package (`python -m cyberdeck`)
+    app.py              flags, startup, choose UI or headless
+    tui.py              full-screen curses interface
+    headless.py         run commands as plain text (for scripts/tests)
+    commands.py         command registry + built-in commands
+    plugins.py          loads files from plugins/
+    config.py           reads theme.ini and layout.ini
+    protocol.py         encode/decode newline-delimited JSON messages
+    sensors.py          CPU temp / battery / wifi (sim + Pi stub)
+    companion.py        pet link (sim + UART stub)
+    __main__.py         hook for `python -m cyberdeck`
+  docs/                 protocol, architecture, UI snapshot
+  tests/                unit tests (stdlib unittest)
+```
+
+## How data flows from a keypress to the screen
+
+Here is the path of a command such as `pet feed`:
+
+1. **You type.** In full-screen mode, `tui.py` is in a loop. Each
+   key is added to a line at the bottom of the screen. (In headless
+   mode, the line comes from stdin or `--script` instead. From here
+   on the path is the same.)
+
+2. **You press Enter.** The TUI (or headless runner) takes the
+   finished line and calls `Registry.dispatch()` in `commands.py`.
+
+3. **The registry picks a handler.** `dispatch` splits the line into
+   a name and arguments (`pet` + `["feed"]`), looks up that name,
+   and calls the handler function with a shared `Context`. The
+   context holds the sensors, the companion link, and the current
+   mode. Built-in handlers live in `build_registry()`; user ones
+   come from `plugins/`.
+
+4. **The command talks to the companion (when it needs to).**
+   `pet feed` does not change the pet itself. It calls
+   `ctx.companion.request("pet.feed", {"item": "ration"})`.
+   That goes through the `CompanionLink` interface in
+   `companion.py`.
+
+5. **The link uses the protocol.** A `Message` is built in
+   `protocol.py` (type, unique id, payload) and encoded as one line
+   of JSON. In simulation mode, `SimCompanionLink` does not write
+   to a serial port: it ticks the fake pet's needs forward, runs
+   the same handler a real companion would, and returns a reply
+   `Message` with the *same id*. Later, `SerialCompanionLink` will
+   write that line to UART and wait for the matching reply.
+
+6. **The command turns the reply into text.** The handler reads
+   the `pet` object out of the reply payload and formats a few
+   lines (name, mood, hunger bars, and so on).
+
+7. **The screen (or stdout) shows those lines.** The TUI appends
+   them to the output pane and redraws. Headless mode prints them.
+   The status bar is redrawn from `ctx.sensors.read()` and
+   `ctx.companion.link_label()` on a timer, even if you are not
+   typing, so the clock keeps ticking.
+
+`quit` and `clear` are slightly different: they set a flag on the
+context (`should_quit` / `should_clear`) and the UI or headless
+runner acts on it after the handler returns.
+
+```text
+ key / --script
+        │
+        ▼
+  tui.py  or  headless.py
+        │  dispatch(line, ctx)
+        ▼
+  commands.py  (Registry → handler)
+        │  ctx.companion.request(...)
+        ▼
+  companion.py  (SimCompanionLink or SerialCompanionLink)
+        │  Message.encode / decode
+        ▼
+  protocol.py   ←── (later) UART to the other Pi
+        │
+        ▼
+  handler returns text lines
+        │
+        ▼
+  output pane  or  stdout
+```
+
+## What each module does
+
+### `app.py`
+
+Startup only. Parses `--mode`, `--headless`, `--script`, and friends,
+opens hardware, loads config and commands, then hands off to the TUI
+or the headless runner. Environment variables `CYBERDECK_MODE` and
+`CYBERDECK_SERIAL` are also read here (and in `open_hardware`).
+
+### `tui.py`
+
+The visible deck. A status bar, an output log, and a prompt, drawn
+with curses. It knows almost nothing about pets or sensors except
+how to display them. Colors and labels come from `config.py`.
+
+### `headless.py`
+
+The same commands, without curses. Used by tests and by
+`python -m cyberdeck --headless --script 'ping'`.
+
+### `commands.py`
+
+The registry and the built-in commands: `help`, `status`, `clear`,
+`quit`, `sys`, `pet`, `ping`. Each command is a small function that
+returns text lines. Adding a built-in means adding one of those
+functions. Adding a *user* command should be done in `plugins/`
+instead.
+
+### `plugins.py` and `plugins/`
+
+At startup, every `plugins/*.py` file that does not start with `_`
+is imported and registered. The contract is just `NAME` plus
+`run(ctx, args)`. `_template.py` is skipped on purpose so it can
+be copied, not executed.
+
+### `config.py`, `config/theme.ini`, `config/layout.ini`
+
+INI files for colors and for titles, prompt text, and minimum
+terminal size. Missing keys fall back to defaults inside `config.py`.
+
+### `protocol.py`
+
+Packs and unpacks messages. This is the only place that should
+build or parse the JSON on the wire.
+
+### `sensors.py`
+
+`SystemSensors.read()` returns a snapshot (temp, battery, wifi…).
+`SimSensors` wanders realistically. `PiSensors` is a stub that
+already tries a few common Linux files and returns `None` for
+what is not there yet.
+
+### `companion.py`
+
+`CompanionLink.request()` is how commands talk to the pet.
+`SimCompanionLink` plus `PetState` is the fake companion (needs
+change over time; feed and play change them immediately).
+`SerialCompanionLink` is a stub that stays unlinked and explains
+itself if you call it. `open_hardware(mode)` picks the pair.
+
+## Hardware modes
+
+| Mode   | How to choose              | Sensors        | Companion              |
+|--------|----------------------------|----------------|------------------------|
+| `sim`  | default, or `--mode sim`   | `SimSensors`   | `SimCompanionLink`     |
+| `real` | `--mode real`              | `PiSensors`    | `SerialCompanionLink`  |
+
+`CYBERDECK_MODE=real` has the same effect as `--mode real`.
+Real mode is selectable now so the UI can show a down link; the
+UART backend is not implemented yet.
+
+## Tests
+
+`tests/` uses the standard library `unittest` runner. They cover
+the protocol, the command registry, and the simulated companion —
+the parts that must stay stable as the UI and hardware change.
