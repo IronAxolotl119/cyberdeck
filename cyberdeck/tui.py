@@ -659,9 +659,12 @@ class DeckUI:
         try:
             print(f"\n[cyberdeck] running: {' '.join(argv)}\n", flush=True)
             code = subprocess.call(argv)
+            if code != 0:
+                # Keep any error message on screen until it has been read.
+                input(f"\n[cyberdeck] {argv[0]} exited with {code} — press Enter to return to the deck ")
         except (OSError, ValueError) as exc:
             code = f"could not start: {exc}"
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, EOFError):
             code = "interrupted"
         finally:
             curses.reset_prog_mode()
