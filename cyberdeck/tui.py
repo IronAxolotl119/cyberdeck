@@ -144,6 +144,7 @@ class DeckUI:
         self._banner()
         while not self.ctx.should_quit:
             self._tick_services()
+            self._collect_jobs()
             self._draw(stdscr)
             stdscr.timeout(self._frame_ms())
             self._handle_key(stdscr)
@@ -162,6 +163,18 @@ class DeckUI:
         if viz is not None and getattr(viz, "enabled", False):
             return max(60, int(getattr(viz, "frame_ms", 150)))
         return self.refresh_ms
+
+    def _collect_jobs(self) -> None:
+        """Put results of background commands (weather, net check…) in the log."""
+        from cyberdeck.jobs import get_jobs, place_results
+
+        for job in get_jobs(self.ctx).finished():
+            log = list(self.lines)
+            if place_results(log, job):
+                self.lines = deque(log, maxlen=self.lines.maxlen)
+            else:
+                self.append(job.lines)
+            self.ctx.notify(f"{job.title} {'failed' if job.failed else 'ready'}", "warn" if job.failed else "info")
 
     def _tick_services(self) -> None:
         """Let background helpers (pet alerts, music…) do a little work."""

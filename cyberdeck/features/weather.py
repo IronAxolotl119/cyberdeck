@@ -395,6 +395,13 @@ def sky_pane(ctx: "Context", width: int, height: int) -> list[Row]:
 
 # --- commands ----------------------------------------------------------------------------
 
+def weather_is_fresh(ctx: "Context") -> bool:
+    """True if the cached weather is young enough to use without downloading."""
+    ws = load_world(ctx)
+    cached = netcache.read_cache(cache_dir(ctx), weather_url(ws))
+    return bool(cached) and time.time() - cached[1] < ws.weather_minutes * 60
+
+
 def refresh_weather(ctx: "Context") -> None:
     get_weather(ctx)
 
@@ -416,8 +423,16 @@ def register(reg: "Registry") -> None:
                  aliases=("wx",), subcommands=("refresh",))
     def cmd_weather(ctx: "Context", args: list[str]) -> list[str]:
         force = bool(args) and args[0].lower() == "refresh"
-        weather, got = get_weather(ctx, force=force)
-        return weather_lines(weather, got, load_world(ctx), datetime.now(timezone.utc))
+
+        def work() -> list[str]:
+            weather, got = get_weather(ctx, force=force)
+            return weather_lines(weather, got, load_world(ctx), datetime.now(timezone.utc))
+
+        if not force and weather_is_fresh(ctx):
+            return work()   # cached and fresh: no network, answer right away
+        from cyberdeck.jobs import in_background
+
+        return in_background(ctx, "weather", "weather", work)
 
     @reg.command("sun", "Sunrise, sunset, day length, and the sun clock.", usage="sun [tomorrow]",
                  subcommands=("today", "tomorrow"))

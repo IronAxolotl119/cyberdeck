@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from cyberdeck.config import Settings
+from cyberdeck.jobs import in_background
 
 if TYPE_CHECKING:
     from cyberdeck.commands import Context, Registry
@@ -245,24 +246,33 @@ def register(reg: "Registry") -> None:
         if action == "ping":
             if len(args) < 2:
                 return ["usage: net ping <name|address>"]
-            return ping_lines(ctx, args[1])
+            return in_background(ctx, f"ping {args[1]}", f"ping {args[1]}", lambda: ping_lines(ctx, args[1]))
         if action == "port":
             if len(args) < 3:
                 return ["usage: net port <name|address> <port> [port…]"]
             entry = resolve(args[1], hosts)
             ports = [int(p) for p in " ".join(args[2:]).replace(",", " ").split() if p.isdigit()]
-            with ThreadPoolExecutor(max_workers=min(ns.workers, max(1, len(ports)))) as pool:
-                results = list(pool.map(lambda p: check_port(entry.address, p, ns.port_timeout), ports))
-            return [f"{entry.name} ({entry.address})"] + [format_port(r) for r in results]
+
+            def scan() -> list[str]:
+                with ThreadPoolExecutor(max_workers=min(ns.workers, max(1, len(ports)))) as pool:
+                    results = list(pool.map(lambda p: check_port(entry.address, p, ns.port_timeout), ports))
+                return [f"{entry.name} ({entry.address})"] + [format_port(r) for r in results]
+
+            return in_background(ctx, f"port {entry.name}", f"net port {entry.name}", scan)
         if action == "check":
             targets = [resolve(name, hosts) for name in args[1:]] or list(hosts.values())
             if not targets:
                 return ["no hosts to check — add some to config/hosts.ini [hosts]"]
-            lines: list[str] = []
-            up = 0
-            for entry, result, ports in check_many(targets, ns):
-                up += result.ok
-                lines.append(format_ping(entry, result))
-                lines.extend(format_port(r) for r in ports)
-            return lines + [f"{up}/{len(targets)} hosts up"]
+
+            def check() -> list[str]:
+                lines: list[str] = []
+                up = 0
+                for entry, result, ports in check_many(targets, ns):
+                    up += result.ok
+                    lines.append(format_ping(entry, result))
+                    lines.extend(format_port(r) for r in ports)
+                return lines + [f"{up}/{len(targets)} hosts up"]
+
+            # Slow hosts can take a whole timeout, so the TUI runs this on a thread.
+            return in_background(ctx, "net check", "net check", check)
         return ["usage: net [info|hosts|ping|port|check] ..."]

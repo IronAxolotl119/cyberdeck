@@ -357,8 +357,9 @@ def build_registry(include_plugins: bool = True) -> Registry:
     def cmd_ping(ctx: Context, args: list[str]) -> list[str]:
         if args:  # `ping nas` checks a machine instead of the companion
             from cyberdeck.features.netcheck import ping_lines
+            from cyberdeck.jobs import in_background
 
-            return ping_lines(ctx, args[0])
+            return in_background(ctx, f"ping {args[0]}", f"ping {args[0]}", lambda: ping_lines(ctx, args[0]))
         started = time.perf_counter()
         reply = ctx.companion.request(TYPE_PING, {})
         rtt_ms = (time.perf_counter() - started) * 1000.0

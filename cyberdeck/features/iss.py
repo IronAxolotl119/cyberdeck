@@ -224,15 +224,25 @@ def register(reg: "Registry") -> None:
                  usage="iss [passes|visible|now|tle|refresh]",
                  subcommands=("passes", "visible", "now", "tle", "refresh"))
     def cmd_iss(ctx: "Context", args: list[str]) -> list[str]:
+        from cyberdeck.jobs import in_background
+
         action = args[0].lower() if args else "passes"
-        if action == "now":
-            return now_lines(ctx)
         if action == "tle":
-            return tle_lines(ctx)
-        if action == "refresh":
+            return tle_lines(ctx)   # cache only: instant
+
+        def refresh() -> list[str]:
             orbit = get_tle(ctx, force=True)
             ctx.services.pop("iss_memo", None)
             return [f"orbit data: {orbit.source}"] + ([orbit.warning] if orbit.warning else [])
-        if action in {"passes", "visible"}:
-            return passes_lines(ctx, only_visible=action == "visible")
-        return ["usage: iss [passes|visible|now|tle|refresh]"]
+
+        # These may download the orbit data and scan two days of orbit, so in
+        # the TUI they run on a thread and fill in their result when ready.
+        work = {
+            "now": lambda: now_lines(ctx),
+            "refresh": refresh,
+            "passes": lambda: passes_lines(ctx),
+            "visible": lambda: passes_lines(ctx, only_visible=True),
+        }.get(action)
+        if work is None:
+            return ["usage: iss [passes|visible|now|tle|refresh]"]
+        return in_background(ctx, f"iss {action}", f"iss {action}", work)
