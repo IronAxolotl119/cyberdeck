@@ -120,6 +120,18 @@ FACE_INTERVAL_MS = 600
 # Item kinds the pet understands in a pet.gift message (see PROTOCOL.md).
 GIFT_KINDS = {"food", "toy", "battery", "evolve", "trinket"}
 
+# Discoveries (pet.discovery, companion/docs/DISCOVERY.md): the dashboard's
+# Wi-Fi / Bluetooth / LAN / RFID finds feed PULSE. Base XP per kind at
+# interest 1 (+3 per interest step), and each kind's themed move pool.
+DISCOVERY_XP = {"wifi": 4, "bt": 3, "lan": 3, "rfid": 8}
+DISCOVERY_MOVES = {"wifi": ("signal sniff", "beacon burst", "channel hop"), "bt": ("blue pulse", "tooth echo"),
+                   "lan": ("ping echo", "arp whisper"), "rfid": ("tag bite", "near field")}
+MOVE_INFO.update({"signal sniff": (5, 95, 3), "beacon burst": (8, 85, 7), "channel hop": (6, 95, 4),
+                  "blue pulse": (7, 90, 5), "tooth echo": (6, 90, 4), "ping echo": (5, 95, 3),
+                  "arp whisper": (7, 85, 6), "tag bite": (9, 85, 7), "near field": (8, 90, 6)})
+MAX_MOVE_RANK = 5          # each rank adds +2 power
+DISCOVERY_WINDOW = 300.0   # seconds of finds that count towards "busy airwaves"
+
 # Moves the sim pet learns as it levels up.
 MOVE_LADDER = {2: "static zap", 3: "wave dash", 5: "signal burst", 7: "nova flare"}
 XP_PER_LEVEL = 40
@@ -170,6 +182,10 @@ class PetState:
     # Events waiting to be pushed: (event name, detail dict).
     events: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     _flags: set[str] = field(default_factory=set)
+    # pet.discovery: kind:id keys already logged, move ranks, recent finds.
+    seen: set[str] = field(default_factory=set)
+    move_ranks: dict[str, int] = field(default_factory=dict)
+    recent_finds: list[float] = field(default_factory=list)
 
     @property
     def species(self) -> str:
@@ -266,15 +282,16 @@ class PetState:
 
     def _move_info(self, name: str) -> tuple[int, int, int, str | None]:
         power, accuracy, cost = MOVE_INFO.get(name.lower(), DEFAULT_MOVE)
-        return power, accuracy, cost, None
+        return power + 2 * self.move_ranks.get(name.lower(), 0), accuracy, cost, None
 
     def combat_stats(self) -> dict[str, Any]:
         """pet.combat.stats.ok: the live combat sheet (energy lives in the pet object)."""
         moves = []
         for name in self.moves:
             power, accuracy, cost, effect = self._move_info(name)
+            rank = self.move_ranks.get(name.lower(), 0)
             moves.append({"name": name, "power": power, "accuracy": accuracy, "energy_cost": cost,
-                          "kind": "electric", "effect": effect})
+                          "kind": "electric", "effect": effect, "rank": rank, "bonus": 2 * rank})
         return {"hp": self.hp, "max_hp": self.max_hp, "attack": self.attack, "defense": self.defense,
                 "speed": self.speed, "level": self.level, "moves": moves, "fainted": self.hp <= 0,
                 "asleep": self.asleep, "guarding": self.guarding}
@@ -403,6 +420,7 @@ class PetState:
             "moves": list(self.moves),
             "care_mistakes": self.care_mistakes,
             "asleep": self.asleep,
+            "environment": self.environment(),
             "avatar": {"style": "face", "mood": "asleep" if self.asleep else self.mood(), "frame": self.frame,
                        "text": self.face_frames()[self.frame % 2], "form": self.species.lower()},
         }
@@ -522,6 +540,56 @@ class PetState:
             },
             "pet": self.as_payload(),
         }
+
+    # --- discoveries (the dashboard's awareness finds) ----------------------------------
+
+    def environment(self, now: float | None = None) -> dict[str, Any]:
+        """{busy 0-1, buff}: how busy the airwaves were lately (DISCOVERY.md)."""
+        now = time.monotonic() if now is None else now
+        self.recent_finds = [t for t in self.recent_finds if now - t <= DISCOVERY_WINDOW]
+        busy = min(1.0, len(self.recent_finds) / 8)
+        buff = "busy airwaves" if busy >= 0.75 else "curious: sniffing around" if busy > 0 else "calm"
+        return {"busy": round(busy, 3), "buff": buff}
+
+    def discover(self, kind: str, ident: str, interest: int = 1, label: str = "") -> dict[str, Any]:
+        """pet.discovery.ok body: XP for a first find, maybe a themed move."""
+        interest = max(1, min(3, int(interest)))
+        key, name = f"{kind}:{ident}", label or ident
+        before = self.level
+        result: dict[str, Any] = {"xp": 0, "learned_move": None, "strengthened_move": None, "level": self.level,
+                                  "level_up": False}
+        if key in self.seen:
+            result["reaction"] = f"{self.name} has already logged this {kind} signal."
+            result["pet"] = self.as_payload()
+            return result
+        self.seen.add(key)
+        self.discoveries += 1
+        self.recent_finds.append(time.monotonic())
+        xp = DISCOVERY_XP[kind] + 3 * (interest - 1)
+        if self.asleep:
+            xp = int(round(xp / 2))
+            result["reaction"] = f"{self.name} mumbles in its sleep about {name} (+{xp} XP)."
+        else:
+            result["reaction"] = f"{self.name} logged {name} (+{xp} XP)."
+            if self.rng.random() < min(1.0, 0.12 * interest):
+                pool = DISCOVERY_MOVES[kind]
+                missing = [m for m in pool if m not in self.moves]
+                if missing:
+                    move = self.rng.choice(missing)
+                    self.moves.append(move)
+                    result["learned_move"] = move
+                    result["reaction"] = f"{self.name} learned {move} from {name}!"
+                    self.events.append(("learned_move", {"move": move}))
+                else:
+                    move = self.rng.choice(pool)
+                    rank = min(MAX_MOVE_RANK, self.move_ranks.get(move, 0) + 1)
+                    self.move_ranks[move] = rank
+                    result["strengthened_move"] = move
+                    result["reaction"] = f"{self.name}'s {move} grew stronger (rank {rank})."
+                    self.events.append(("move_strengthened", {"move": move, "rank": rank, "bonus": 2 * rank}))
+        self.gain_xp(xp)
+        result.update(xp=xp, level=self.level, level_up=self.level > before, pet=self.as_payload())
+        return result
 
     def gain_xp(self, amount: int) -> None:
         """Add xp; level up (and maybe learn a move) every XP_PER_LEVEL."""
@@ -754,6 +822,15 @@ class SimCompanionLink(CompanionLink):
             return message.reply(TYPE_PET_EVOLVE_OK, {**result, "pet": self.pet.as_payload()})
         if typ == TYPE_PET_COMBAT_STATS:
             return message.reply(TYPE_PET_COMBAT_STATS_OK, self.pet.combat_stats())
+        if typ == "pet.discovery":
+            kind = str(payload.get("kind") or "").strip().lower()
+            ident = str(payload.get("id") or "").strip()
+            if kind not in DISCOVERY_XP or not ident:
+                return message.error("bad_payload", "pet.discovery needs kind (wifi|bt|lan|rfid) and id")
+            interest = payload.get("interest", 1)
+            interest = interest if isinstance(interest, int) and not isinstance(interest, bool) else 1
+            return message.reply("pet.discovery.ok",
+                                 self.pet.discover(kind, ident, interest, str(payload.get("label") or "")))
         if typ == TYPE_PET_COMBAT_ACTION:
             move = payload.get("move")
             if move is not None and not isinstance(move, str):
