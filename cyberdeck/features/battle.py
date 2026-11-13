@@ -147,7 +147,7 @@ class Battle:
     roll_loot: Callable[[], dict[str, Any] | None] | None = None
 
     def __post_init__(self) -> None:
-        self.phase = "log"            # log | menu | fight | bag | pulse | end
+        self.phase = "log"            # log | menu | fight | bag | pulse | stats | end
         self.after = "menu"           # where the log pages lead
         self.pages: list[list[str]] = []
         self.shown: list[str] = []    # the log lines on screen right now
@@ -166,6 +166,8 @@ class Battle:
         self.run_lines: dict[str, str] | None = None
         self.log_rows = LOG_ROWS
         self.note = ""
+        self.ctx: Any = None                  # set by new_battle(); used for settings and the stats page
+        self.stats_view: Any = None           # the PULSE STATS sheet while it is open (phase "stats")
 
     # --- talking to the companion ----------------------------------------------------
     def _soft(self, typ: str, payload: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -544,7 +546,14 @@ class Battle:
             elif k in ("q", "esc"):
                 self._say(clamp_say("No quitting mid-battle! Pick RUN to flee."))
             return False
-        if k in ("esc", "backspace", "q", "x") or (self.phase == "pulse" and k in ("enter", " ", "space")):
+        if self.phase == "stats":                 # the full sheet: its own keys, never a turn
+            if key == "ctrl+c" or self.stats_view is None or self.stats_view.key(key):
+                self.close_stats()
+            return False
+        if self.phase == "pulse" and k in ("enter", " ", "space", "s"):
+            self.open_stats()
+            return False
+        if k in ("esc", "backspace", "q", "x"):
             self.phase = "menu"
             return False
         if self.phase == "fight":
@@ -568,6 +577,27 @@ class Battle:
             elif k in ("enter", " ", "space"):
                 self.use_item(self.cursor["bag"])
         return False
+
+    # --- the full stats sheet (PULSE card -> STATS) ------------------------------------
+    def open_stats(self, page: str | None = None) -> bool:
+        """Open PULSE STATS from the PULSE card. Free: no turn, no enemy move."""
+        from cyberdeck.features.petstats import open_view
+
+        view, why = open_view(self.ctx, self.ally.request, page)
+        if view is None:
+            self._say(clamp_say(why))
+            return False
+        self.stats_view = view
+        self.phase = "stats"
+        return True
+
+    def close_stats(self) -> None:
+        from cyberdeck.features.petstats import remember
+
+        if self.stats_view is not None:
+            remember(self.ctx, self.stats_view)
+        self.stats_view = None
+        self.phase = "pulse"
 
     def pick(self, choice: str) -> None:
         """FIGHT / BAG / PULSE / RUN from the main menu."""
@@ -646,8 +676,10 @@ def _at(col: int, *pieces: tuple[str, str]) -> tuple[tuple[str, str], ...]:
 
 def render_battle(b: Battle, width: int = SCREEN_W, height: int = 30) -> list[Row]:
     """The battle screen. Rows are 48 columns, centred in `width`."""
+    if b.phase == "stats" and b.stats_view is not None:
+        return b.stats_view.render(width, height)          # PULSE STATS takes the whole box
     e, p = b.enemy, b.pet
-    menu_rows = {"fight": 7, "bag": 6, "pulse": 4, "end": 4}.get(b.phase, 2)
+    menu_rows = {"fight": 7, "bag": 6, "pulse": 5, "end": 4}.get(b.phase, 2)
     b.log_rows = max(1, min(LOG_ROWS, height - 15 - menu_rows))   # 15 = borders, PULSE/enemy, say, keys
     box = _Box()
     box.rule()
@@ -709,7 +741,7 @@ def render_battle(b: Battle, width: int = SCREEN_W, height: int = 30) -> list[Ro
              "menu": "arrows move  enter pick  f b p r  1-4 move",
              "fight": "up/down  enter use  1-4  a auto  esc back",
              "bag": "up/down  enter use  esc back",
-             "pulse": "[esc] back",
+             "pulse": "[enter/s] full stats  [esc] back",
              "end": "[any key] back to the dungeon"}
     box.line((hints.get(b.phase, ""), "dim"))
     box.rule()
@@ -776,6 +808,7 @@ def _pulse_rows(b: Battle, box: _Box) -> None:
                   "dim"))
     else:
         box.line((f"Run chance {int(b.chance_to_flee() * 100)}%", "dim"))
+    box.line(("> STATS", "prompt"), ("  every stat, 8 pages (free)", "dim"))
 
 
 def _end_rows(b: Battle, box: _Box) -> None:
@@ -845,7 +878,7 @@ class BattleActivity(Activity):
     def headless(self) -> list[str]:
         self.battle.drain()
         return battle_text(self.battle) + ["(headless: `battle fight <n>`, `battle bag <n>`, `battle run`, "
-                                           "`battle auto`, `battle show`)"]
+                                           "`battle auto`, `battle stats`, `battle show`)"]
 
 
 def lcd_hook(ctx: "Context") -> Callable[[str, str], None]:
@@ -860,13 +893,15 @@ def lcd_hook(ctx: "Context") -> Callable[[str, str], None]:
 def new_battle(ctx: "Context", ally: Any, enemy: Enemy, depth: int = 1, rng: random.Random | None = None,
                roll_loot: Callable[[], dict[str, Any] | None] | None = None) -> Battle:
     _roster, odds = load_battle_config(ctx.config_dir)
-    return Battle(ally, enemy, depth=depth, rng=rng or random.Random(), odds=odds, on_say=lcd_hook(ctx),
-                  roll_loot=roll_loot)
+    battle = Battle(ally, enemy, depth=depth, rng=rng or random.Random(), odds=odds, on_say=lcd_hook(ctx),
+                    roll_loot=roll_loot)
+    battle.ctx = ctx
+    return battle
 
 
 def register(reg: "Registry") -> None:
     def battle_cmd(ctx: "Context", args: list[str]) -> list[str]:
-        """battle <enemy> [level] | fight <n|name> | auto | bag <n|name> | pulse | run | show | end"""
+        """battle <enemy> [level] | fight <n|name> | auto | bag <n|name> | pulse | stats [page] | run | show | end"""
         from cyberdeck.features.dungeon import PulseAlly, roll_battle_loot
 
         action = args[0].lower() if args else ""
@@ -891,7 +926,7 @@ def register(reg: "Registry") -> None:
             return []
         b = ctx.services.get("battle")
         if b is None:
-            if action not in {"fight", "auto", "bag", "pulse", "run", "show", "end"}:
+            if action not in {"fight", "auto", "bag", "pulse", "stats", "run", "show", "end"}:
                 return [f"no enemy '{action}' — enemies: " + ", ".join(k.id for k in roster)]
             return ["no battle going on — start one: battle <enemy> [level]"]
         b.drain()
@@ -923,13 +958,23 @@ def register(reg: "Registry") -> None:
             out = battle_text(b)
             b.phase = "menu"
             return out
+        elif action == "stats":                 # PULSE STATS mid-battle: free, no turn
+            phase = b.phase
+            b.phase = "pulse"
+            if not b.open_stats(rest or None):
+                b.phase = phase
+                return [b.say]
+            out = b.stats_view.all_text() if not rest else b.stats_view.text()
+            b.close_stats()
+            b.phase = phase
+            return out
         elif action == "run":
             b.run()
         elif action == "end":
             if not b.over:
                 b._finish("flee", [])
         elif action != "show":
-            return ["usage: battle fight <n|name> | auto | bag [n|name] | pulse | run | show | end"]
+            return ["usage: battle fight <n|name> | auto | bag [n|name] | pulse | stats [page] | run | show | end"]
         b.drain()
         out = list(b.history[before:])
         if b.say:
@@ -946,10 +991,10 @@ def register(reg: "Registry") -> None:
 
     def complete(ctx: "Context", args: list[str]) -> list[str]:
         if len(args) <= 1:
-            return [k.id for k in ROSTER] + ["fight", "auto", "bag", "pulse", "run", "show", "end"]
+            return [k.id for k in ROSTER] + ["fight", "auto", "bag", "pulse", "stats", "run", "show", "end"]
         return []
 
-    reg.command("battle", "Turn-based battle: battle <enemy> [level], then fight/bag/pulse/run.",
-                usage="battle <enemy> [level] | fight <n> | auto | bag <n> | pulse | run | show | end",
-                subcommands=("fight", "auto", "bag", "pulse", "run", "show", "end"),
+    reg.command("battle", "Turn-based battle: battle <enemy> [level], then fight/bag/pulse/stats/run.",
+                usage="battle <enemy> [level] | fight <n> | auto | bag <n> | pulse | stats [page] | run | show | end",
+                subcommands=("fight", "auto", "bag", "pulse", "stats", "run", "show", "end"),
                 completer=complete)(battle_cmd)

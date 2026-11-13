@@ -294,6 +294,7 @@ class Game:
     odds: dict[str, float] = field(default_factory=lambda: dict(ODDS))
     on_say: Callable[[str, str], None] | None = None   # battle say lines -> the LCD
     on_battle_end: Callable[[Any], None] | None = None
+    ctx: Any = None          # the deck context (battle settings, the STATS page)
 
     def __post_init__(self) -> None:
         self.depth = 0
@@ -449,6 +450,7 @@ class Game:
 
         battle = Battle(self.ally, m.battle_enemy(), depth=self.depth, rng=self.rng, odds=self.odds,
                         on_say=self.on_say, roll_loot=self.roll_loot)
+        battle.ctx = self.ctx
         if not battle.start():
             self.say(f"{self.ally_name} can't battle: {battle.note or self.ally.note}. fists it is!")
             return False
@@ -926,6 +928,7 @@ def new_game(ctx: "Context", seed: int | None = None) -> Game:
                 pulse_moves="auto" if s.get_str("dungeon", "pulse_moves", "ask").lower() == "auto" else "ask",
                 pulse_target_chance=max(0.0, min(1.0, s.get_float("dungeon", "pulse_target_chance", 0.35))),
                 battles=s.get_bool("dungeon", "battle", True), roster=roster or ROSTER, odds=odds)
+    game.ctx = ctx
     if game.battles:
         from cyberdeck.features.battle import lcd_hook
 

@@ -325,8 +325,8 @@ def build_registry(include_plugins: bool = True) -> Registry:
     # pet: talk to the companion. Default action is status.
     @reg.command(
         "pet",
-        "Look after the companion pet: status, feed, play, rest, sleep, evolve, avatar…",
-        usage="pet [status|feed|play|rest|sleep|evolve|avatar|…]",
+        "Look after the companion pet: status, stats, feed, play, rest, sleep, evolve, avatar…",
+        usage="pet [status|stats [page]|feed|play|rest|sleep|evolve|avatar|…]",
         subcommands=("status", "feed", "play"),
         completer=_pet_complete,
     )

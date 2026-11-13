@@ -68,6 +68,11 @@ TYPE_PET_COMBAT_RUN = "pet.combat.run"              # {enemy} suggested flee odd
 TYPE_PET_COMBAT_RUN_OK = "pet.combat.run.ok"
 TYPE_PET_INVENTORY = "pet.inventory"                # {action list|add|drop, item?, qty?} the bag
 TYPE_PET_INVENTORY_OK = "pet.inventory.ok"
+# Every stat on one sheet for the PULSE STATS screen ("Full stats" in
+# DUNGEON_INTEGRATION.md): raw fields + pages [{title, lines}] + flat lines.
+# Also returned as payload.full by pet.status {full: true}.
+TYPE_PET_STATS = "pet.stats"                        # {} the full stat sheet
+TYPE_PET_STATS_OK = "pet.stats.ok"
 TYPE_ERROR = "error"
 
 # Optional push message from the companion (never answered). Only sent

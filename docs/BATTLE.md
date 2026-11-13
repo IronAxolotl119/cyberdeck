@@ -51,7 +51,9 @@ bare. The newest line also goes to the 16x2 LCD (see below).
 | FIGHT | `1`-`4` | use that move |
 | FIGHT | `a` | let PULSE pick (it picks the best move for this enemy's type) |
 | BAG | Up / Down, Enter | use an item. Greyed-out items (an evo chip) can't be used in battle |
-| PULSE | Esc / Enter | PULSE's card: HP, EN, mood, status, attack/defense/speed, run chance |
+| Menu | `p` (or pick PULSE) | PULSE's card: HP, EN, mood, status, attack/defense/speed, run chance |
+| PULSE card | Enter or `s` | **STATS**: the full PULSE STATS sheet (8 pages, see [DASHBOARD.md](DASHBOARD.md#pulse-stats-every-stat-on-8-pages)). Free: no turn used, the enemy waits |
+| STATS | Left / Right (h / l), `1`-`8`, Up / Down, Esc / `q` | flip pages, jump, scroll a long page, back to the PULSE card |
 | FIGHT / BAG / PULSE | Esc, Backspace, `q` | back to the menu |
 | Menu | `q` / Esc | nothing: you can't quit mid-battle. Pick RUN |
 | End screen | any key | back to the dungeon |
@@ -69,7 +71,7 @@ pick it: the companion then uses its fallback (Chirp, or Guard).
    attack and rolls the base damage. The companion works out what PULSE
    actually takes after its defense and type (`pet.combat.hit`).
 3. BAG items also use up your turn, unless they would do nothing (full
-   HP, for example). The PULSE card is free.
+   HP, for example). The PULSE card and its STATS sheet are free.
 
 ## How it ends
 
@@ -151,6 +153,7 @@ python3 -m cyberdeck --headless --script "battle firewall 3" \
 | `battle auto` | let PULSE pick |
 | `battle bag` / `battle bag <n or name>` | list the bag / use an item |
 | `battle pulse` | PULSE's card |
+| `battle stats [page]` | the PULSE STATS sheet (all pages, or one); no turn used |
 | `battle run` | try to run |
 | `battle show` | print the whole 48-column screen |
 | `battle end` | stop (counts as running away) |

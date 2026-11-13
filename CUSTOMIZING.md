@@ -37,6 +37,7 @@ marked **(Rich)** or **(classic)** in the table.
 | Songs for the buzzer             | `songs/*.txt` |
 | Boot animation, visualizer, games| `config/fx.ini` |
 | Dungeon battles: enemies, faces, odds | `config/battle.ini` (defaults in `cyberdeck/battledata.py`, guide in `docs/BATTLE.md`) |
+| PULSE STATS screen: rows, wrap, start page, bar colours | `config/pet.ini [stats]` (code in `cyberdeck/statsheet.py`) |
 | The deck's sassy status lines    | `config/moods.ini` |
 | Typing-challenge phrases         | `text/hack_phrases.txt` |
 | Your location, units, ISS options| `config/world.ini` |

@@ -138,7 +138,7 @@ class ConsoleBridge(unittest.TestCase):
     def test_tab_completion_and_history(self):
         press(self.dash, "typeh", "tab")
         self.assertEqual(self.b.input.strip(), "typehack")
-        press(self.dash, "ctrl+u", "pet st", "tab")
+        press(self.dash, "ctrl+u", "pet statu", "tab")   # "pet st" could be stats too
         self.assertEqual(self.b.input.strip(), "pet status")
         press(self.dash, "ctrl+u", "help", "enter", "status", "enter", "up")
         self.assertEqual(self.b.input, "status")
@@ -319,14 +319,20 @@ class EntryPoints(unittest.TestCase):
     @unittest.skipUnless(HAVE_RICH, "rich not installed")
     def test_snapshot_through_the_old_alias(self):
         with tempfile.TemporaryDirectory() as tmp:
+            # --seed: the logo glitch is random. Unseeded, about 1 run in 80 had
+            # 3+ glitched letters and failed (the flake). Seeded = same picture every run.
             res = self.run_deck("--snapshot", f"{tmp}/s", "--frames", "5", "--tab", "dungeon", "--keys", "enter",
-                                module="cyberdeck_dash")
+                                "--seed", "7", module="cyberdeck_dash")
             self.assertEqual(res.returncode, 0, res.stderr)
             text = Path(f"{tmp}/s.txt").read_text(encoding="utf-8")
             self.assertTrue(Path(f"{tmp}/s.svg").exists())
-        # The logo glitches a random letter now and then, so allow 2 swapped characters.
+        # The logo glitches letters now and then (still seeded, so it is the same
+        # every run); a glitched letter is one of GLITCH_CHARS, never another letter.
+        from cyberdeck_dash.ui.theme import GLITCH_CHARS
+
         logo = text.split("▓▒░ ", 1)[1][:15] if "▓▒░ " in text else ""
-        self.assertGreaterEqual(sum(a == b for a, b in zip(logo, "CYBERDECK//MAIN")), 13, logo)
+        self.assertEqual(len(logo), 15, logo)
+        self.assertTrue(all(a == b or a in GLITCH_CHARS for a, b in zip(logo, "CYBERDECK//MAIN")), logo)
         self.assertIn("▶ DUNGEON", text)
 
 

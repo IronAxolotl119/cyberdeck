@@ -32,6 +32,7 @@ FEATURES = [
     "music",        # chiptune player for the buzzer, songs/ folder
     "petwatch",     # PULSE alerts, pet log, pet sim
     "petcare",      # pet rest / sleep / evolve / avatar
+    "petstats",     # pet stats: the pageable PULSE STATS screen (8 pages)
     "boot",         # boot animation (glitch logo, decrypting bars)
     "visualizer",   # animated bars on the ticker line
     "moods",        # sassy status lines from moods.ini

@@ -776,6 +776,10 @@ class Dashboard:
             else:
                 return False
             return True
+        # The PULSE tile: s opens the full PULSE STATS screen (pet stats).
+        if panel == "pet" and key == "s":
+            self.deck_run("pet stats", show=False)
+            return True
         if panel == "dungeon" and key in ("enter", " ", "space"):
             self.deck_run("dungeon", show=False)
             return True

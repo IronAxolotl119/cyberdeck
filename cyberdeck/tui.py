@@ -291,6 +291,7 @@ class DeckUI:
         self._draw_header(stdscr, cols, geo)
         self._draw_ticker(stdscr, cols, geo)
         if geo.mode == "split":
+            self._showing = None
             self._draw_log(stdscr, geo.output.top, geo.output.left, geo.output.height, geo.output.width)
             for name, title_row, rect in geo.side:
                 self._draw_pane_title(stdscr, geo, title_row, cols, PANES[name].title)
@@ -299,6 +300,7 @@ class DeckUI:
         else:
             self._draw_tab_bar(stdscr, geo, cols)
             current = self._tabs()[self.tab % len(self._tabs())]
+            self._showing = current             # which tab is up (s on the PULSE tab opens stats)
             r = geo.output
             if current == "output":
                 self._draw_log(stdscr, r.top, r.left, r.height, r.width)
@@ -563,6 +565,10 @@ class DeckUI:
         if key in ("ctrl+c", "ctrl+d"):
             if not self.input:
                 self.ctx.should_quit = True
+            return
+        # On the PULSE tab with an empty prompt, s opens the full stats screen.
+        if key == "s" and not self.input and getattr(self, "_showing", None) == "pet":
+            self._run_action("pet stats", stdscr)
             return
         handler = {
             "enter": self._submit,

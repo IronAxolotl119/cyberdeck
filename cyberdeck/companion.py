@@ -77,6 +77,8 @@ from cyberdeck.protocol import (
     TYPE_PET_GIFT_OK,
     TYPE_PET_INVENTORY,
     TYPE_PET_INVENTORY_OK,
+    TYPE_PET_STATS,
+    TYPE_PET_STATS_OK,
     TYPE_PET_PLAY,
     TYPE_PET_PLAY_OK,
     TYPE_PET_REST,
@@ -165,6 +167,15 @@ DISCOVERY_WINDOW = 300.0   # seconds of finds that count towards "busy airwaves"
 MOVE_LADDER = {2: "static zap", 3: "wave dash", 5: "signal burst", 7: "nova flare"}
 XP_PER_LEVEL = 40
 
+# The sim pet's personality for the PULSE STATS screen (pet.stats). A real
+# companion has its own; change these to give the sim pet a different one.
+SIM_QUIRKS = {"catchphrase": "pip pip!", "dance": "antenna wiggle", "sneeze": "tiny", "tic": "blinks twice",
+              "fav_idle": "watch_packets"}
+# Likes and dislikes. Only the ones in known_prefs are shown (the rest are ???);
+# feeding PULSE its favourite food reveals fav_food.
+SIM_PREFS = {"fav_food": "data cookie", "hated_food": "stale ration", "fav_signal": "bluetooth",
+             "hated_signal": "static"}
+
 # When the sim pet complains (pushed as pet.event): event -> test.
 NEED_EVENTS = (
     ("hungry", lambda p: p.hunger >= 80),
@@ -224,6 +235,18 @@ class PetState:
     battle_moves: list[str] | None = None
     sad_hours: float = 0.0
     line_rng: random.Random = field(default_factory=lambda: random.Random(11), repr=False)
+    # The full stat sheet (pet.stats): lifetime battle record, when it hatched
+    # (set on first use), obedience 0-100, likes found so far, trinkets kept.
+    record: dict[str, int] = field(default_factory=lambda: {"wins": 0, "losses": 0, "flees": 0, "bosses": 0,
+                                                            "faints": 0})
+    born_at: float | None = None
+    nickname: str | None = None
+    generation: int = 1
+    obedience: float = 60.0
+    quirks: dict[str, str] = field(default_factory=lambda: dict(SIM_QUIRKS))
+    prefs: dict[str, str] = field(default_factory=lambda: dict(SIM_PREFS))
+    known_prefs: set[str] = field(default_factory=set)
+    trinkets: list[str] = field(default_factory=list)
 
     @property
     def species(self) -> str:
@@ -586,6 +609,7 @@ class PetState:
         bond_before = self.bond
         up = self.name.upper()
         log: list[str] = []
+        fainted = False
         if result == "win":
             self.happiness = _clamp(self.happiness + 8.0, 0.0, 100.0)
             self.bond = _clamp(self.bond + (5.0 if boss else 2.0), 0.0, 100.0)
@@ -596,6 +620,7 @@ class PetState:
         elif result == "lose":
             self.happiness = _clamp(self.happiness - 10.0, 0.0, 100.0)
             self.sad_hours = 1.0
+            fainted = self.hp <= 0
             if self.hp <= 0:
                 self.care_mistakes += 1
                 self.hp = 1          # limps home; a rest heals it fully
@@ -611,6 +636,12 @@ class PetState:
             log.append(f"{up} grew to Lv {self.level}!")
         if learned:
             log.append(f"{up} learned {learned.upper()}!")
+        # The lifetime battle record (pet.stats "Battle Record").
+        self.record[{"win": "wins", "lose": "losses", "flee": "flees"}[result]] += 1
+        if result == "win" and boss:
+            self.record["bosses"] += 1
+        if fainted:
+            self.record["faints"] += 1
         added = []
         for item in loot or []:
             entry = self.bag_add(item if isinstance(item, dict) else {"name": str(item)})
@@ -863,6 +894,8 @@ class PetState:
                 "pet": self.as_payload(),
             }
         if kind == "food":
+            if name.lower() == self.prefs.get("fav_food", "").lower():
+                self.known_prefs.add("fav_food")        # now it shows on the stats screen
             self.hunger = _clamp(self.hunger - power, 0.0, 100.0)
             self.happiness = _clamp(self.happiness + 5.0, 0.0, 100.0)
             reaction = f"{self.name} munches the {name}. nom."
@@ -885,6 +918,7 @@ class PetState:
         else:
             self.happiness = _clamp(self.happiness + 10.0, 0.0, 100.0)
             reaction = f"{self.name} adds the {name} to its hoard."
+            self.trinkets.append(name)
         self.inventory = (self.inventory + [name])[-20:]
         self._check_needs()
         return {
@@ -899,6 +933,77 @@ class PetState:
             },
             "pet": self.as_payload(),
         }
+
+    # --- the full stat sheet (pet.stats, pet.status {full:true}) -----------------------
+
+    def full_stats(self, now: float | None = None) -> dict[str, Any]:
+        """Every stat: the same raw fields, pages and flat lines as the real
+        companion's pet.stats (companion/pet/fullstats.py), from sim numbers."""
+        from datetime import date, datetime
+
+        from cyberdeck.statsheet import build_pages, flat_lines, obedience_tier, pct
+
+        now = time.time() if now is None else now
+        if self.born_at is None:
+            self.born_at = now - self.age_hours * 3600.0
+        born = datetime.fromtimestamp(self.born_at).date()
+        today = datetime.fromtimestamp(now).date()
+
+        def birthday_in(year: int) -> date:
+            try:
+                return born.replace(year=year)
+            except ValueError:            # born on Feb 29
+                return born.replace(year=year, day=28)
+
+        next_bday = birthday_in(today.year)
+        if next_bday < today:
+            next_bday = birthday_in(today.year + 1)
+        xp_floor, xp_next = (self.level - 1) * XP_PER_LEVEL, self.level * XP_PER_LEVEL
+        evo = self.evolution()
+        gates: dict[str, Any] = {}
+        eta = None
+        if evo["next_stage"]:
+            need = STAGE_HOURS.get(self.stage, 24.0)
+            gates["age"] = {"have": round(self.stage_hours, 1), "need": need, "pct": pct(self.stage_hours, need)}
+            eta = 0.0 if evo["ready"] else round(max(0.0, need - self.stage_hours) / max(1e-6, self.evolution_speed), 2)
+        bag = self.bag_payload()
+        record = dict(self.record)
+        record["fights"] = record["wins"] + record["losses"] + record["flees"]
+        raw: dict[str, Any] = {
+            "name": self.nickname or self.name, "nickname": self.nickname, "species": self.species,
+            "species_id": slug(self.species), "stage": self.stage, "type": self.pet_type(),
+            "level": self.level, "xp": self.xp, "xp_level_start": xp_floor, "xp_next_level": xp_next,
+            "xp_to_next": max(0, xp_next - self.xp), "xp_pct": pct(self.xp - xp_floor, max(1, xp_next - xp_floor)),
+            "age_hours": round(self.age_hours, 1), "age_days": round(max(0.0, (now - self.born_at) / 86400.0), 1),
+            "generation": self.generation, "birthday": born.isoformat(), "next_birthday": next_bday.isoformat(),
+            "hp": self.hp, "max_hp": self.max_hp, "energy": int(round(self.energy)), "max_energy": 100,
+            "attack": self.attack, "defense": self.defense, "speed": self.speed, "speed_bonus": 0,
+            "accuracy_mod": 0, "damage_mult": 1.0, "crit_chance": round(1.0 / 16.0, 3), "disobey_chance": 0.0,
+            "guarding": self.guarding, "status": self.status_word(),
+            "hunger": int(round(self.hunger)), "fullness": int(round(100 - self.hunger)),
+            "happiness": int(round(self.happiness)), "obedience": int(round(self.obedience)),
+            "discipline": obedience_tier(self.obedience), "care_mistakes": self.care_mistakes,
+            "mood": self.mood(), "mood_offset": 0.0, "modifiers": [],
+            "bond": self.bond_tier(), "bond_hearts": min(5, int(self.bond // 20)),
+            "sick": "glitch" if self.status == "glitch" else None, "tantrum": False,
+            "quirks": dict(self.quirks),
+            "favorites": {k: v for k, v in self.prefs.items() if k in self.known_prefs},
+            "favorites_hidden": sum(1 for k in self.prefs if k not in self.known_prefs),
+            "evolution": {"next_stage": evo["next_stage"], "ready": bool(evo["ready"]),
+                          "progress_pct": int(round(100 * float(evo["progress"] or 0))), "eta_hours": eta,
+                          "gates": gates, "choices": list(evo["choices"])},
+            "moves": [self.battle_move(m) for m in self.moves], "loadout": self.loadout(),
+            "loadout_auto": self.battle_moves is None,
+            "bag": bag, "bag_items": len(bag), "bag_total": sum(r["qty"] for r in bag),
+            "record": record, "rival": {"name": None, "wins": 0, "losses": 0},
+            "discoveries": self.discoveries, "networks_known": sum(1 for k in self.seen if k.startswith("wifi:")),
+            "treasures": 0, "trinkets": len(self.trinkets),
+            "favorite_trinket": max(set(self.trinkets), key=self.trinkets.count) if self.trinkets else None,
+            "adventures": 0, "diary_entries": 0,
+        }
+        raw["pages"] = build_pages(raw)
+        raw["lines"] = flat_lines(raw["pages"])
+        return raw
 
     # --- discoveries (the dashboard's awareness finds) ----------------------------------
 
@@ -1151,8 +1256,12 @@ class SimCompanionLink(CompanionLink):
         if typ == TYPE_PING:
             return message.reply(TYPE_PONG, {"ok": True, "source": self.source})
         if typ == TYPE_PET_STATUS:
-            return message.reply(TYPE_PET_STATUS_OK, {"pet": self.pet.as_payload(),
-                                                      "evolution": self.pet.evolution()})
+            body = {"pet": self.pet.as_payload(), "evolution": self.pet.evolution()}
+            if (message.payload or {}).get("full") is True:      # the full sheet rides along
+                body["full"] = self.pet.full_stats()
+            return message.reply(TYPE_PET_STATUS_OK, body)
+        if typ == TYPE_PET_STATS:
+            return message.reply(TYPE_PET_STATS_OK, self.pet.full_stats())
         if typ == TYPE_PET_FEED:
             item = str((message.payload or {}).get("item") or "ration")
             return message.reply(TYPE_PET_FEED_OK, self.pet.feed(item))

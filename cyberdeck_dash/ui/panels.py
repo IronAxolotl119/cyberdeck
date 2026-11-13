@@ -317,7 +317,10 @@ def render_pet(dash, big: bool):
         lines.append(Text("\ncompanion alerts", style=f"bold {th.accent2}"))
         for ev in list(dash.pet.alerts)[:8]:
             lines.append(Text(f" {ev.get('event')}: {ev.get('detail') or ''}", style=th.text))
-        lines.append(Text("\nu use move (runs a fresh scan) · v next move", style=th.dim))
+        lines.append(Text("\nu use move (runs a fresh scan) · v next move"
+                          + (" · s full stats" if dash.bridge is not None else ""), style=th.dim))
+    elif dash.bridge is not None:
+        lines.append(Text("s full stats", style=th.dim))
     return Group(*lines)
 
 

@@ -142,7 +142,10 @@ launcher menu.
 - **Productivity and network:** `note`, `todo`, `wifi scan`/`wifi meter`,
   `net info`, `ping`, `net port`, `net check`, `ssh <name>`.
 - **Pet and hardware:** `pet` (feed/play/rest/sleep/evolve/avatar/log/
-  alerts/gift), an animated face and evolution progress in the pet pane,
+  alerts/gift), `pet stats`: PULSE STATS, every stat on 8 pageable
+  48-column pages (also `s` on the PULSE tile, `F3`, or STATS in a battle;
+  [docs/DASHBOARD.md](docs/DASHBOARD.md#pulse-stats-every-stat-on-8-pages)),
+  an animated face and evolution progress in the pet pane,
   evolution pop-ups, hunger and boredom alerts, `gpio led|set|read|beep`,
   `music play <song>` on the buzzer.
 - **Fun:** boot animation, ticker visualizer, deck moods, `hack`,
@@ -177,7 +180,7 @@ Boards exchange newline-delimited JSON objects with three keys:
 `type`, `id`, and `payload`. Requests and replies share the same
 `id`. Types include `hello`, `ping`, `pet.status`, `pet.feed`,
 `pet.play`, `pet.gift`, `pet.rest`/`sleep`/`evolve`, `pet.combat.*`
-(including the battle messages `item`, `moves`, `roster`, `run`), `pet.inventory`,
+(including the battle messages `item`, `moves`, `roster`, `run`), `pet.inventory`, `pet.stats`,
 `pet.discovery`, plus their `*.ok` replies, `pet.event` pushes and
 `error`. Full rules are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 

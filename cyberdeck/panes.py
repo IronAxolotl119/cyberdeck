@@ -249,6 +249,8 @@ def pet_pane(ctx: "Context", width: int, height: int) -> list[Row]:
     picture = avatar_rows(ctx, pet, width)
     if picture and height >= len(picture) + 6:
         rows = picture + rows
+    if len(rows) < height:
+        rows.append([("F3 / pet stats: full stats (s on this tab)", "dim")])
     return rows[:height]
 
 

@@ -25,6 +25,7 @@ MFRC522 RFID reader and GPIO buttons.
 
 More pictures: [Dungeon tab, mid-run](dashboard_dungeon.png) ·
 [a dungeon battle](dashboard_battle.png) ([how battles work](BATTLE.md)) ·
+[PULSE STATS](dashboard_stats.png) ([the stats screen](#pulse-stats-every-stat-on-8-pages)) ·
 [Console tab](dashboard_console.png) · plain text (100x30):
 [dashboard_snapshot.txt](dashboard_snapshot.txt)
 
@@ -68,6 +69,7 @@ python3 -m cyberdeck --snapshot docs/dashboard_dungeon --seed 7 --tab dungeon --
 python3 -m cyberdeck --snapshot docs/dashboard_console --seed 7 --tab console
 python3 -m cyberdeck --snapshot docs/dashboard_battle --seed 7 --size 100x34 --tab console \
     --keys "battle firewall 3,enter,enter,f,2,enter,enter,f,down"
+python3 -m cyberdeck --snapshot docs/dashboard_stats --seed 7 --size 100x34 --tab pet --keys s
 # PNGs: cairosvg docs/<name>.svg -o docs/<name>.png --output-width 1600
 ```
 
@@ -110,7 +112,7 @@ Everywhere (except while typing in the Console):
 | `:` | jump to the Console and type a command |
 | `F1`-`F12`, `ctrl+o`… | hotkeys from `config/keys.ini` (F2 launcher, F11 dungeon, F12 typehack…) |
 | `m` | main menu (grouped by tab, with ping / DNS / console / launcher items) |
-| `s` | scan now (focused scanner, or all) |
+| `s` | scan now (focused scanner, or all); on the PULSE tile: open PULSE STATS |
 | `u` / `v` | PULSE uses the selected move (runs a fresh scan) / next move |
 | `f` | field mode on/off |
 | `p` / `d` | ping a host / DNS lookup (Diagnostics) |
@@ -130,7 +132,47 @@ Per tab:
 | **Notes** | `a` (or `n`) add, `↑` `↓` pick, `x` delete |
 | **Todo** | `a` (or `n`) add, `↑` `↓` pick, `space` done/undo, `x` delete, `c` clear done |
 | **Fun & Tools** | `↑` `↓` pick, `enter` run (result in OUTPUT; entries ending in `...` go to the console to finish typing) |
+| **PULSE tile** (Deck & PULSE) | `s` opens PULSE STATS (see below) |
 | any activity | all keys go to it; `ctrl+c` always closes it |
+
+## PULSE STATS: every stat on 8 pages
+
+![PULSE STATS, Overview page](dashboard_stats.png)
+
+A 48-column ASCII sheet with everything about PULSE, in eight pages:
+**1 Overview, 2 Combat, 3 Care, 4 Traits & Evolution, 5 Moves & Loadout,
+6 Bag, 7 Battle Record, 8 Discoveries**. The companion writes the pages
+(`pet.stats`, see [PROTOCOL.md](PROTOCOL.md)); the deck pages through
+them and redraws the XP, HP, EN and evolution bars in colour from the raw
+numbers. Undiscovered favourites show as `???`; in Moves & Loadout a `*`
+marks a move in the battle loadout.
+
+Open it with:
+
+- `s` on the **PULSE** tile (Deck & PULSE tab) in this interface
+- `F3`, or `pet stats [page]` in the Console (page = `1`-`8` or a word
+  like `bag`, `record`; `pet stats lines` prints the flat list)
+- classic curses: `s` on the PULSE tab (tabs mode, empty prompt), or `F3`
+- in a battle: **PULSE**, then **STATS** (`enter` or `s`). It is free: no
+  turn is used and the enemy does not move. `esc` goes back to the card.
+
+| Key | Does |
+|-----|------|
+| `←` `→` / `h` `l` | previous / next page (wraps around) |
+| `1`-`8` | jump to that page |
+| `↑` `↓` / `k` `j` | scroll a page that is longer than the screen |
+| `esc` / `q` | back (to the tile, or to the battle's PULSE card) |
+| `ctrl+c` | close |
+
+The header shows the page and `3/8`. Headless (`--script "pet stats"`)
+prints every page; `pet stats 4` prints one. An older companion without
+`pet.stats` still works: the deck tries `pet.status {full:true}`, then
+plain `pet.status`, and builds basic pages (Overview, Combat, Care,
+Evolution, Moves) from those.
+
+Settings: `config/pet.ini [stats]`: `rows` (body rows, a longer page
+scrolls), `wrap`, `remember_page` (reopen where you left), `start_page`,
+`color_bars`.
 
 ## Panel guide
 

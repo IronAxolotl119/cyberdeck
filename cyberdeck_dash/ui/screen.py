@@ -37,7 +37,7 @@ DECK_HELP = [
 
 HELP = [
     ("[ ] / g", "switch group (tab)"), ("1-9", "focus panel in group"), ("←→ / tab", "move focus"), ("↑↓", "move focus / pick item"),
-    ("enter / z", "full-screen panel"), ("esc", "back"), ("m", "main menu"), ("s", "scan (focused or all)"),
+    ("enter / z", "full-screen panel"), ("esc", "back"), ("m", "main menu"), ("s", "scan (focused or all); on PULSE: full stats"),
     ("u", "PULSE uses move → fresh scan"), ("v", "next move"), ("f", "field mode on/off"),
     ("p / d", "ping a host / DNS lookup"), ("r", "tap a tag (sim)"), ("n", "note for last tag"), ("space", "tick checklist item"),
     ("t", "next theme"), ("q", "quit"),
@@ -173,15 +173,22 @@ def footer(dash, now: float) -> Group:
     hints = Text(no_wrap=True, overflow="crop")
     if dash.bridge is not None and dash.bridge.activity is not None:
         act = dash.bridge.activity
-        in_battle = act.title == "BATTLE" or getattr(getattr(act, "game", None), "battle", None) is not None
-        keys = ((("arrows/⏎", "pick"), ("f b p r", "fight bag pulse run"), ("esc", "back"), ("^C", "close"))
-                if in_battle else
-                (("q/esc", "leave"), ("^C", "close"), ("keys", f"go to {act.title.lower()}")))
+        battle = getattr(act, "battle", None) or getattr(getattr(act, "game", None), "battle", None)
+        in_battle = act.title == "BATTLE" or battle is not None
+        in_stats = act.title == "STATS" or getattr(battle, "phase", "") == "stats"
+        if in_stats:            # PULSE STATS (from the PULSE tile, `pet stats`, or a battle's PULSE card)
+            keys = (("←→ h l", "page"), ("1-8", "jump"), ("↑↓", "scroll"), ("esc/q", "back"), ("^C", "close"))
+        elif in_battle:
+            keys = (("arrows/⏎", "pick"), ("f b p r", "fight bag pulse run"), ("esc", "back"), ("^C", "close"))
+        else:
+            keys = (("q/esc", "leave"), ("^C", "close"), ("keys", f"go to {act.title.lower()}"))
     elif dash.console_typing():
         keys = (("⏎", "run"), ("Tab", "complete"), ("↑↓", "history"), ("PgUp", "scroll"), ("Esc", "clear"),
                 ("[ ]", "tabs (empty line)"), ("F2", "launcher"))
     elif dash.bridge is not None:
-        keys = (("[ ]", "tab"), ("1-9", "panel"), ("⏎", "zoom/run"), (":", "console"), ("m", "menu"), ("s", "scan"),
+        on_pet = bool(dash.panels) and dash.panels[dash.focus] == "pet"
+        keys = (("[ ]", "tab"), ("1-9", "panel"), ("⏎", "zoom/run"), (":", "console"), ("m", "menu"),
+                ("s", "stats" if on_pet else "scan"),
                 ("u", "move"), ("?", "keys"), ("q", "quit"))
     else:
         keys = (("[ ]", "group"), ("1-9", "panel"), ("⏎", "zoom"), ("m", "menu"), ("s", "scan"), ("u", "move"),

@@ -85,7 +85,8 @@ stays at `proto` 1.
 |---------------|-----------------|-------------------------|-----------------|
 | `hello`       | `hello.ok`      | `role`, `proto`         | `role`, `proto`, optional `source`, `pet` |
 | `ping`        | `pong`          | `{}`                    | `ok` (true), optional `source` |
-| `pet.status`  | `pet.status.ok` | `{}`                    | `pet` object (see below), optional `evolution` |
+| `pet.status`  | `pet.status.ok` | `{}` or `{full: true}`  | `pet` object (see below), optional `evolution`; with `full: true` also `full` (the stat sheet) |
+| `pet.stats`   | `pet.stats.ok`  | `{}`                    | the full stat sheet, see "Full stats" |
 | `pet.feed`    | `pet.feed.ok`   | `item` (string)         | `item`, `hunger_delta`, `pet` |
 | `pet.play`    | `pet.play.ok`   | `game` (string)         | `game`, `played` (bool), optional `reason`, `pet` |
 | `pet.gift`    | `pet.gift.ok`   | `item` (object, below)  | `accepted`, `item`, `reaction`, `effects`, `pet` |
@@ -332,6 +333,44 @@ any of the new messages still works: moves without a type are NORM,
 matchups are x1, and BAG reports an empty bag. The deck's sim pet
 (`cyberdeck/companion.py`) answers all of these the same way the
 companion does.
+
+### Full stats (`pet.stats`)
+
+Everything about PULSE on one sheet, for the PULSE STATS screen
+(companion/docs/DUNGEON_INTEGRATION.md, "Full stats";
+[DASHBOARD.md](DASHBOARD.md#pulse-stats-every-stat-on-8-pages)).
+
+```json
+{"type":"pet.stats","id":"…","payload":{}}
+{"type":"pet.stats.ok","id":"…","payload":{"name":"PULSE","species":"Aethling","stage":"rookie","type":"FIRE",
+  "level":6,"xp":209,"xp_level_start":200,"xp_next_level":240,"xp_to_next":31,"xp_pct":22,
+  "hp":40,"max_hp":40,"energy":80,"max_energy":100,"record":{"wins":2,"losses":0,"flees":1,"bosses":0,"faints":0,"fights":3},
+  "evolution":{"next_stage":"champion","ready":false,"progress_pct":0,"eta_hours":36.0,"gates":{"age":{"have":0,"need":36,"pct":0}},"choices":[…]},
+  "…": "…",
+  "pages":[{"title":"Overview","lines":["PULSE","Aethling  rookie  FIRE","…"]}, …],
+  "lines":["== Overview ==","PULSE","…"]}}
+```
+
+- **Raw fields** (identity, level and XP, age, combat, care, mood,
+  status, quirks, favourites, evolution, moves and loadout, bag, battle
+  record and rival, discoveries) are listed in the companion's spec. The
+  deck uses them to draw the XP / HP / EN / evolution bars.
+- **`pages`** come in this order: Overview, Combat, Care, Traits &
+  Evolution, Moves & Loadout, Bag, Battle Record, Discoveries. Titles are
+  20 characters or less; every line is plain ASCII, 44 characters or
+  less. The deck shows the page text as it is (made safe if a line
+  breaks the rules).
+- **`lines`** is the same text as one flat list with `== Title ==` page
+  breaks (the deck splits it when `pages` is missing).
+- `pet.status {full: true}` returns the normal reply plus the same sheet
+  as `full`. Without `full: true`, `pet.status` is unchanged.
+- **Older companions:** the deck asks `pet.stats`, then
+  `pet.status {full: true}`, then plain `pet.status`, and builds basic
+  pages from the plain pet object.
+- The sim pet (`cyberdeck/companion.py`) answers `pet.stats` with the same
+  fields and pages, built by the same layout code (`cyberdeck/statsheet.py`,
+  a line-for-line port of the companion's `pet/fullstats.py`; a test checks
+  they match).
 
 ### Discoveries (`pet.discovery`)
 

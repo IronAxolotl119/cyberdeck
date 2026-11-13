@@ -60,7 +60,7 @@ RESERVED = {
 DEFAULT_HOTKEYS = {
     "f1": "help",
     "f2": ":launcher",
-    "f3": "pet status",
+    "f3": "pet stats",
     "f4": ":tab next",
     "f5": "status",
     "f6": ":layout toggle",
