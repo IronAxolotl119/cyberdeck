@@ -151,7 +151,9 @@ launcher menu.
 - **Fun:** boot animation, ticker visualizer, deck moods, `hack`,
   `typehack`, `dungeon` (walk into an enemy for a Pokemon-style
   turn-based battle: FIGHT / BAG / PULSE / RUN, fought by PULSE with its
-  real moves; see [docs/BATTLE.md](docs/BATTLE.md)), `battle <enemy>`,
+  real moves; see [docs/BATTLE.md](docs/BATTLE.md)); every network PULSE
+  discovers unlocks its own seeded dungeon with floors, bosses and
+  checkpoints ([docs/DUNGEONS.md](docs/DUNGEONS.md)), `battle <enemy>`,
   and loot that can be gifted to PULSE (`loot add <item>` for scripts).
 - **Outside world:** `weather`, `sun`, `moon`, `iss` (passes over you,
   computed on the deck), plus a `sky` panel.

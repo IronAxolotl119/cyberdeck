@@ -105,6 +105,7 @@ class Enemy:
     defense: int
     speed: int
     calm: int = 0          # turns left before it may start another battle
+    title: str = ""        # a shown name (a network dungeon boss: "Beacon Lord")
 
     @classmethod
     def spawn(cls, kind: EnemyKind, level: int) -> "Enemy":
@@ -113,7 +114,7 @@ class Enemy:
 
     @property
     def name(self) -> str:
-        return self.kind.name
+        return self.title or self.kind.name
 
     @property
     def type(self) -> str:
@@ -470,6 +471,11 @@ class Battle:
         if result == "flee":
             self.enemy.calm = int(self.odds["calm_turns"])
         payload: dict[str, Any] = {"result": result, "xp": int(xp), "enemies": [self.enemy.describe()]}
+        # Network dungeons: {dungeon_id, floor}, so the companion counts the fight for
+        # that dungeon and applies its in-range XP bonus (this is the ONLY battle XP).
+        dungeon = getattr(self, "dungeon", None)
+        if isinstance(dungeon, dict):
+            payload.update(dungeon)
         if self.loot:
             payload["loot"] = self.loot
         body, _err = self._soft(TYPE_PET_COMBAT_END, payload)
@@ -485,6 +491,9 @@ class Battle:
                              "lose": [f"{self.pet_name} lost the battle..."],
                              "flee": []}.get(result, [])
             lines += [x for x in end_lines if x not in lines]      # e.g. both sides say "Got away safely!"
+            mult = body.get("xp_mult")
+            if result == "win" and isinstance(mult, (int, float)) and mult > 1:
+                lines.append(clamp_say(f"In range: x{float(mult):g} XP!"))
             self._say(body.get("say") or (body.get("reaction") if not body.get("log") else ""))
         else:
             if result == "win":

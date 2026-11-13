@@ -209,20 +209,41 @@ class NotesTodo(unittest.TestCase):
 @unittest.skipUnless(HAVE_RICH, "rich not installed")
 class DungeonTab(unittest.TestCase):
     def test_start_a_run_with_pulse_and_leave(self):
-        from cyberdeck.features.dungeon import DungeonActivity
+        from cyberdeck.features.netdungeon import NetDungeonActivity
 
         dash = make_unified()
         dash.go_to_panel("dungeon", zoom=False)
         press(dash, "enter")
         act = dash.bridge.activity
-        self.assertIsInstance(act, DungeonActivity)
-        self.assertTrue(act.game.ally.online)            # PULSE joined over the (sim) link
+        self.assertIsInstance(act, NetDungeonActivity)    # the sim pet has network dungeons
+        self.assertIn("DUNGEONS", render(dash))
+        self.assertIn("HomeNet", render(dash))
+        press(dash, "enter", "x")                         # go in; any key closes the floor banner
+        self.assertEqual(act.phase, "play")
+        self.assertTrue(act.view.game.ally.online)        # PULSE joined over the (sim) link
         text = render(dash)
-        self.assertIn("DUNGEON", text)
+        self.assertIn("B1F HomeNet", text)
         self.assertIn("PULSE HP", text)
         press(dash, "right", "left", "q")                 # every key goes to the game; q leaves
+        self.assertEqual(act.phase, "end")
+        press(dash, "x", "esc")                           # back to the list; esc closes it
         self.assertIsNone(dash.bridge.activity)
         self.assertTrue(dash.running)
+        self.assertTrue(any("reached B1F" in ln for ln in dash.dungeon_last))
+
+    def test_classic_dungeon_from_the_picker(self):
+        from cyberdeck.features.dungeon import DungeonActivity
+
+        dash = make_unified()
+        dash.go_to_panel("dungeon", zoom=False)
+        press(dash, "enter", "c")                         # c = the classic random dungeon
+        act = dash.bridge.activity
+        self.assertEqual(act.phase, "classic")
+        self.assertIsInstance(act.view, DungeonActivity)
+        self.assertTrue(act.view.game.ally.online)
+        self.assertIn("PULSE HP", render(dash))
+        press(dash, "q")
+        self.assertIsNone(dash.bridge.activity)
         self.assertTrue(any("depth" in ln for ln in dash.dungeon_last))
 
     def test_combat_sheet_and_loot_gift(self):

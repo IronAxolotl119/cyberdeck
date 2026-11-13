@@ -73,13 +73,24 @@ TYPE_PET_INVENTORY_OK = "pet.inventory.ok"
 # Also returned as payload.full by pet.status {full: true}.
 TYPE_PET_STATS = "pet.stats"                        # {} the full stat sheet
 TYPE_PET_STATS_OK = "pet.stats.ok"
+# Network dungeons ("Network dungeons" in DUNGEON_INTEGRATION.md): one
+# dungeon per discovered wifi / bt / lan signal. The companion owns the list,
+# seeds, progress and rewards; the deck builds the maps and runs the fights.
+TYPE_PET_DUNGEONS = "pet.dungeons"                  # {} the dungeon list
+TYPE_PET_DUNGEONS_OK = "pet.dungeons.ok"
+TYPE_PET_DUNGEON_ENTER = "pet.dungeon.enter"        # {id, floor?}
+TYPE_PET_DUNGEON_ENTER_OK = "pet.dungeon.enter.ok"
+TYPE_PET_DUNGEON_FLOOR = "pet.dungeon.floor"        # {id, floor, result, xp?, enemies?, loot?, boss_beaten?}
+TYPE_PET_DUNGEON_FLOOR_OK = "pet.dungeon.floor.ok"
+TYPE_PET_DUNGEON_LEAVE = "pet.dungeon.leave"        # {id, floor?}
+TYPE_PET_DUNGEON_LEAVE_OK = "pet.dungeon.leave.ok"
 TYPE_ERROR = "error"
 
 # Optional push message from the companion (never answered). Only sent
 # after a hello that asked for {"events": true} and was echoed back.
 TYPE_PET_EVENT = "pet.event"
 EVENT_KINDS = ("hungry", "tired", "sad", "evolve_soon", "evolve_choice", "evolving", "evolved", "level_up", "learned_move",
-               "signal_found", "woke")
+               "signal_found", "woke", "dungeon_found", "dungeons_found")
 
 # The evolution ladder, lowest to highest.
 STAGES = ("egg", "baby", "in-training", "rookie", "champion", "ultimate", "mega")

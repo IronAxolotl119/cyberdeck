@@ -70,6 +70,35 @@ class LocalPet:
                 "moves": list(self.moves), "move_strength": dict(self.moves)}
 
 
+# Scanner stand-ins for "no name" (not real names, so not dungeon names).
+PLACEHOLDER_LABELS = {"<hidden>", "unnamed", "unknown", "(hidden)", "hidden"}
+
+
+def discovery_payload(f: Finding) -> dict[str, Any]:
+    """The pet.discovery request for a first sighting.
+
+    Network dungeons use the optional extras: rssi (dBm), security (wifi:
+    "open", "wpa2"...) and rare:true. The id goes to the companion only,
+    which hashes it; the deck never shows or logs it in dungeon notices.
+    """
+    payload: dict[str, Any] = {"kind": f.kind, "id": f.id, "interest": f.interest, "event": f.event,
+                               "label": f.label}
+    if str(f.label or "").strip().lower() in PLACEHOLDER_LABELS:
+        payload["label"] = ""        # a hidden SSID / nameless device: the companion names it hidden-<id>
+    detail = f.detail if isinstance(f.detail, dict) else {}
+    rssi = detail.get("rssi")
+    if isinstance(rssi, (int, float)) and not isinstance(rssi, bool):
+        payload["rssi"] = int(rssi)
+    security = detail.get("security")
+    if isinstance(security, str) and security.strip():
+        payload["security"] = security.strip().lower()
+    if detail.get("secured") is True:
+        payload["secured"] = True
+    if detail.get("rare") is True:
+        payload["rare"] = True
+    return payload
+
+
 def apply_discovery(pet: LocalPet, f: Finding, rules: XpRules, rng: random.Random,
                     xp_mult: float = 1.0) -> dict[str, Any] | None:
     """Local fallback version of a pet.discovery.ok body. None if no XP."""
@@ -289,7 +318,7 @@ class PetAdapter:
         if not f.first:
             return
         if self.online and self.discovery_supported is not False:
-            payload = {"kind": f.kind, "id": f.id, "interest": f.interest, "event": f.event, "label": f.label}
+            payload = discovery_payload(f)
             self.link.request(TYPE_DISCOVERY, payload, lambda msg, f=f: self._discovery_reply(f, msg))
             return
         self._local_discovery(f)
@@ -311,6 +340,10 @@ class PetAdapter:
         if msg.type == TYPE_DISCOVERY_OK:
             self.discovery_supported = True
             payload = dict(msg.payload)
+            if isinstance(payload.get("reaction"), str):     # never show a raw MAC / BSSID
+                from cyberdeck.netdungeons import scrub_ids
+
+                payload["reaction"] = scrub_ids(payload["reaction"])
             pet = payload.get("pet")
             if self.link and isinstance(pet, dict):
                 self.link.pet = pet

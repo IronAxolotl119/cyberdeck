@@ -68,7 +68,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from cyberdeck.activity import Activity, Row
-from cyberdeck.battledata import ODDS, ROSTER, EnemyKind, load_battle_config, roster_entry
+from cyberdeck import netdungeons as ndg
+from cyberdeck.battledata import ALL_ROSTER, ODDS, ROSTER, EnemyKind, load_battle_config, roster_entry
 from cyberdeck.commands import PET_ACTIONS, CompanionError, run_pet_hooks
 from cyberdeck.config import Settings
 from cyberdeck.fx import banner
@@ -125,6 +126,7 @@ class Monster:
     kind: EnemyKind | None = None       # its roster entry (type, face, battle stats)
     enemy: Any = None                   # its battle self (battle.Enemy), made on the first battle
     calm: int = 0                       # turns before it may start another battle
+    title: str = ""                     # a network dungeon boss's themed name ("Beacon Lord")
 
     def describe(self) -> dict[str, Any]:
         """The enemy snapshot sent in pet.combat.action / hit (the old crawl)."""
@@ -142,6 +144,7 @@ class Monster:
         if self.enemy is None:
             kind = self.kind or roster_entry(self.name) or ROSTER[0]
             self.enemy = Enemy.spawn(kind, self.level)
+            self.enemy.title = self.title
         return self.enemy
 
 
@@ -274,7 +277,9 @@ class PulseAlly:
         if self.ended or self.stats is None or not self.online:
             return None
         self.ended = True
-        return self._ask(TYPE_PET_COMBAT_END, {"result": result, "xp": int(xp), "enemies": list(self.defeated)})
+        payload = {"result": result, "xp": int(xp), "enemies": list(self.defeated)}
+        payload.update(getattr(self, "dungeon", None) or {})     # network dungeons: {dungeon_id, floor}
+        return self._ask(TYPE_PET_COMBAT_END, payload)
 
 
 @dataclass
@@ -295,9 +300,13 @@ class Game:
     on_say: Callable[[str, str], None] | None = None   # battle say lines -> the LCD
     on_battle_end: Callable[[Any], None] | None = None
     ctx: Any = None          # the deck context (battle settings, the STATS page)
+    net: Any = None          # a network dungeon run (features/netdungeon.NetRun); None = classic
+    sight: int = SIGHT       # how far you see (dark network floors see less)
 
     def __post_init__(self) -> None:
         self.depth = 0
+        self.traps: set[tuple[int, int]] = set()     # network floors: hidden traps
+        self.sprung: set[tuple[int, int]] = set()    # traps already set off (shown as ^)
         self.awaiting: Monster | None = None   # PULSE's turn: waiting for you to pick a move
         self.last_target: Monster | None = None
         self.hp = self.max_hp
@@ -314,6 +323,9 @@ class Game:
 
     def new_level(self) -> None:
         """Carve rooms and corridors for the next depth."""
+        if self.net is not None:
+            self._net_level()
+            return
         self.depth += 1
         for _ in range(20):  # retry until we get at least three rooms
             self.grid = [[WALL] * self.width for _ in range(self.height)]
@@ -372,6 +384,58 @@ class Game:
         self._reveal()
         self.say(f"depth {self.depth}. find the stairs >")
 
+    def _net_level(self) -> None:
+        """A network dungeon floor: the map comes from the companion's seed + layout.
+
+        cyberdeck/netdungeons.build_floor does the carving (random.Random(f"{seed}:{floor}")),
+        so the same dungeon floor always looks the same. Enemies, levels and the boss
+        are the companion's; pickups are rolled from the same floor generator.
+        """
+        run = self.net
+        info = run.info
+        self.depth = run.floor
+        boss = ndg.clean_boss(info.get("boss"))
+        fm = ndg.build_floor(info.get("seed"), run.floor, info.get("layout"), info.get("enemies"), boss, run.limits)
+        self.width, self.height, self.grid = fm.width, fm.height, fm.grid
+        self.px, self.py = fm.start
+        self.stairs = fm.stairs
+        self.seen = set()
+        self.monsters = []
+        self.items = {}
+        self.traps, self.sprung = set(fm.traps), set()
+        self.sight = run.dark_sight if ndg.clean_layout(info.get("layout"), run.limits)["dark"] else SIGHT
+        for entry, (x, y) in fm.enemies:
+            self.monsters.append(net_monster(net_kind(entry, self.roster), entry["level"], x, y))
+        if fm.boss is not None:
+            entry, (x, y) = fm.boss
+            kind = roster_entry(entry["id"], ALL_ROSTER) or roster_entry(ndg.BOSS_ID, ALL_ROSTER)
+            boss_m = net_monster(kind, entry["level"], x, y)
+            boss_m.title = entry["title"]
+            self.monsters.append(boss_m)
+        for spot in fm.items:
+            self.items[spot] = run.roll_pickup(fm.rng)
+        if self.ally is not None:
+            self.ally.dungeon = {"dungeon_id": run.id, "floor": self.depth}
+        if fm.free and run.repair_kits:
+            self.items[fm.free.pop()] = {"name": "repair kit", "kind": "heal", "power": 8}
+        self._reveal()
+        self.say(f"{info.get('name', 'dungeon')} B{self.depth}F" + ("  (dark)" if self.sight < SIGHT else "")
+                 + ". find the stairs >")
+
+    def _spring_trap(self) -> None:
+        """Network floors: stepping on a hidden trap hurts you once, then it shows as ^."""
+        spot = (self.px, self.py)
+        if spot not in self.traps or spot in self.sprung or self.net is None:
+            return
+        self.sprung.add(spot)
+        hurt = max(1, int(self.net.trap_damage) + self.depth // 4)
+        self.hp -= hurt
+        self.say(f"trap! a {TRAP_NAMES.get(self.net.type, 'snare')} hits you for {hurt}.")
+        if self.hp <= 0:
+            self.hp = 0
+            self.over = True
+            self.say(f"you were derezzed by a trap on B{self.depth}F.")
+
     def _corridor(self, x1: int, y1: int, x2: int, y2: int) -> None:
         """An L-shaped tunnel between two points."""
         if self.rng.random() < 0.5:
@@ -429,6 +493,9 @@ class Game:
         else:
             self.px, self.py = nx, ny
             self._pick_up()
+            self._spring_trap()
+            if self.over:
+                return
         self._reveal()
         self.end_round()
 
@@ -451,6 +518,8 @@ class Game:
         battle = Battle(self.ally, m.battle_enemy(), depth=self.depth, rng=self.rng, odds=self.odds,
                         on_say=self.on_say, roll_loot=self.roll_loot)
         battle.ctx = self.ctx
+        if self.net is not None:     # pet.combat.end carries the dungeon (range bonus, tally)
+            battle.dungeon = {"dungeon_id": self.net.id, "floor": self.depth}
         if not battle.start():
             self.say(f"{self.ally_name} can't battle: {battle.note or self.ally.note}. fists it is!")
             return False
@@ -475,6 +544,10 @@ class Game:
             self.battle_xp += b.xp_granted
             if self.ally is not None:
                 self.ally.defeated.append(m.name)
+            if self.net is not None:
+                self.net.beat(m)
+        elif b.result == "lose" and self.net is not None:
+            self.net.fainted = True          # PULSE fainted: the network run ends
         elif m is not None:
             m.calm = b.enemy.calm
         self.say(b.summary())
@@ -490,6 +563,8 @@ class Game:
             return
         self.monsters.remove(target)
         self.score += 10 * self.depth
+        if self.net is not None:
+            self.net.beat(target)
         if self.ally is not None and self.ally.online:
             self.ally.defeated.append(target.name)
         self.say(f"{who} deleted the {target.name}. (+{10 * self.depth})" if who != "you"
@@ -569,6 +644,10 @@ class Game:
         item = self.items.pop((self.px, self.py), None)
         if item is None:
             return
+        if self.net is not None and item["kind"] in {"bagitem", "chest"}:
+            self.score += 5 * self.depth
+            self.say(self.net.pick_up(item))
+            return
         if item["kind"] == "heal":
             ally = self.ally
             # The kit goes to whichever of you is more hurt (it also revives PULSE).
@@ -625,9 +704,10 @@ class Game:
                         break
 
     def _reveal(self) -> None:
-        for y in range(self.py - SIGHT, self.py + SIGHT + 1):
-            for x in range(self.px - SIGHT, self.px + SIGHT + 1):
-                if 0 <= x < self.width and 0 <= y < self.height and (x - self.px) ** 2 + (y - self.py) ** 2 <= SIGHT ** 2:
+        sight = self.sight
+        for y in range(self.py - sight, self.py + sight + 1):
+            for x in range(self.px - sight, self.px + sight + 1):
+                if 0 <= x < self.width and 0 <= y < self.height and (x - self.px) ** 2 + (y - self.py) ** 2 <= sight ** 2:
                     self.seen.add((x, y))
 
     def finish(self) -> list[str]:
@@ -656,7 +736,7 @@ class Game:
         return [f"{ally.name}: +{granted} xp" + (f" — {body['reaction']}" if body.get("reaction") else "")]
 
     def visible(self, x: int, y: int) -> bool:
-        return (x - self.px) ** 2 + (y - self.py) ** 2 <= SIGHT ** 2
+        return (x - self.px) ** 2 + (y - self.py) ** 2 <= self.sight ** 2
 
     # --- drawing ------------------------------------------------------------------
 
@@ -673,14 +753,48 @@ class Game:
                 return m.glyph, "alert"
             item = self.items.get((x, y))
             if item:
-                return ("!", "ok") if item["kind"] == "heal" else ("*", "prompt")
+                return ("!", "ok") if item["kind"] == "heal" else ("$", "prompt") if item["kind"] == "chest" \
+                    else ("*", "prompt")
         ch = self.grid[y][x]
         if ch == STAIRS:
             return ">", "warn"
+        if (x, y) in self.sprung or ((x, y) in self.traps and lit
+                                     and max(abs(x - self.px), abs(y - self.py)) <= 1):
+            return "^", "alert"             # traps show once sprung, or when you stand next to one
+        if self.net is not None:            # the dungeon's theme: its glyphs and colours
+            wall_role, floor_role = self.net.roles
+            if ch == WALL:
+                return self.net.wall_glyph, (wall_role if lit else "dim")
+            return self.net.floor_glyph, (floor_role if lit else "dim")
         return ch, ("text" if lit else "dim")
 
     def map_text(self, reveal_all: bool = True) -> list[str]:
         return ["".join(self.tile(x, y, reveal_all)[0] for x in range(self.width)) for y in range(self.height)]
+
+
+# Network floors: what a trap is called in each theme.
+TRAP_NAMES = {"NET": "packet snare", "VOLT": "static coil", "DATA": "corrupt sector", "VOID": "null pit"}
+
+
+def net_kind(entry: dict[str, Any], roster: tuple[EnemyKind, ...] = ROSTER) -> EnemyKind:
+    """The roster entry for a companion enemy row; an unknown id gets a plain stand-in."""
+    kind = roster_entry(entry.get("id"), roster) or roster_entry(entry.get("id"), ALL_ROSTER) \
+        or roster_entry(entry.get("name"), ALL_ROSTER)
+    if kind is not None:
+        return kind
+    name = str(entry.get("name") or entry.get("id") or "enemy")[:16]
+    glyph = next((c for c in name.lower() if c.isalpha() and c not in ndg.RESERVED_GLYPHS), "e")
+    etype = str(entry.get("type") or "NORM")
+    return EnemyKind(str(entry.get("id") or name), name, glyph, etype, "", 1, "(?_?)", 20, 5, 2, 5,
+                     {"hp": 4, "attack": 1, "defense": 1, "speed": 1}, ((f"{name} hit", etype, 1.0),), 5, 2,
+                     desc="Something the deck has no card for yet.")
+
+
+def net_monster(kind: EnemyKind, level: int, x: int, y: int) -> Monster:
+    """A map monster at the companion's level (fist-fight numbers grow a little with level)."""
+    bonus = max(0, int(level) - 1) // 3
+    return Monster(kind.name, kind.glyph, x, y, kind.solo_hp + bonus * 2, kind.solo_attack + bonus,
+                   max(1, int(level)), kind)
 
 
 # --- loot bag (saved between runs) -------------------------------------------------
@@ -783,6 +897,8 @@ class DungeonActivity(Activity):
         self.finished = False
         game.on_loot = loot_bag(ctx).add
 
+    help_line = " arrows/wasd move · > stairs · g gift newest loot · i bag · q quit"
+
     @property
     def subtitle(self) -> str:
         """The hint on the frame (the unified UI shows it bottom right)."""
@@ -848,8 +964,11 @@ class DungeonActivity(Activity):
             return self._game_over(width, height)
         rows: list[Row] = []
         hp_role = "ok" if g.hp > g.max_hp * 0.5 else "warn" if g.hp > g.max_hp * 0.25 else "alert"
-        rows.append([(" HP ", "dim"), (f"{g.hp}/{g.max_hp}", hp_role), (f"   depth {g.depth}   score {g.score}"
-                     f"   loot {len(loot_bag(self.ctx).items())}", "text")] + pulse_hud(g))
+        if g.net is not None:      # network dungeon: where you are, and the range bonus
+            place = f"   {g.net.hud()}   score {g.score}"
+        else:
+            place = f"   depth {g.depth}   score {g.score}   loot {len(loot_bag(self.ctx).items())}"
+        rows.append([(" HP ", "dim"), (f"{g.hp}/{g.max_hp}", hp_role), (place, "text")] + pulse_hud(g))
         view_h = max(3, height - 7)
         view_w = max(10, width - 2)
         # Scroll the map so you stay on screen when it is bigger than the terminal.
@@ -873,7 +992,7 @@ class DungeonActivity(Activity):
             rows.append([(f" {g.ally_name} vs {g.awaiting.name}: ", "title"), (picks, "prompt"),
                          ("  space auto · . rest", "dim")])
         else:
-            rows.append([(" arrows/wasd move · > stairs · g gift newest loot · i bag · q quit", "dim")])
+            rows.append([(self.help_line, "dim")])
         if self.show_bag:
             bag = loot_bag(self.ctx).items()
             overlay = [[(" LOOT BAG ", "title")]] + [[(" " + format_item(i, it), "prompt")] for i, it in enumerate(bag, 1)]
@@ -920,10 +1039,11 @@ def roll_battle_loot(depth: int = 1, rng: random.Random | None = None) -> dict[s
     return {"name": name, "kind": kind, "power": power, "rarity": rarity, "depth": depth}
 
 
-def new_game(ctx: "Context", seed: int | None = None) -> Game:
+def new_game(ctx: "Context", seed: int | None = None, net: Any = None) -> Game:
+    """A dungeon run: classic (random) or, with net=NetRun, a network dungeon floor."""
     s = Settings.load("fx.ini", ctx.config_dir)
     roster, odds = load_battle_config(ctx.config_dir)
-    game = Game(width=max(30, s.get_int("dungeon", "width", 56)), height=max(12, s.get_int("dungeon", "height", 17)),
+    game = Game(net=net, width=max(30, s.get_int("dungeon", "width", 56)), height=max(12, s.get_int("dungeon", "height", 17)),
                 max_hp=max(5, s.get_int("dungeon", "hp", 20)), rng=random.Random(seed),
                 pulse_moves="auto" if s.get_str("dungeon", "pulse_moves", "ask").lower() == "auto" else "ask",
                 pulse_target_chance=max(0.0, min(1.0, s.get_float("dungeon", "pulse_target_chance", 0.35))),
@@ -946,17 +1066,23 @@ def new_game(ctx: "Context", seed: int | None = None) -> Game:
         else:
             ally.join()
         game.ally = ally
+        if net is not None:
+            ally.dungeon = {"dungeon_id": net.id, "floor": game.depth}
         game.say(f"{ally.name} joins you! HP {ally.hp}/{ally.max_hp}" if ally.online
                  else f"{ally.name} can't come: {ally.note}. solo run.")
     return game
 
 
 def register(reg: "Registry") -> None:
-    @reg.command("dungeon", "ASCII dungeon crawl; loot can be gifted to PULSE.", aliases=("rogue",))
+    @reg.command("dungeon", "Dungeon crawl: network dungeons PULSE found, or the classic one; loot goes to PULSE.",
+                 aliases=("rogue",), usage="dungeon [list|enter <n> [floor]|classic]",
+                 subcommands=("list", "enter", "classic"))
     def cmd_dungeon(ctx: "Context", args: list[str]) -> list[str]:
-        del args
-        ctx.activity = DungeonActivity(ctx, new_game(ctx), unicode=ctx.services.get("unicode", True))
-        return []
+        # Network dungeons when the companion has them (features/netdungeon.py),
+        # otherwise (or with `dungeon classic`) the classic random dungeon.
+        from cyberdeck.features.netdungeon import open_dungeon
+
+        return open_dungeon(ctx, args)
 
     def loot_cmd(ctx: "Context", args: list[str]) -> list[str]:
         bag = loot_bag(ctx)

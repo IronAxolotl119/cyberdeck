@@ -123,6 +123,10 @@ class Dashboard:
                                        cfg.float("companion", "timeout"), cfg.float("companion", "poll"))
                          if use_link else None)
         self.pet = PetAdapter(xp, self.link, random.Random(self.rng.random()))
+        # NEW DUNGEON notices: one per dungeon id, whether it came in the
+        # pet.discovery reply or as the companion's dungeon_found push.
+        self.dungeon_notes = Cooldown(3600.0)
+        self.dungeon_ticker = Cooldown(30.0)
         self.pet.on_reaction = lambda res: self.bus.publish(TOPIC_PET_REACTION, res)
         self.pet.on_event = lambda ev: self.bus.publish(TOPIC_PET_EVENT, ev)
 
@@ -357,9 +361,34 @@ class Dashboard:
                                         {"level": level, "source": res.get("source")}))
             if "level" not in reaction.lower():
                 self.log(f"◆ PULSE reached level {level}!", "accent2")
+        dungeon = res.get("dungeon")
+        if isinstance(dungeon, dict) and dungeon.get("new") is True:
+            self._dungeon_notice("dungeon_found", dungeon)
+
+    def _dungeon_notice(self, kind: str, detail: dict) -> bool:
+        """Ticker + journal line for a newly unlocked network dungeon (names only, never a MAC)."""
+        from cyberdeck.petdata import dungeon_name, event_notice
+
+        key = str(detail.get("id") or detail.get("name")) if kind == "dungeon_found" else \
+            ",".join(str(i) for i in detail.get("ids") or detail.get("names") or [])
+        if not self.dungeon_notes.ready(f"{kind}:{key}", self.now):
+            return False
+        text = event_notice({"event": kind, "detail": detail})[2]
+        # The ticker gets at most one NEW DUNGEON line per 30 s (the companion's limit);
+        # the journal keeps every one.
+        if self.dungeon_ticker.ready("dungeon", self.now):
+            self.log("◆ " + text, "accent2")
+        short = dungeon_name(detail) if kind == "dungeon_found" else f"{detail.get('count', '?')} dungeons"
+        safe = {k: detail.get(k) for k in ("id", "name", "kind", "type", "rare", "count", "names", "say")
+                if k in detail}
+        self.journal.record(Finding("pet", kind, "pulse", short, 2, {"detail": safe, "text": text}))
+        return True
 
     def _on_pet_event(self, ev: dict) -> None:
         detail = ev.get("detail") or {}
+        if ev.get("event") in ("dungeon_found", "dungeons_found"):
+            self._dungeon_notice(str(ev.get("event")), detail)
+            return
         name = (ev.get("pet") or {}).get("name", "PULSE")
         move = detail.get("move") or detail.get("name")
         rank, bonus = detail.get("rank"), detail.get("bonus")
@@ -631,7 +660,7 @@ class Dashboard:
         self._seen_tab = self.tab
 
     def _activity_closed(self, activity) -> None:
-        if getattr(activity, "title", "") == "DUNGEON":
+        if getattr(activity, "title", "") in {"DUNGEON", "DUNGEONS"}:
             self.dungeon_last = list(activity.result_lines)
             self._combat_asked = -1e9          # HP / ranks changed: ask again
         if activity.result_lines:

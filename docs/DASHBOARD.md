@@ -23,7 +23,8 @@ MFRC522 RFID reader and GPIO buttons.
 
 ![interface](dashboard.png)
 
-More pictures: [Dungeon tab, mid-run](dashboard_dungeon.png) ·
+More pictures: [the dungeon picker](dashboard_dungeons.png) ([network dungeons](DUNGEONS.md)) ·
+[Dungeon tab, mid-run](dashboard_dungeon.png) ·
 [a dungeon battle](dashboard_battle.png) ([how battles work](BATTLE.md)) ·
 [PULSE STATS](dashboard_stats.png) ([the stats screen](#pulse-stats-every-stat-on-8-pages)) ·
 [Console tab](dashboard_console.png) · plain text (100x30):
@@ -65,7 +66,8 @@ Docs pictures (no terminal needed):
 
 ```bash
 python3 -m cyberdeck --snapshot docs/dashboard --seed 7
-python3 -m cyberdeck --snapshot docs/dashboard_dungeon --seed 7 --tab dungeon --keys enter,right,right,down
+python3 -m cyberdeck --snapshot docs/dashboard_dungeons --seed 7 --size 100x34 --tab dungeon --keys enter
+python3 -m cyberdeck --snapshot docs/dashboard_dungeon --seed 7 --tab dungeon --keys enter,c,right,right,down
 python3 -m cyberdeck --snapshot docs/dashboard_console --seed 7 --tab console
 python3 -m cyberdeck --snapshot docs/dashboard_battle --seed 7 --size 100x34 --tab console \
     --keys "battle firewall 3,enter,enter,f,2,enter,enter,f,down"
@@ -127,7 +129,7 @@ Per tab:
 | Where | Keys |
 |-------|------|
 | **Console** | type a command, `enter` run, `tab` complete, `↑` `↓` history, `PgUp` `PgDn` scroll, `esc` clear the line, `ctrl+a/e/u/l` like the classic prompt. Letters type (so `q` does not quit: use `quit`). `[` `]` switch tabs only when the line is empty. |
-| **Dungeon** | `enter`/`space` start a run. In the run every key goes to the game: arrows/wasd/hjkl move, `>` stairs, `1`-`9` PULSE's move on its turn, `space` auto, `.` rest, `g` gift, `i` bag, `q`/`esc` leave. |
+| **Dungeon** | `enter`/`space` open the dungeon picker ([DUNGEONS.md](DUNGEONS.md)): up/down choose, left/right start floor, `enter` go in, `c` classic dungeon. In the run every key goes to the game: arrows/wasd/hjkl move, `>` stairs, `1`-`9` PULSE's move on its turn, `space` auto, `.` rest, `g` gift, `i` bag, `q`/`esc` leave. |
 | **Loot bag** | `↑` `↓` pick, `g` gift to PULSE, `x` drop |
 | **Notes** | `a` (or `n`) add, `↑` `↓` pick, `x` delete |
 | **Todo** | `a` (or `n`) add, `↑` `↓` pick, `space` done/undo, `x` delete, `c` clear done |
@@ -350,7 +352,8 @@ The deck's own settings are unchanged and shared by both front ends:
 `hardware.ini` (companion link, GPIO, buzzer), `keys.ini` (hotkeys and
 the launcher list, which is also the Fun & Tools list), `layout.ini`
 (prompt, history size, `[features] disabled`), `world.ini`, `fx.ini`
-(dungeon size, PULSE options, boot), `moods.ini`, `hosts.ini`,
+(dungeon size, PULSE options, boot), `dungeons.ini` (network dungeons:
+picker, traps, chests, colours, map caps), `moods.ini`, `hosts.ini`,
 `pet.ini`. `theme.ini` only colours `--classic`.
 
 ## Add a tab

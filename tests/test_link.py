@@ -111,7 +111,9 @@ class PetDataTests(unittest.TestCase):
                                    "frames": ["'(^_^)'", "(^o^)", "(^v^)"], "interval_ms": 450})
         self.assertEqual(face.frames, ("(^_^)", "(^o^)", "(^v^)"))     # stray repr quotes dropped
         self.assertEqual((face.interval_ms, face.mood, face.at(0.5)), (450, "happy", "(^o^)"))
-        self.assertIsNone(petdata.parse_avatar({"style": "face", "frames": ["(^_^)"]}))
+        # parse_avatar takes both kinds: a text face comes back as a Face.
+        self.assertEqual(petdata.parse_avatar({"style": "face", "frames": ["(^_^)"]}).frames, ("(^_^)",))
+        self.assertIsNone(petdata.parse_avatar({"style": "face", "frames": []}))
         for bad in (None, {}, {"style": "face", "frames": []}, {"frames": [1, None]}):
             self.assertIsNone(petdata.parse_face(bad))
         # Older companions: the 16x16 sprite, kept only as a fallback.
@@ -218,7 +220,7 @@ class SimCompanionTests(unittest.TestCase):
         self.assertEqual(reply.payload["style"], "face")
         face = petdata.parse_face(reply.payload)
         self.assertEqual(len(face.frames), 2)
-        self.assertIsNone(petdata.parse_avatar(reply.payload))     # no sprite any more
+        self.assertEqual(petdata.parse_avatar(reply.payload), face)   # a face, not a sprite
         # The old sprite shape still parses (fallback for older companions).
         from cyberdeck.companion import sim_avatar
         av = petdata.parse_avatar(sim_avatar("rookie", "content", 0))

@@ -196,7 +196,7 @@ def render_dungeon(dash, big: bool):
     th = dash.theme
     b = dash.bridge
     linked = b.link.is_linked()
-    lines = [Text("ASCII roguelike · turn-based PULSE battles", style=f"bold {th.accent}", no_wrap=True,
+    lines = [Text("network dungeons + classic · PULSE battles", style=f"bold {th.accent}", no_wrap=True,
                   overflow="ellipsis")]
     status = Text("PULSE  ", style=th.dim, no_wrap=True, overflow="ellipsis")
     status.append("joins with real stats" if linked else "link down: solo run", style=th.good if linked else th.warn)
@@ -207,8 +207,8 @@ def render_dungeon(dash, big: bool):
     keys = Table.grid(padding=(0, 1))
     keys.add_column(style=th.accent, no_wrap=True)
     keys.add_column(style=th.dim, no_wrap=True, overflow="ellipsis")
-    for k, v in (("arrows/wasd", "move, bump = battle"), (">", "stairs down"), ("g / i", "gift loot / bag"),
-                 ("q / esc", "leave, keep loot"), ("battle:", "FIGHT BAG PULSE RUN"),
+    for k, v in (("picker", "up/down pick, <-/-> floor, c classic"), ("arrows/wasd", "move, bump = battle"), (">", "stairs down"), ("g / i", "gift loot / bag"),
+                 ("q / esc", "leave (ends the run)"), ("battle:", "FIGHT BAG PULSE RUN"),
                  ("arrows+enter", "or f b p r, 1-4 moves"), ("esc", "back a menu")):
         keys.add_row(k, v)
     lines += [Text(""), keys]
@@ -216,7 +216,8 @@ def render_dungeon(dash, big: bool):
         lines.append(Text("\nlast run", style=f"bold {th.accent2}"))
         for line in dash.dungeon_last[-4:]:
             lines.append(Text(line, style=th.text, no_wrap=not big, overflow="ellipsis"))
-    lines.append(Text("\n@ you  # wall  > stairs  * loot  ! kit", style=th.dim, no_wrap=True, overflow="ellipsis"))
+    lines.append(Text("\n@ you  # wall  > stairs  * loot  $ chest  ^ trap  ! kit", style=th.dim, no_wrap=True,
+                      overflow="ellipsis"))
     lines.append(Text("b g s v l w F D  K boss (every 5th floor)", style=th.dim, no_wrap=True, overflow="ellipsis"))
     return Group(*lines)
 

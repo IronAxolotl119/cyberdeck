@@ -165,6 +165,22 @@ ROSTER: tuple[EnemyKind, ...] = (
               boss=True, every=5, desc="Boss of every 5th floor. Fatal error."),
 )
 
+# The companion's "optional extras" (roster.json "extra": true). They never
+# show up in the classic dungeon; they appear in network dungeons, when the
+# companion's floor lists them (pet.dungeon.enter "enemies").
+EXTRA_ROSTER: tuple[EnemyKind, ...] = (
+    EnemyKind("popup", "popup", "p", "NORM", "", 1, "[o.o]!", 14, 3, 1, 5, _grow(3, 1, 1, 1),
+              (("Pop Up", "NORM", 1.0), ("Close Me", "NORM", 0.8)), 3, 1,
+              desc="Optional extra. Plain, loud, and annoying."),
+    EnemyKind("cryptominer", "cryptominer", "c", "FIRE", "ICE", 4, "($_$)", 38, 8, 3, 4, _grow(6, 2, 1, 0),
+              (("Hash Burn", "FIRE", 1.0), ("Fan Spin", "NORM", 0.8)), 16, 5,
+              desc="Optional extra. Burns CPU for coins."),
+    EnemyKind("botnet", "botnet", "n", "NET", "FIRE", 5, "(0_0)", 48, 9, 3, 7, _grow(7, 2, 1, 1),
+              (("Swarm", "NET", 1.0), ("Zombie Ping", "NORM", 0.8)), 20, 6,
+              desc="Optional extra. Many zombies, one mind."),
+)
+ALL_ROSTER: tuple[EnemyKind, ...] = ROSTER + EXTRA_ROSTER
+
 
 def roster_entry(ref: Any, roster: tuple[EnemyKind, ...] = ROSTER) -> EnemyKind | None:
     """Find an enemy by id, name or map letter ('kernel panic', 'kernel_panic', 'K')."""

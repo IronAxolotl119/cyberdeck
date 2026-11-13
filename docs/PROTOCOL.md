@@ -97,7 +97,11 @@ stays at `proto` 1.
 | `pet.combat.stats`  | `pet.combat.stats.ok`  | `{}`               | combat sheet, see "Dungeon combat" |
 | `pet.combat.action` | `pet.combat.action.ok` | optional `move`, `enemy` | outcome, see "Dungeon combat" |
 | `pet.combat.hit`    | `pet.combat.hit.ok`    | `damage` or `heal` | `damage_taken`, `healed`, `pet_hp`, `fainted`, `pet` |
-| `pet.combat.end`    | `pet.combat.end.ok`    | `result`, `xp`, `enemies` | `result`, `xp_granted`, `reaction`, `pet` |
+| `pet.combat.end`    | `pet.combat.end.ok`    | `result`, `xp`, `enemies`, optional `dungeon_id`, `floor` | `result`, `xp_granted`, `reaction`, `pet`, optional `xp_mult` |
+| `pet.dungeons`      | `pet.dungeons.ok`      | `{}`               | the dungeon list, see "Network dungeons" |
+| `pet.dungeon.enter` | `pet.dungeon.enter.ok` | `id`, optional `floor` | seed, layout, theme, enemies, boss for the start floor |
+| `pet.dungeon.floor` | `pet.dungeon.floor.ok` | `id`, `floor`, `result`, `xp`, `enemies`, `loot`, `boss_beaten` | rewards, line, `next` floor (or null) |
+| `pet.dungeon.leave` | `pet.dungeon.leave.ok` | `id`               | summary of the run |
 | *(push)*      | —               |                         | `pet.event`, see below (optional) |
 |               | `error`         |                         | `code`, `message` |
 
@@ -384,6 +388,21 @@ carries `xp`, `level`, `level_up`, `learned_move`,
 (`cyberdeck/companion.py`) answers it too, so `--link sim` behaves like
 the real companion.
 
+### Network dungeons (`pet.dungeons`, `pet.dungeon.*`)
+
+Every Wi-Fi / Bluetooth / LAN discovery unlocks a dungeon. `pet.dungeons`
+lists them; `pet.dungeon.enter {id, floor?}` starts a run (the floor
+snaps down to a checkpoint: 1, 6, 11, ...) and returns the floor's seed,
+`layout`, `theme`, `enemies` and `boss`; `pet.dungeon.floor` reports each
+finished floor and returns the next one (`next` is null when the run
+ends); `pet.dungeon.leave` ends a run early. Battle XP stays in
+`pet.combat.end` (with `dungeon_id`, `floor`; the reply's `xp_mult` is
+the in-range bonus); `pet.dungeon.floor`'s `xp` is only extras (data
+chests). `pet.discovery` may also carry `rssi`, `security` / `secured`
+and `rare`, and its reply a `dungeon {id, name, new}`. The deck falls
+back to the classic dungeon when `pet.dungeons` is unknown. Rules and
+keys: [DUNGEONS.md](DUNGEONS.md).
+
 ### Events (`pet.event`, optional push)
 
 Sent by the companion **only** after a `hello` with `"events": true`
@@ -408,6 +427,8 @@ shows each one on the ticker line, writes it to the pet log, and uses
 | `level_up`     | `level`                                | "PULSE reached level 4!" |
 | `learned_move` | `move` (or `name`)                     | "PULSE learned Static Snap!" |
 | `signal_found` | `ssid` (or `name`, `signal`), optional `rssi` | "PULSE sniffed out a signal: …" |
+| `dungeon_found` | `id`, `name`                         | "NEW DUNGEON: name" (console, journal, LCD) |
+| `dungeons_found` | `count`, `ids`, `names` (up to 5)      | "NEW DUNGEONS: 3 found (…)" |
 
 Evolution events come in this order: `evolve_soon` (once, near the end
 of the time gates), `evolve_choice` (once, when ready), then — after the

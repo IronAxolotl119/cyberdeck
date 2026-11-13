@@ -124,6 +124,10 @@ attacks. Each enemy's attacks are in the ROSTER table.
 - `cyberdeck/battledata.py`: the full tables (roster, attacks, items,
   the sim pet's lines). Every line PULSE says must be ASCII and at most
   44 characters; `tests/test_battle.py` checks.
+- Network dungeons ([DUNGEONS.md](DUNGEONS.md)) use the same battles;
+  there `pet.combat.end` also carries `dungeon_id` and `floor`, and an
+  in-range dungeon shows "In range: x1.5 XP!" on the win screen. RUN
+  only escapes the fight; `q` on the map leaves the dungeon.
 - `config/fx.ini [dungeon] battle = no` brings back the old crawl where
   PULSE fights next to you on the map.
 - `config/lcd.ini [notify] battle = no` keeps battle lines off the LCD.

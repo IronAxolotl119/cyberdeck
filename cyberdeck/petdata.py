@@ -13,7 +13,7 @@ pet payload goes through here:
   event_notice(msg)    a pushed pet.event -> (kind, level, text)
   parse_face(reply)    a pet.avatar.ok text-face payload -> Face (or None)
   pet_face(pet, now)   the face to show right now (animated, asleep-aware)
-  parse_avatar(reply)  an older companion's 16x16 sprite -> Avatar (or None)
+  parse_avatar(reply)  a sprite -> Avatar, a text face -> Face (or None)
   combat_stats(reply)  a pet.combat.stats.ok payload -> CombatStats
   nearest_256/8(rgb)   pick the closest terminal colour for a pixel
 
@@ -201,11 +201,31 @@ def event_notice(payload: dict[str, Any]) -> tuple[str, str, str]:
         return kind, "ok", f"{name} reached level {level}!"
     if kind == "learned_move":
         return kind, "ok", f"{name} learned {detail.get('move') or detail.get('name') or 'a new move'}!"
+    if kind == "dungeon_found":
+        # A discovery unlocked a network dungeon (names are display-safe; never a MAC).
+        return kind, "ok", f"NEW DUNGEON: {dungeon_name(detail)}" + (" (rare!)" if detail.get("rare") is True else "") \
+            + " — `dungeon` to explore"
+    if kind == "dungeons_found":
+        names = [dungeon_name({"name": n}) for n in (detail.get("names") or []) if isinstance(n, str)][:5]
+        count = _int(detail.get("count")) or len(names)
+        return kind, "ok", f"NEW DUNGEONS: {count} found" + (f" ({', '.join(names)})" if names else "") \
+            + " — `dungeon` to explore"
     if kind == "signal_found":
         what = detail.get("ssid") or detail.get("name") or detail.get("signal") or "something"
         return kind, "info", f"{name} sniffed out a signal: {what}"
     extra = detail.get("text") or detail.get("message") or ""
     return kind, "info", f"{name}: {kind.replace('_', ' ')} {extra}".rstrip()
+
+
+def dungeon_name(detail: dict[str, Any]) -> str:
+    """A dungeon's name for alerts: ASCII, <= 24 chars, and never a raw MAC / BSSID."""
+    from cyberdeck.netdungeons import NAME_MAX, looks_like_mac, to_ascii
+
+    name = to_ascii(str(detail.get("name") or ""))[:NAME_MAX]
+    if not name or looks_like_mac(name):
+        did = str(detail.get("id") or "")
+        return f"hidden-{did[:4]}" if did else "a hidden signal"
+    return name
 
 
 def _eta(detail: dict[str, Any]) -> str:
@@ -389,10 +409,18 @@ def hex_to_rgb(text: Any) -> RGB | None:
         return None
 
 
-def parse_avatar(payload: Any, max_size: int = 32) -> Avatar | None:
-    """Validate a pet.avatar.ok payload. Bad or missing data -> None."""
+def parse_avatar(payload: Any, max_size: int = 32) -> "Avatar | Face | None":
+    """Validate a pet.avatar.ok payload. Bad or missing data -> None.
+
+    Both kinds are accepted: an older companion's sprite (rows + palette)
+    gives an Avatar, and a current companion's text face (style "face",
+    with frames or text) gives a Face, the same as parse_face().
+    """
     if not isinstance(payload, dict):
         return None
+    if payload.get("style") == "face" or (payload.get("rows") is None and
+                                          ("frames" in payload or isinstance(payload.get("text"), str))):
+        return parse_face(payload)
     rows, palette = payload.get("rows"), payload.get("palette")
     if not isinstance(rows, list) or not isinstance(palette, list) or not rows or len(rows) > max_size:
         return None

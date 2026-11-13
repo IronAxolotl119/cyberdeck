@@ -68,6 +68,14 @@ from cyberdeck.protocol import (
     TYPE_PET_COMBAT_RUN_OK,
     TYPE_PET_COMBAT_STATS,
     TYPE_PET_COMBAT_STATS_OK,
+    TYPE_PET_DUNGEON_ENTER,
+    TYPE_PET_DUNGEON_ENTER_OK,
+    TYPE_PET_DUNGEON_FLOOR,
+    TYPE_PET_DUNGEON_FLOOR_OK,
+    TYPE_PET_DUNGEON_LEAVE,
+    TYPE_PET_DUNGEON_LEAVE_OK,
+    TYPE_PET_DUNGEONS,
+    TYPE_PET_DUNGEONS_OK,
     TYPE_PET_EVOLVE,
     TYPE_PET_EVOLVE_OK,
     TYPE_PET_EVENT,
@@ -94,6 +102,8 @@ from cyberdeck.protocol import (
     new_id,
 )
 from cyberdeck.sensors import PiSensors, SimSensors, SystemSensors
+from cyberdeck.netdungeons import looks_like_mac
+from cyberdeck.simdungeons import SimDungeons
 
 
 # Raised when the link is down or a request cannot be completed.
@@ -247,6 +257,10 @@ class PetState:
     prefs: dict[str, str] = field(default_factory=lambda: dict(SIM_PREFS))
     known_prefs: set[str] = field(default_factory=set)
     trinkets: list[str] = field(default_factory=list)
+    # Network dungeons (cyberdeck/simdungeons.py): fake networks + sightings,
+    # and the wall clock "in range" is measured with (epoch seconds).
+    dungeons: SimDungeons = field(default_factory=SimDungeons)
+    wall_clock: Callable[[], float] = field(default=time.time, repr=False)
 
     @property
     def species(self) -> str:
@@ -1001,8 +1015,7 @@ class PetState:
             "favorite_trinket": max(set(self.trinkets), key=self.trinkets.count) if self.trinkets else None,
             "adventures": 0, "diary_entries": 0,
             # Network dungeons summary (the companion's pet/dungeons.py summary()).
-            "dungeons": {"count": 0, "in_range": 0, "deepest": 0, "deepest_name": None,
-                         "floors": 0, "boss_kills": 0, "home": None},
+            "dungeons": self.dungeons.summary(self.wall_clock()),
         }
         raw["pages"] = build_pages(raw)
         raw["lines"] = flat_lines(raw["pages"])
@@ -1018,13 +1031,23 @@ class PetState:
         buff = "busy airwaves" if busy >= 0.75 else "curious: sniffing around" if busy > 0 else "calm"
         return {"busy": round(busy, 3), "buff": buff}
 
-    def discover(self, kind: str, ident: str, interest: int = 1, label: str = "") -> dict[str, Any]:
-        """pet.discovery.ok body: XP for a first find, maybe a themed move."""
+    def discover(self, kind: str, ident: str, interest: int = 1, label: str = "", rssi: int | None = None,
+                 secured: bool = False, rare: bool = False) -> dict[str, Any]:
+        """pet.discovery.ok body: XP for a first find, maybe a themed move, and its dungeon.
+
+        wifi / bt / lan sightings unlock a network dungeon (`dungeon {id, name, new}`);
+        rfid tags don't (`dungeon: null`)."""
         interest = max(1, min(3, int(interest)))
-        key, name = f"{kind}:{ident}", label or ident
+        key = f"{kind}:{ident}"
+        # Shown in the reaction: never a raw MAC / BSSID.
+        name = label if label and not looks_like_mac(label) and label != ident else f"a {kind} signal"
         before = self.level
+        did, new = self.dungeons.sighting(kind, ident, label or ident, rssi, self.wall_clock(), secured, rare,
+                                          self.events)
+        rec = self.dungeons.dungeons.get(did) if did else None
+        dungeon = {"id": did, "name": rec["name"], "new": new} if rec else None
         result: dict[str, Any] = {"xp": 0, "learned_move": None, "strengthened_move": None, "level": self.level,
-                                  "level_up": False}
+                                  "level_up": False, "dungeon": dungeon}
         if key in self.seen:
             result["reaction"] = f"{self.name} has already logged this {kind} signal."
             result["pet"] = self.as_payload()
@@ -1234,6 +1257,7 @@ class SimCompanionLink(CompanionLink):
 
     def take_events(self) -> list[Message]:
         """Pop queued events as messages (empty unless events were asked for)."""
+        self.pet.dungeons.flush(self.pet.wall_clock(), self.pet.events)   # batched dungeon news
         queued, self.pet.events = self.pet.events, []
         if not self.events_enabled:
             return []
@@ -1370,8 +1394,17 @@ class SimCompanionLink(CompanionLink):
                 return message.error("bad_payload", "pet.discovery needs kind (wifi|bt|lan|rfid) and id")
             interest = payload.get("interest", 1)
             interest = interest if isinstance(interest, int) and not isinstance(interest, bool) else 1
+            # Optional extras for network dungeons: rssi (dBm), security / secured, rare.
+            rssi = payload.get("rssi")
+            rssi = int(rssi) if isinstance(rssi, (int, float)) and not isinstance(rssi, bool) else None
+            security = payload.get("security")
+            secured = payload.get("secured") is True or (
+                isinstance(security, str) and security.strip().lower() not in ("", "open", "none", "opn"))
             return message.reply("pet.discovery.ok",
-                                 self.pet.discover(kind, ident, interest, str(payload.get("label") or "")))
+                                 self.pet.discover(kind, ident, interest, str(payload.get("label") or ""), rssi,
+                                                   secured, payload.get("rare") is True))
+        if typ in (TYPE_PET_DUNGEONS, TYPE_PET_DUNGEON_ENTER, TYPE_PET_DUNGEON_FLOOR, TYPE_PET_DUNGEON_LEAVE):
+            return self._dungeon(message, typ, payload)
         if typ == TYPE_PET_COMBAT_ACTION:
             move = payload.get("move")
             if move is not None and not isinstance(move, str):
@@ -1400,8 +1433,34 @@ class SimCompanionLink(CompanionLink):
             result = self.pet.combat_end(str(payload.get("result") or "").strip().lower(), xp, enemies, loot)
             if result is None:
                 return message.error("bad_payload", "result must be 'win', 'lose', or 'flee'")
+            # Network dungeon fights ({dungeon_id, floor}): counted per dungeon; in range = bonus XP.
+            mult = self.pet.dungeons.combat_tally(payload, result["result"], self.pet.wall_clock())
+            if mult > 1.0 and result["result"] == "win" and result["xp_granted"] > 0:
+                bonus = int(round(result["xp_granted"] * (mult - 1.0)))
+                self.pet.gain_xp(bonus)
+                result["xp_granted"] += bonus
+                result["pet"] = self.pet.as_payload()
+            result["xp_mult"] = mult
             return message.reply(TYPE_PET_COMBAT_END_OK, result)
         return message.error("unknown_type", f"unsupported message type: {typ}")
+
+    def _dungeon(self, message: Message, typ: str, payload: dict[str, Any]) -> Message:
+        """pet.dungeons / pet.dungeon.enter|floor|leave (cyberdeck/simdungeons.py)."""
+        dg, now = self.pet.dungeons, self.pet.wall_clock()
+        if typ == TYPE_PET_DUNGEONS:
+            return message.reply(TYPE_PET_DUNGEONS_OK, dg.listing(now))
+        if typ == TYPE_PET_DUNGEON_ENTER:
+            body, err = dg.enter(payload, now, self.pet.as_payload())
+            reply_type = TYPE_PET_DUNGEON_ENTER_OK
+        elif typ == TYPE_PET_DUNGEON_FLOOR:
+            body, err = dg.floor(payload, now, self.pet)
+            reply_type = TYPE_PET_DUNGEON_FLOOR_OK
+        else:
+            body, err = dg.leave(payload, now, self.pet.as_payload())
+            reply_type = TYPE_PET_DUNGEON_LEAVE_OK
+        if err:
+            return message.error(*err)
+        return message.reply(reply_type, body)
 
     def _tick(self) -> None:
         """Apply elapsed time to the pet so needs change between commands."""

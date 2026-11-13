@@ -20,7 +20,9 @@ DEFAULT_PET_EVENTS = ["hungry", "tired", "bored", "sad", "evolve_soon", "evolve_
                       "level_up", "learned_move", "move_strengthened", "woke", "signal_found",
                       # companion life events (companion/docs/ALIVE.md)
                       "ask", "sick", "tantrum", "treasure", "adventure_return", "rival_appears", "birthday",
-                      "hatchday", "egg_hatched", "suspicious"]
+                      "hatchday", "egg_hatched", "suspicious",
+                      # network dungeons (DUNGEON_INTEGRATION.md "Network dungeons")
+                      "dungeon_found", "dungeons_found"]
 
 
 @dataclass

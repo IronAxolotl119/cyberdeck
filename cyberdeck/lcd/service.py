@@ -52,6 +52,9 @@ PET_TITLES = {
     "move_strengthened": ("{diamond}MOVE UP!", NOTICE),
     "woke": ("{face}{name} AWAKE", INFO),
     "signal_found": ("{wifi}SIGNAL FOUND", INFO),
+    # Network dungeons: a discovery unlocked one (or several) — "NEW DUNGEON: name".
+    "dungeon_found": ("{diamond}NEW DUNGEON", NOTICE),
+    "dungeons_found": ("{diamond}NEW DUNGEONS", NOTICE),
     # The companion's "life" events (companion/docs/ALIVE.md). Each one
     # carries a ready-made `say` line; the ones listed here also pop up,
     # every other one (speech, idle, dream, greeting…) just becomes a blurb.
@@ -257,6 +260,8 @@ class LcdService:
         say = detail.get("say") or payload.get("say")
         if isinstance(say, str) and say.strip():
             text = say                       # the companion's own ready-made line
+        if kind in ("dungeon_found", "dungeons_found"):
+            return self._dungeon_found(kind, detail, text, now)
         move = detail.get("move") or detail.get("name")
         if kind == "move_strengthened" and move:
             text = f"{name}'s {move} is now rank {detail.get('rank', '?')}" + \
@@ -269,6 +274,34 @@ class LcdService:
                    or detail.get("rival") or detail.get("place") or "")
         return self.notify(text, title.replace("{name}", to_lcd(name)[:7]), priority, "pet",
                            f"pet:{kind}:{key_bit}", now=now)
+
+    def _dungeon_found(self, kind: str, detail: dict, say: str, now: float | None) -> str:
+        """NEW DUNGEON: <name> (title line) / the name (body). One pop-up per dungeon id:
+        the same dungeon from the discovery reply and the pushed event is shown once."""
+        from cyberdeck.petdata import dungeon_name
+
+        if isinstance(say, str) and say.strip():
+            self.add_blurb(say, now)
+        if kind not in self.s.pet_events:
+            return "skip"
+        # Same limit as the companion's: at most one dungeon pop-up per 30 s
+        # (a burst of discoveries would otherwise push out every other notice).
+        from cyberdeck.netdungeons import FOUND_COOLDOWN
+
+        t = time.time() if now is None else now
+        if t < getattr(self, "_dungeon_gate", 0.0):
+            return "rate"
+        title, priority = PET_TITLES[kind]
+        if kind == "dungeon_found":
+            body, key = dungeon_name(detail), f"pet:dungeon_found:{detail.get('id') or detail.get('name')}"
+        else:
+            names = [dungeon_name({"name": n}) for n in (detail.get("names") or []) if isinstance(n, str)]
+            body = f"{detail.get('count', len(names))} more: " + ", ".join(names[:3])
+            key = "pet:dungeons_found:" + ",".join(str(i) for i in detail.get("ids") or names)
+        decision = self.notify(body, title, priority, "pet", key, now=now)
+        if decision == "ok":
+            self._dungeon_gate = t + FOUND_COOLDOWN
+        return decision
 
     def discovery_reaction(self, res: dict, now: float | None = None) -> None:
         """A pet.discovery.ok reply: the reaction joins the blurbs; big news pops up."""
@@ -289,6 +322,9 @@ class LcdService:
         if res.get("level_up"):
             self.notify(f"{name} reached level {res.get('level', '?')}!", "{diamond}LEVEL UP!", NOTICE, "pet",
                         f"pet:level_up:{res.get('level', '')}", now=now)
+        dungeon = res.get("dungeon")
+        if isinstance(dungeon, dict) and dungeon.get("new") is True:
+            self._dungeon_found("dungeon_found", dungeon, "", now)
 
     def battle_say(self, text: str, foe: str = "", now: float | None = None) -> str:
         """PULSE's newest battle line: a blurb, and a pop-up rate-limited like other notices."""

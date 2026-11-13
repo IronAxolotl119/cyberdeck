@@ -208,6 +208,8 @@ class PetWatcher:
         for message in ctx.companion.drain_events():
             payload = message.payload or {}
             kind, level, text = event_notice(payload)
+            if kind in ("dungeon_found", "dungeons_found") and not _dungeon_console(ctx):
+                level = "quiet"           # config/dungeons.ini [alerts] console = no: log only
             events.append(PetEvent(kind, level, text, payload))
             local = PUSHED_TO_LOCAL.get(kind)
             if local:
@@ -392,3 +394,10 @@ def headless_event_lines(ctx: "Context") -> list[str]:
     for event in events:
         watcher.log.add(event.kind, event.text, now)
     return [f"[pet {event.kind}] {event.text}" for event in events]
+
+
+def _dungeon_console(ctx: "Context") -> bool:
+    """config/dungeons.ini [alerts] console: show NEW DUNGEON notices in the console."""
+    from cyberdeck.features.netdungeon import load_settings
+
+    return load_settings(ctx.config_dir).alert_console
