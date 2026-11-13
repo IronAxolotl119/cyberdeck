@@ -71,6 +71,51 @@ class PageTests(unittest.TestCase):
             self.check_sheet(req(h, "pet.stats").payload)
 
 
+class WrapTests(unittest.TestCase):
+    def test_three_or_more_evolution_choices_all_show(self) -> None:
+        import pet.fullstats as fs
+
+        h = make()
+        names = ["Luminode", "Hexwave", "Aethernova", "Voidstatic", "Glitchling"]
+        sheet = req(h, "pet.stats").payload
+        # Build a sheet with five choices (two locked) straight from the page builder.
+        raw = dict(sheet)
+        raw["evolution"] = dict(sheet["evolution"], next_stage="champion",
+                                choices=[{"species": n, "available": i % 2 == 0} for i, n in enumerate(names)])
+        traits = fs._pages(raw)[3]["lines"]
+        start = next(i for i, line in enumerate(traits) if line.startswith("Can become: "))
+        block = traits[start:]
+        self.assertGreater(len(block), 1)
+        text = " ".join(line.strip() for line in block)
+        for i, name in enumerate(names):
+            self.assertIn(name + ("" if i % 2 == 0 else "(locked)"), text)
+        self.assertFalse(any(line.endswith("...") for line in traits))
+        for line in block[1:]:
+            self.assertTrue(line.startswith("  "))
+        for line in traits:
+            self.assertTrue(line.isascii())
+            self.assertLessEqual(len(line), 44)
+
+    def test_long_values_wrap_instead_of_truncating(self) -> None:
+        h = make()
+        pet = h.creature
+        trinket = "a trinket with a very very long name indeed"
+        item = "an extremely long legendary loot item name"
+        pet.life.add_to_shelf(trinket, "test", 3, T0)
+        pet.life.add_modifier("a_really_long_modifier_name_here", -12, 3600, T0)
+        Bag(pet).add({"name": item, "kind": "food"}, 3)
+        sheet = req(h, "pet.stats").payload
+        lines = sheet["lines"]
+        self.assertFalse(any(line.endswith("...") for line in lines), [l for l in lines if l.endswith("...")])
+        joined = " ".join(line.strip() for line in lines)
+        self.assertIn(trinket, joined)
+        self.assertIn(item, joined)
+        self.assertIn("a_really_long_modifier_name_here -12", joined)
+        for line in lines:
+            self.assertTrue(line.isascii())
+            self.assertLessEqual(len(line), 44)
+
+
 class FieldTests(unittest.TestCase):
     def test_raw_fields(self) -> None:
         sheet = req(make(), "pet.stats").payload

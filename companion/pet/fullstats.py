@@ -48,8 +48,37 @@ def bar(value: float, maximum: float, width: int = 10) -> str:
     return "[" + "#" * filled + "." * (width - filled) + "]"
 
 
+def wrap_words(text: str, width: int, first_width: int | None = None) -> list[str]:
+    """Word-wrap plain text; a word longer than the line is hard-split."""
+    widths = [first_width or width, width]
+    lines: list[str] = []
+    cur = ""
+    for word in fit_row(str(text), 10_000).split():
+        limit = widths[min(len(lines), 1)]
+        if cur and len(cur) + 1 + len(word) <= limit:
+            cur += " " + word
+            continue
+        if cur:
+            lines.append(cur)
+            limit = widths[1]
+        while len(word) > limit:
+            lines.append(word[:limit])
+            word = word[limit:]
+            limit = widths[1]
+        cur = word
+    if cur or not lines:
+        lines.append(cur)
+    return lines
+
+
+def wrap(text: Any, prefix: str = "", indent: str = "  ", width: int = SAY_MAX) -> str:
+    """Wrap text after a prefix; continuation lines are indented. Never drops data."""
+    parts = wrap_words(str(text), width - len(indent), width - len(prefix))
+    return "\n".join([prefix + parts[0]] + [indent + part for part in parts[1:]])
+
+
 def _row(label: str, value: Any) -> str:
-    return fit_row(f"{label:<13}{value}")
+    return wrap(value, f"{label:<13}", " " * 13)
 
 
 def full_stats(creature: Any, mood_word: str, now: float) -> dict[str, Any]:
@@ -207,7 +236,7 @@ def _obedience_tier(value: float) -> str:
 def _pages(r: dict[str, Any]) -> list[dict[str, Any]]:
     gen = f"  Gen {r['generation']}" if r["generation"] > 1 else ""
     overview = [
-        f"{r['name']}" + (f"  ({r['species']})" if r["nickname"] else ""),
+        wrap(f"{r['name']}" + (f"  ({r['species']})" if r["nickname"] else "")),
         f"{r['species']}  {r['stage']}  {r['type']}{gen}",
         f"Lv {r['level']}  XP {r['xp']}/{r['xp_next_level']}",
         f"XP {bar(r['xp_pct'], 100)} {r['xp_to_next']} to go",
@@ -240,7 +269,7 @@ def _pages(r: dict[str, Any]) -> list[dict[str, Any]]:
         _row("Sick", r["sick"] or "no"),
     ]
     for mod in r["modifiers"][:4]:
-        care.append(fit_row(f"  {mod.get('kind', '?')} {float(mod.get('value', 0)):+.0f}"))
+        care.append(wrap(f"{mod.get('kind', '?')} {float(mod.get('amount', mod.get('value', 0))):+.0f}", "  ", "    "))
     q = r["quirks"]
     traits = [
         _row("Catchphrase", q.get("catchphrase", "-")),
@@ -259,7 +288,7 @@ def _pages(r: dict[str, Any]) -> list[dict[str, Any]]:
                 traits.append(fit_row(f"{gate.upper():<6}{bar(g['pct'], 100)} {g['pct']}%"))
         names = [c.get("species", "?") + ("" if c.get("available", True) else "(locked)") for c in evo["choices"]]
         if names:
-            traits.append(fit_row("Can become: " + ", ".join(names)))
+            traits.append(wrap(", ".join(names), "Can become: ", "  "))
     else:
         traits.append("Final form reached.")
     moves = []
@@ -267,7 +296,11 @@ def _pages(r: dict[str, Any]) -> list[dict[str, Any]]:
         star = "*" if m["name"] in r["loadout"] else " "
         moves.append(fit_row(f"{star}{m['name'][:15]:<15} {m['type']:<4} P{m['power']:<3} EN{m['energy_cost']:<3} R{m['rank']}"))
     moves.append(fit_row("* = loadout" + (" (auto)" if r["loadout_auto"] else "")))
-    bag = [fit_row(f"{row['name'][:22]:<22} x{row['qty']:<3}" + ("" if row["usable_in_battle"] else " (no battle)")) for row in r["bag"]]
+    bag = []
+    for row in r["bag"]:
+        parts = wrap_words(row["name"], 22)
+        tail = f"{parts[-1]:<22} x{row['qty']:<3}" + ("" if row["usable_in_battle"] else " (no battle)")
+        bag.append("\n".join(parts[:-1] + [tail]))
     bag = bag or ["(empty)"]
     bag.append(fit_row(f"{r['bag_items']} kinds, {r['bag_total']} items"))
     rec, riv = r["record"], r["rival"]
@@ -300,6 +333,6 @@ def _pages(r: dict[str, Any]) -> list[dict[str, Any]]:
     ]
     bodies = [overview, combat, care, traits, moves, bag, record, found]
     return [
-        {"title": title, "lines": [fit_row(line, SAY_MAX) for line in body]}
+        {"title": title, "lines": [fit_row(part, SAY_MAX) for line in body for part in str(line).split("\n")]}
         for title, body in zip(PAGE_TITLES, bodies)
     ]
