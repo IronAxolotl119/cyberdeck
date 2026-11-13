@@ -96,6 +96,15 @@ TYPE_PET_INVENTORY_OK = "pet.inventory.ok"
 # Every stat on one sheet (also pet.status {full: true} -> payload.full).
 TYPE_PET_STATS = "pet.stats"
 TYPE_PET_STATS_OK = "pet.stats.ok"
+# Network dungeons: every discovered wifi / bt / lan signal unlocks one.
+TYPE_PET_DUNGEONS = "pet.dungeons"
+TYPE_PET_DUNGEONS_OK = "pet.dungeons.ok"
+TYPE_PET_DUNGEON_ENTER = "pet.dungeon.enter"
+TYPE_PET_DUNGEON_ENTER_OK = "pet.dungeon.enter.ok"
+TYPE_PET_DUNGEON_FLOOR = "pet.dungeon.floor"
+TYPE_PET_DUNGEON_FLOOR_OK = "pet.dungeon.floor.ok"
+TYPE_PET_DUNGEON_LEAVE = "pet.dungeon.leave"
+TYPE_PET_DUNGEON_LEAVE_OK = "pet.dungeon.leave.ok"
 # Opt-in extension: unsolicited pushes when hello.payload.events is true.
 # Only emitted after the main deck asks for them. detail is a dict.
 TYPE_PET_EVENT = "pet.event"

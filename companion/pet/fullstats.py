@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from pet import calendar as cal
+from pet.dungeons import summary as dungeon_summary
 from pet.battle import (
     MAX_ENERGY, SAY_MAX, Bag, battle_move_payload, clamp_say, display_name, fit_row, loadout, pet_type,
 )
@@ -180,6 +181,7 @@ def full_stats(creature: Any, mood_word: str, now: float) -> dict[str, Any]:
         "favorite_trinket": life.favorite_trinket(),
         "adventures": len(life.adventures) if isinstance(life.adventures, list) else int(life.adventures or 0),
         "diary_entries": len(life.diary),
+        "dungeons": dungeon_summary(getattr(life, "dungeons", {}) or {}, now),
     }
 
     pages = _pages(raw)
@@ -287,6 +289,14 @@ def _pages(r: dict[str, Any]) -> list[dict[str, Any]]:
         _row("Favorite", r["favorite_trinket"] or "-"),
         _row("Adventures", r["adventures"]),
         _row("Diary", f"{r['diary_entries']} entries"),
+    ]
+    dun = r["dungeons"]
+    found += [
+        _row("Dungeons", f"{dun['count']} ({dun['in_range']} in range)"),
+        _row("Deepest", f"B{dun['deepest']}F {dun['deepest_name']}" if dun["deepest_name"] else "-"),
+        _row("Floors done", dun["floors"]),
+        _row("Dungeon boss", dun["boss_kills"]),
+        _row("Home turf", dun["home"] or "-"),
     ]
     bodies = [overview, combat, care, traits, moves, bag, record, found]
     return [

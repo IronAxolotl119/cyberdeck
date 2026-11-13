@@ -19,6 +19,7 @@ import zlib
 from typing import Any
 
 from pet import calendar as cal
+from pet import dungeons as dgn
 from pet import stories
 from pet.speech import LinePicker, Voice, fill
 
@@ -191,6 +192,11 @@ class Life:
         self.gifts_given: int = int(d.get("gifts_given", 0))
         # Lifetime battle record (pet.combat.end): wins, losses, flees, bosses.
         self.record: dict[str, int] = {k: int(v) for k, v in (d.get("record") or {}).items()}
+        # Network dungeons ({short hash id: record}); raw BSSIDs/MACs are never stored.
+        self.dungeons: dict[str, dict[str, Any]] = {
+            str(k): dgn.normalize_record(v) for k, v in (d.get("dungeons") or {}).items() if isinstance(v, dict)
+        }
+        self.dungeon_pending: list[str] = [str(x) for x in d.get("dungeon_pending") or []]
         self.activity_since_pet: int = int(d.get("activity_since_pet", 0))
         self.last_activity: str = str(d.get("last_activity", ""))
         self.weather: dict[str, Any] | None = dict(d["weather"]) if d.get("weather") else None
@@ -316,6 +322,8 @@ class Life:
             "egg": dict(self.egg) if self.egg else None,
             "gifts_given": self.gifts_given,
             "record": dict(self.record),
+            "dungeons": {k: dict(v, battles=dict(v.get("battles") or {})) for k, v in sorted(self.dungeons.items())},
+            "dungeon_pending": list(self.dungeon_pending),
             "activity_since_pet": self.activity_since_pet,
             "last_activity": self.last_activity,
             "weather": dict(self.weather) if self.weather else None,
@@ -876,6 +884,76 @@ class Life:
         rec["label"] = place_label(name, int(rec.get("night", 0)) / max(1, count), count)
         return rec, is_new, came_back
 
+    # -- network dungeons ------------------------------------------------
+
+    def register_dungeon(
+        self,
+        creature: Any,
+        kind: str,
+        ident: str,
+        name: str | None,
+        rssi: int | None,
+        rng: random.Random,
+        now: float,
+        secured: bool = False,
+        rare: bool = False,
+    ) -> tuple[str | None, bool]:
+        """A sighting: unlock (or refresh) the dungeon for this signal."""
+        if kind not in dgn.DUNGEON_KINDS or not (ident or name):
+            return None, False
+        did = dgn.dungeon_id(kind, ident, name)
+        rec = self.dungeons.get(did)
+        if rec is not None:
+            rec["last_seen"] = max(float(rec.get("last_seen", 0.0)), now)
+            if secured and not rec.get("secured"):
+                rec["secured"] = True
+                rec["difficulty"] = min(10, int(rec.get("difficulty", 4)) + 1)
+            self.update_home()
+            return did, False
+        rare = bool(rare or is_treasure_name(kind, name or "", rssi))
+        did, rec = dgn.new_record(kind, ident, name, rssi, now, secured=secured, rare=rare)
+        self.dungeons[did] = rec
+        if len(self.dungeons) > dgn.MAX_DUNGEONS:
+            spare = [k for k, r in self.dungeons.items() if not r.get("home") and not r.get("depth") and k != did]
+            pool = spare or [k for k in self.dungeons if k != did]
+            self.dungeons.pop(min(pool, key=lambda k: self.dungeons[k].get("last_seen", 0.0)), None)
+        self.update_home()
+        self.count("dungeons")
+        self.dungeon_pending.append(did)
+        self.flush_dungeon_found(creature, rng, now)
+        return did, True
+
+    def update_home(self) -> str | None:
+        """Home turf: the wifi dungeon whose SSID territory labels "home"."""
+        best, best_count = None, -1
+        for did, rec in self.dungeons.items():
+            net = self.networks.get(rec.get("ssid") or "") if rec.get("kind") == "wifi" else None
+            if net and net.get("label") == "home" and int(net.get("count", 0)) > best_count:
+                best, best_count = did, int(net.get("count", 0))
+        for did, rec in self.dungeons.items():
+            rec["home"] = did == best
+        return best
+
+    def flush_dungeon_found(self, creature: Any, rng: random.Random, now: float) -> None:
+        """dungeon_found at most once per 30 s; extras become one summary."""
+        self.dungeon_pending = [d for d in self.dungeon_pending if d in self.dungeons]
+        if not self.dungeon_pending or not self.ready("dungeon_found", now):
+            return
+        pending, self.dungeon_pending = self.dungeon_pending, []
+        self.cool("dungeon_found", now, dgn.FOUND_COOLDOWN)
+        from pet.battle import battle_say
+
+        if len(pending) == 1:
+            rec = self.dungeons[pending[0]]
+            key = "dungeon.found.rare" if rec.get("rare") else "dungeon.found"
+            text = dgn.keep_name(battle_say(creature, key, rng, {"dungeon": rec["name"]}), rec["name"])
+            self.emit("dungeon_found", {"id": pending[0], "name": rec["name"], "kind": rec["kind"],
+                                        "type": rec["type"], "rare": bool(rec.get("rare")), "say": text})
+            return
+        names = [self.dungeons[d]["name"] for d in pending]
+        text = dgn.keep_name(battle_say(creature, "dungeon.found.many", rng, {"count": len(pending), "dungeon": names[0]}), names[0])
+        self.emit("dungeons_found", {"count": len(pending), "ids": pending, "names": names[:5], "say": text})
+
     def turf(self) -> list[str]:
         return sorted(n for n, r in self.networks.items() if int(r.get("count", 0)) >= TURF_AT)
 
@@ -938,11 +1016,17 @@ class Life:
         place = None
         best = -1
         newcomers: list[str] = []
-        for kind, ident, name, rssi in signals:
+        for sig in signals:
+            kind, ident, name, rssi = sig[:4]
+            extra = sig[4] if len(sig) > 4 and isinstance(sig[4], dict) else {}
+            self.register_dungeon(creature, kind, ident, name, rssi, rng, now,
+                                  secured=bool(extra.get("secured")), rare=bool(extra.get("rare")))
+            if kind in dgn.DUNGEON_KINDS and dgn.is_raw_id(name, ident):
+                name = ""  # never keep a raw MAC / BSSID as a place or memory name
             if ident in new_ids:
                 self.count("discoveries")
-                self.highlight("network", name)
-                self.remember("discovery", name, now)
+                self.highlight("network", name or "a hidden network")
+                self.remember("discovery", name or "a hidden network", now)
                 if kind == self.prefs.get("fav_signal"):
                     self.add_modifier("favorite_signal", 5.0, 600.0, now)
                     if self.reveal("fav_signal"):
@@ -1099,6 +1183,7 @@ class Life:
         """Run every timer-driven behavior once. Safe to call every tick."""
         self.last_now = now
         self.prune(now)
+        self.flush_dungeon_found(creature, rng, now)
         self._flush_greeting(creature, rng, now)
         self._calendar(creature, rng, now)
         self._sickness(creature, rng, now)
@@ -1616,6 +1701,7 @@ class Life:
     def inherit_from(self, old: "Life", egg: dict[str, Any], parent_species: str) -> None:
         """Carry memory that belongs to the household into the next generation."""
         self.networks = old.networks
+        self.dungeons = old.dungeons
         self.schedule = old.schedule
         self.sessions = old.sessions
         self.last_session_day = old.last_session_day

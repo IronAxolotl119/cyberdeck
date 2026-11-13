@@ -18,6 +18,7 @@ from discovery.effects import apply_signals
 from discovery.simulated import SimulatedScanner
 from link.battle import BattleMixin
 from link.alive import AliveMixin, life_payload
+from link.dungeon import DungeonMixin
 from link.protocol import (
     PROTO_VERSION,
     TYPE_HELLO,
@@ -67,6 +68,10 @@ from link.protocol import (
     TYPE_PET_INVENTORY,
     TYPE_PET_STATS,
     TYPE_PET_STATS_OK,
+    TYPE_PET_DUNGEONS,
+    TYPE_PET_DUNGEON_ENTER,
+    TYPE_PET_DUNGEON_FLOOR,
+    TYPE_PET_DUNGEON_LEAVE,
     TYPE_PET_RIVAL,
     TYPE_PET_SAY,
     TYPE_PET_SCOLD,
@@ -223,7 +228,7 @@ def _clean_power(raw: Any) -> int:
         return 10
 
 
-class CompanionHandler(BattleMixin, AliveMixin):
+class CompanionHandler(BattleMixin, DungeonMixin, AliveMixin):
     """Dispatch one already-decoded request and optionally queue pet.event pushes."""
 
     def __init__(
@@ -278,6 +283,14 @@ class CompanionHandler(BattleMixin, AliveMixin):
             reply = message.reply(TYPE_PET_STATUS_OK, body)
         elif typ == TYPE_PET_STATS:
             reply = message.reply(TYPE_PET_STATS_OK, self.full_stats())
+        elif typ == TYPE_PET_DUNGEONS:
+            reply = self._dungeons(message, payload)
+        elif typ == TYPE_PET_DUNGEON_ENTER:
+            reply = self._dungeon_enter(message, payload)
+        elif typ == TYPE_PET_DUNGEON_FLOOR:
+            reply = self._dungeon_floor(message, payload)
+        elif typ == TYPE_PET_DUNGEON_LEAVE:
+            reply = self._dungeon_leave(message, payload)
         elif typ == TYPE_PET_FEED:
             reply = self._feed(message, payload)
         elif typ == TYPE_PET_PLAY:
@@ -772,7 +785,24 @@ class CompanionHandler(BattleMixin, AliveMixin):
         now = self.now()
         key = f"{kind}:{ident}"
         first = key not in life.treasures and not any(r[1] == (label_s or ident) for r in life.recent[-24:])
-        life.on_signals(self.creature, [(kind, ident, label_s or ident, None)], {ident} if first else set(), self.rng, now)
+        rssi_raw = payload.get("rssi")
+        rssi = int(rssi_raw) if isinstance(rssi_raw, (int, float)) and not isinstance(rssi_raw, bool) else None
+        security = payload.get("security")
+        secured = payload.get("secured") is True or (
+            isinstance(security, str) and security.strip().lower() not in ("", "open", "none", "opn")
+        )
+        from pet import dungeons as dgn
+
+        dungeon_key = dgn.dungeon_id(kind, ident, label_s or ident)
+        dungeon_new = dungeon_key not in life.dungeons
+        life.on_signals(
+            self.creature,
+            [(kind, ident, label_s or ident, rssi, {"secured": secured, "rare": payload.get("rare") is True})],
+            {ident} if first else set(),
+            self.rng,
+            now,
+        )
+        dungeon = life.dungeons.get(dungeon_key)
         interest = payload.get("interest", 1)
         try:
             interest_n = int(interest)
@@ -798,6 +828,7 @@ class CompanionHandler(BattleMixin, AliveMixin):
             "reaction": result["reaction"],
             "level": int(result["level"]),
             "level_up": bool(result["level_up"]),
+            "dungeon": ({"id": dungeon_key, "name": dungeon["name"], "new": dungeon_new} if dungeon else None),
             "pet": self.pet_dict(),
         }
         return message.reply(TYPE_PET_DISCOVERY_OK, body)

@@ -705,3 +705,471 @@ arrow keys. These two pages were generated from a real sheet.
 | [<-/->] page   [esc] back                    |
 +----------------------------------------------+
 ```
+
+
+## Network dungeons
+
+Every Wi-Fi network, Bluetooth device and LAN device that PULSE discovers
+unlocks a dungeon named after it. A discovery can come from a scan, or
+from the dashboard's `pet.discovery`; RFID tags don't unlock dungeons.
+
+The two sides split the work like this:
+
+- **The companion** owns the dungeon list, each dungeon's seed and
+  generation parameters, progress (depth record and checkpoints),
+  rewards, and PULSE's lines.
+- **The deck** owns the map, movement and fights.
+
+All four messages are new request types on proto 1. Older decks never
+send them, so nothing changes for them.
+
+### Identity and privacy
+
+- **`id`** is a short stable hash of the signal's BSSID or MAC, falling
+  back to its name. It is 8 hex characters, for example `"13c4fe5b"`.
+  The same signal always gets the same id.
+- **Raw identifiers stay out.** BSSIDs and MACs never go to the deck,
+  into a save, into an event or into a log. They are hashed as they
+  arrive.
+- **`name`** is display-safe ASCII, 24 characters or fewer. A hidden
+  SSID, or a device whose only "name" is its MAC, becomes
+  `hidden-<first 4 of id>`, for example `hidden-6294`.
+- **Theme by source.** wifi leans `NET`, bt leans `VOLT`, and lan leans
+  `DATA`. Hidden or rare signals lean `VOID`. A rare signal is a treasure
+  name, a hidden one, a very loud one, or one the dashboard marks
+  `rare:true`. Each dungeon also gets a secondary type `type2`, picked
+  from the hash (never NORM, and never the same as `type`).
+- **`difficulty`** runs from 1 to 10 and is set when the dungeon unlocks:
+  - A strong RSSI is easy and a weak one is hard: -40 dBm gives 1, -64
+    gives 4, and -96 or weaker gives 8. An unknown RSSI gives 4.
+  - Secured adds 1, and rare adds 1. Secured also makes the boss one
+    level higher and adds a trap per floor.
+- **In range** means the signal was seen within the last 300 seconds,
+  the same window the environment mood uses. Dungeons in range give
+  **x1.5 XP**, both for floor rewards and for `pet.combat.end` wins that
+  carry their `dungeon_id`.
+- **Home turf** is the Wi-Fi dungeon whose SSID territory has learned
+  as "home". It is safer:
+  - enemies are 1 level lower and there is one fewer of each;
+  - floors are never dark and have 2 fewer traps;
+  - PULSE heals 15% of max HP after each floor;
+  - PULSE has home-turf lines.
+
+`pet.discovery` now also accepts optional `rssi` (dBm), `security`
+(`"open"`, `"wpa2"` and so on; anything but open/none counts as
+secured), `secured:true` and `rare:true`. Its reply gains
+`dungeon: {id, name, new}`, or `null` for RFID.
+
+### Floors, bosses, checkpoints
+
+- **Bosses.** Every 5th floor (5, 10, 15 and so on) is a boss floor.
+  The boss is always the roster's `kernel panic` (type VOID). It carries
+  a themed `title` such as "Beacon Lord" or "Null Wraith", and `theme`
+  gives the dungeon's type.
+- **Checkpoints.** The floor after each boss floor (6, 11, 16 and so on)
+  is a checkpoint. A run can start at floor 1 or at any checkpoint up to
+  `checkpoint`, which is the deepest start unlocked:
+  `1 + 5 * (depth_record // 5)`.
+- **Enemy level** is `difficulty + (floor - 1) // 2`, plus 0 or 1 for
+  each enemy kind. On home turf it is 1 lower.
+- **Enemy mix.** The roster is weighted by theme:
+  - primary type x4, `type2` x2, everything else x1;
+  - deeper roster entries weigh more as floors get deeper;
+  - an entry's roster `depth` must be at most `1 + (floor - 1) // 2`.
+
+  Floors 1-2 have one enemy kind, 3-7 have two, and 8+ have three. Each
+  kind has 1 to 3 enemies.
+- **Loot quality** follows `floor * loot_mult`:
+  - The tiers are cookies and berries, then data cookies, power cells
+    and medicine, then byte burgers, patch kits and overclock chips.
+  - From floor 15, a boss can sometimes drop an evo chip.
+  - `loot_mult` is `1 + 0.08 * (floor - 1)`, capped at 3, and x1.25 for
+    rare dungeons.
+- **Layout** varies by seed, theme and depth. Deeper floors are bigger,
+  have more rooms, loops and traps, and are more often dark. VOID floors
+  from floor 3 are always dark. NET and VOID lean toward winding
+  corridors, and DATA leans straight.
+
+### Using the seed
+
+`seed` is an int. Build each floor's map with:
+
+```python
+rng = random.Random(f"{seed}:{floor}")
+```
+
+Use the `layout` numbers for the bounds: a `width` x `height` map, with
+a room count between `rooms_min` and `rooms_max`. Rooms are `room_w` x
+`room_h`, with `corridor`, `loops` extra connections, `traps` traps and
+`items` pickups. If `dark` is true, use limited sight.
+
+Draw with `theme.wall_glyph`, `theme.floor_glyph` and `theme.palette`;
+all three are hints the deck is free to ignore. Then place the
+`enemies` (roster names, levels and counts) and the `boss`.
+
+Because the companion and the deck both derive everything from the same
+seed and floor, the same dungeon floor always looks the same. The
+companion never needs the map itself.
+
+### `pet.dungeons` → `pet.dungeons.ok`
+
+Request: `{}`. Reply, ordered home first, then in range, then by
+`depth_record` (deepest first):
+
+```json
+{
+ "dungeons": [
+  {
+   "id": "582967f5",
+   "name": "HomeNet",
+   "kind": "wifi",
+   "type": "NET",
+   "type2": "VOLT",
+   "rare": false,
+   "difficulty": 3,
+   "levels": [
+    2,
+    5
+   ],
+   "in_range": true,
+   "home": true,
+   "depth_record": 2,
+   "checkpoint": 1,
+   "starts": [
+    1
+   ],
+   "xp_mult": 1.5,
+   "clears": 2,
+   "boss_kills": 0,
+   "new": true,
+   "last_seen": 1794492200,
+   "unlocked_at": 1794492000
+  },
+  "..."
+ ],
+ "count": 5,
+ "in_range": 5,
+ "home": "582967f5"
+}
+```
+
+Each row has these fields:
+
+| Field | Meaning |
+|---|---|
+| `id`, `name`, `kind` | Identity. `kind` is `wifi`, `bt` or `lan`. |
+| `type`, `type2`, `rare` | Theme. |
+| `difficulty` | 1 to 10. |
+| `levels` | `[lo, hi]`: the enemy levels from the checkpoint to the next new floor. |
+| `in_range`, `xp_mult`, `home` | Range bonus and home turf. |
+| `depth_record` | Deepest floor cleared. |
+| `checkpoint`, `starts` | The deepest start floor unlocked, and every allowed start floor. |
+| `clears`, `boss_kills` | Progress counts. |
+| `new` | True until the dungeon is first entered. |
+| `last_seen`, `unlocked_at` | Epoch seconds. |
+
+### `pet.dungeon.enter {id, floor?}` → `pet.dungeon.enter.ok`
+
+- `floor` defaults to the last checkpoint. Any other value snaps down to
+  the highest start floor at or below it that is unlocked, and `floor`
+  in the reply tells the deck where it actually starts.
+- An unknown id returns error `unknown_dungeon`. A floor below 1 or not
+  an integer returns `bad_payload`.
+
+```json
+{
+ "id": "13c4fe5b",
+ "name": "CafeNet-5G",
+ "seed": 2647696577,
+ "floor": 6,
+ "layout": {
+  "width": 46,
+  "height": 16,
+  "rooms_min": 1,
+  "rooms_max": 4,
+  "room_w": [
+   4,
+   6
+  ],
+  "room_h": [
+   3,
+   4
+  ],
+  "corridor": "winding",
+  "loops": 1,
+  "dark": false,
+  "traps": 3,
+  "items": 3
+ },
+ "theme": {
+  "type": "NET",
+  "type2": "FIRE",
+  "wall_glyph": "+",
+  "floor_glyph": ":",
+  "palette": "cyan_grid"
+ },
+ "enemies": [
+  {
+   "name": "firewall",
+   "id": "firewall",
+   "type": "FIRE",
+   "level": 8,
+   "count": 1
+  },
+  {
+   "name": "popup",
+   "id": "popup",
+   "type": "NORM",
+   "level": 7,
+   "count": 2
+  }
+ ],
+ "boss": null,
+ "checkpoint": true,
+ "xp_mult": 1.5,
+ "loot_mult": 1.4,
+ "home": false,
+ "in_range": true,
+ "say": "Packets drifting like snow here.",
+ "kind": "wifi",
+ "difficulty": 5,
+ "flavor": "A tunnel net spun by worms.",
+ "first_visit": true,
+ "depth_record": 7,
+ "checkpoint_floor": 6,
+ "starts": [
+  1,
+  6
+ ],
+ "log": [
+  "CafeNet-5G: floor 6.",
+  "In range: x1.5 XP!"
+ ]
+}
+```
+
+- **`say`** is the intro, in the dungeon's theme voice, or a home-turf
+  line.
+- **`flavor`** is the dungeon's fixed one-line description, picked by
+  the seed.
+- **`log`** holds short lines for the banner.
+- Every string is ASCII and 44 characters or fewer.
+- `enemies[].type` and `boss` are extras on top of the spec, for the
+  type chart.
+
+### `pet.dungeon.floor {id, floor, result, xp?, enemies?, loot?, boss_beaten?}` → `pet.dungeon.floor.ok`
+
+Send this when a floor ends. `result` is one of:
+
+- **`cleared`**: the floor was cleared. It counts toward the depth
+  record, gives floor XP and rolls loot.
+- **`stairs`**: the deck took the stairs without clearing the floor. It
+  counts toward the depth record and gives half the floor XP, but no
+  loot roll.
+- **`fainted`**: PULSE fainted. **The run ends** and `next` is `null`.
+  The depth record is kept, and the next entry starts at the last
+  checkpoint. There's no penalty beyond that.
+- **`fled`**: **the run ends** with no penalty.
+
+Floor XP is `3 + 2*floor`. A beaten boss adds `10 + 2*floor`. The total
+is multiplied by `xp_mult`.
+
+Battle XP still goes through `pet.combat.end`. Send that with
+`dungeon_id` and `floor` so the range bonus applies and the battle is
+counted for this dungeon. The optional fields are:
+
+- `xp`: extra XP from the deck, such as a chest. It is capped at 999
+  and multiplied by `xp_mult`.
+- `loot`: item names or `{name, kind}` objects the deck picked up, up
+  to 10. They are added to the Bag.
+- `enemies`: names defeated, for counting.
+- `boss_beaten`: defaults to true when a boss floor is `cleared`.
+
+A floor beyond `depth_record + 1` that the current run hasn't reached
+returns `bad_payload`.
+
+```json
+{
+ "id": "13c4fe5b",
+ "floor": 6,
+ "result": "cleared",
+ "xp": 28,
+ "xp_mult": 1.5,
+ "loot": [
+  {
+   "id": "battery",
+   "name": "battery",
+   "qty": 1
+  },
+  {
+   "id": "medicine",
+   "name": "medicine",
+   "qty": 1
+  }
+ ],
+ "bond": "friendly",
+ "bond_delta": 0.5,
+ "depth_record": 7,
+ "new_record": false,
+ "checkpoint_reached": false,
+ "checkpoint": 6,
+ "boss_beaten": false,
+ "healed": 0,
+ "next": {
+  "floor": 7,
+  "...": "same shape as the enter reply"
+ },
+ "say": "That's floor 6. Next please!",
+ "log": [
+  "Floor 6 cleared!",
+  "PULSE gained 28 XP!",
+  "Got BATTERY x1.",
+  "Got MEDICINE x1."
+ ],
+ "hp": 20
+}
+```
+
+- `next` has the same shape as the enter reply, minus the enter-only
+  extras, and its `say` is the floor-entry line.
+- `say` picks one line, in this order of priority: boss milestone, new
+  depth record, home-turf heal, and finally the result line (cleared,
+  stairs, fainted or fled).
+- `bond` is the bond tier; `bond_delta` is the change. A cleared floor
+  gives +0.5, a new record +1 and a beaten boss +2.
+- `healed` is the HP restored by home turf.
+
+### `pet.dungeon.leave {id, floor?}` → `pet.dungeon.leave.ok`
+
+```json
+{
+ "id": "13c4fe5b",
+ "depth_record": 7,
+ "checkpoint": 6,
+ "say": "Dungeon closed. For today."
+}
+```
+
+### Events and combat
+
+When a discovery unlocks a dungeon, the companion sends `pet.event`
+`dungeon_found` with detail `{id, name, kind, type, rare, say}`. There
+is **at most one per 30 seconds.** Dungeons found during the cooldown
+are batched into a single `dungeons_found` summary when it ends:
+`{count, ids, names (up to 5), say}`, where `say` reads like "Found N
+more dungeons!".
+
+```json
+[
+ {
+  "event": "dungeon_found",
+  "detail": {
+   "id": "582967f5",
+   "name": "HomeNet",
+   "kind": "wifi",
+   "type": "NET",
+   "rare": false,
+   "say": "HomeNet goes down. Way down."
+  }
+ },
+ {
+  "event": "dungeons_found",
+  "detail": {
+   "count": 4,
+   "ids": [
+    "13c4fe5b",
+    "295dba0c",
+    "6294a97a",
+    "a1fa6e5e"
+   ],
+   "names": [
+    "CafeNet-5G",
+    "JBL Flip 5",
+    "hidden-6294",
+    "printer.local"
+   ],
+   "say": "4 dungeons popped up at once."
+  }
+ }
+]
+```
+
+`pet.combat.end` may include `dungeon_id` and `floor`:
+
+- The fight counts in the lifetime battle record as usual, and in that
+  dungeon's own `battles {wins, losses, flees}`, which is saved.
+- A win in a dungeon in range gets its XP x1.5. The reply's `xp_mult`
+  says which multiplier applied.
+
+`pet.stats` adds a raw `dungeons` summary:
+`{count, in_range, deepest, deepest_name, floors, boss_kills, home}`.
+Five lines are added to the end of the Discoveries page: Dungeons,
+Deepest, Floors done, Dungeon boss and Home turf.
+
+### Save state
+
+Dungeons are saved in `life.dungeons`, keyed by the hashed id. Each
+record holds:
+
+- `name`, `kind`, `type`, `type2`, `rare`, `hidden`, `secured`,
+  `difficulty`;
+- `ssid`, the network's display name, kept so territory can spot home;
+- `first_seen`, `last_seen`, `home`;
+- `depth` (deepest floor cleared), `clears`, `boss_kills`, `runs`,
+  `entered`, and `battles`.
+
+Older saves load with no dungeons; they unlock again from new sightings.
+The list is capped at 300 dungeons, and when it is full the oldest
+dungeon with no progress is dropped first. Dungeons carry over to the
+next generation, like territory does.
+
+`pet.activity` (`dungeon_start` / `dungeon`) is unchanged and still
+works for the deck's own dungeons.
+
+### Mockups (48 columns)
+
+The dungeon picker. `D` is difficulty, `B` is the depth record, and the
+rows are already in the reply's sort order.
+
+```
++----------------------------------------------+
+| DUNGEONS                     5 found  5 near |
++----------------------------------------------+
+| > HomeNet         NET  D3  B2   HOME         |
+|   CafeNet-5G      NET  D5  B7   NEAR         |
+|   JBL Flip 5      VOLT D5  B0   NEAR         |
+|  *hidden-6294     VOID D8  B0   NEAR         |
+|   printer.local   DATA D4  B0   NEAR         |
++----------------------------------------------+
+| near = in range (x1.5 XP)  * = rare          |
+| [ent] enter  [<-/->] start floor  [esc]      |
++----------------------------------------------+
+```
+
+The floor-entry banner, built from the `next` above:
+
+```
++----------------------------------------------+
+| CafeNet-5G                               B7F |
+| NET/FIRE  Lv 9-9  x1.5 XP  loot x1.48        |
++----------------------------------------------+
+| A tunnel net spun by worms.                  |
+|                                              |
+| Foes: popup x1, lag x1                       |
+| Map 57x14  rooms 4-6  winding                |
+| Traps 3  items 3  lit                        |
+|                                              |
+| "Floor 7. Look out for loot!"                |
++----------------------------------------------+
+```
+
+A boss floor banner:
+
+```
++----------------------------------------------+
+| CafeNet-5G                         B10F BOSS |
+| BEACON LORD  (kernel panic Lv 12)            |
++----------------------------------------------+
+| "Big room. Bigger boss."                     |
++----------------------------------------------+
+```

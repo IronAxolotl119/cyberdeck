@@ -1,0 +1,613 @@
+# Network dungeon text. Every line must be plain ASCII and at most 44
+# characters after slots are filled (tests/test_dungeons.py checks this
+# with a 12-character dungeon name; longer names are clipped with "...").
+# Slots: {name} {dungeon} {floor} {count} {boss} {hp}
+
+[dungeon.found]
+New dungeon: {dungeon}!
+{dungeon} has a door now. Ooh.
+I smell a dungeon. It's {dungeon}.
+{dungeon} goes down. Way down.
+A new way in: {dungeon}.
+Map unlocked: {dungeon}!
+There are stairs inside {dungeon}.
+{dungeon} just opened up for us.
+I found a hole in {dungeon}. Explore?
+Dungeon get! {dungeon}!
+{dungeon} hums like a cave.
+Who lives in {dungeon}? Let's see!
+{dungeon} looks deep. I love deep.
+Another dungeon: {dungeon}.
+{dungeon} is calling my name.
+A secret level: {dungeon}!
+{dungeon} has floors. So many floors.
+I can hear echoes in {dungeon}.
+Adding {dungeon} to the map.
+{dungeon}: unexplored. For now.
+Dungeon spotted: {dungeon}.
+{dungeon} smells like adventure.
+Ooh! {dungeon} has a basement.
+Something is down in {dungeon}.
+New signal, new dungeon. {dungeon}!
+{dungeon}? Never been. Must go.
+I pinned {dungeon} on our map.
+{dungeon} is open for business.
+Look! A staircase in {dungeon}!
+{dungeon} goes below the static.
+The air cracked open: {dungeon}.
+A doorway in the noise: {dungeon}.
+Fresh dungeon! {dungeon}!
+{dungeon} wants visitors.
+Can we go into {dungeon} later?
+I'll remember {dungeon}. Promise.
+Every signal is a world. {dungeon}!
+My tail twitched. {dungeon} is new.
+{dungeon} added. Map is growing!
+Uncharted: {dungeon}.
+{dungeon} has a little door. Cute.
+Psst. {dungeon} is a dungeon now.
+{dungeon} unlocked. Bring snacks.
+
+[dungeon.found.rare]
+A rare one! {dungeon}!
+{dungeon} should not exist. Yay!
+Whoa. {dungeon} is a VOID place.
+{dungeon} feels... wrong. Love it.
+Secret dungeon: {dungeon}!
+{dungeon} is hiding. I found it.
+A ghost door: {dungeon}.
+Rare signal! {dungeon} opens up.
+{dungeon} hums in the dark.
+Shh. {dungeon} is a secret.
+{dungeon}: deep, strange, ours.
+Ooooh. {dungeon} glows weird.
+I found the hidden one. {dungeon}!
+{dungeon}. Even the map is scared.
+Treasure smell from {dungeon}!
+Nobody knows {dungeon}. Except me.
+{dungeon} is made of whispers.
+Void door spotted: {dungeon}!
+
+[dungeon.found.many]
+Found {count} more dungeons!
+{count} new dungeons. Busy air!
+The map got {count} doors bigger.
+{count} more places to explore!
+So many doors! {count} new ones.
+{count} new dungeons. I'm dizzy!
+Dungeon rush! {count} more!
+{count} dungeons popped up at once.
+We have {count} new places to dig.
+{count} new dungeons, starting {dungeon}.
+Oh wow. {count} new dungeons.
+The air is full of doors. {count}!
+I count {count} new dungeons!
+{count} more stairs going down.
+Map update: {count} new dungeons.
+Too many dungeons! Just kidding. {count}!
+
+[dungeon.intro.net]
+{dungeon}: packets everywhere.
+Into {dungeon}. Mind the routers.
+The air in {dungeon} buzzes.
+{dungeon} is all tunnels and hops.
+Beacons blink in {dungeon}.
+{dungeon} smells like warm routers.
+Hop, hop, hop into {dungeon}.
+I hear handshakes in {dungeon}.
+{dungeon}: watch for spam.
+Signal bars on the walls. Cute.
+Every hallway here is a channel.
+{dungeon} has a mesh of halls.
+This place pings back. Hi!
+Careful. {dungeon} has worms.
+Packets drifting like snow here.
+{dungeon} is loud. I like loud.
+Channel hopping into {dungeon}!
+The walls here are made of SSIDs.
+I can taste the bandwidth.
+{dungeon}: low latency, high danger.
+Down into the {dungeon} relay.
+The routers here never sleep.
+{dungeon}. Strong signal, strong foes.
+Antenna up. We're in {dungeon}.
+Wifi caves! My favorite kind.
+Lots of traffic in {dungeon}.
+Mind the gap between packets.
+This tunnel leads to the uplink.
+{dungeon} broadcasts. We answer.
+Feels like a giant router inside.
+
+[dungeon.intro.volt]
+{dungeon} crackles. Ouch. Fun!
+Static on my fur already.
+{dungeon} is full of sparks.
+Pairing mode: dungeon edition.
+Into {dungeon}. Stay grounded.
+Bluetooth caves are so twisty.
+{dungeon} buzzes in my teeth.
+The walls hum at 2.4 GHz.
+Zap zap. {dungeon} says hi.
+{dungeon}: tiny, loud, electric.
+Everything here wants to pair.
+Careful, the floor is charged.
+{dungeon} smells like batteries.
+I can feel the coils spinning.
+Volt halls! My hair stands up.
+{dungeon} is pulsing. Like me!
+Short range, big danger.
+{dungeon}: watch your step. Bzzt.
+Low energy? Not in {dungeon}.
+The sparks here sing.
+Into the coil maze of {dungeon}.
+{dungeon} pairs with my courage.
+I bet the boss here is a speaker.
+Every corner gives a tiny shock.
+{dungeon} glows a little yellow.
+Device caves are cozy. And zappy.
+Beep boop. Entering {dungeon}.
+I feel overclocked already.
+
+[dungeon.intro.data]
+{dungeon} is rows and rows of data.
+Into {dungeon}. Index ready.
+The walls here are spreadsheets.
+{dungeon}: watch for bugs.
+Cache halls! Smells like cookies.
+Ping. Pong. We're in {dungeon}.
+{dungeon} has tidy little rooms.
+Every door here has an address.
+{dungeon} is full of old logs.
+The floor is made of bits.
+Bytes everywhere in {dungeon}.
+Local network, local monsters.
+I hear hard drives humming.
+{dungeon}: well sorted, very scary.
+ARP whispers in the dark.
+Into the tables of {dungeon}.
+{dungeon} keeps very good records.
+Ones and zeros. Mostly zeros.
+Mind the null pointers.
+{dungeon} smells like toner.
+The LAN goes deeper than I thought.
+These halls are numbered. Nice.
+{dungeon} lights blink green.
+Sorting through {dungeon}...
+Data caves! Bring a backup.
+I bet there's a virus nearby.
+This place feels well indexed.
+{dungeon}: a filing cabinet of doom.
+
+[dungeon.intro.void]
+{dungeon}... is anyone there?
+Hidden halls. Shh.
+{dungeon} does not want us here.
+The map is blank. Exciting!
+Into the void of {dungeon}.
+I can't see the walls. Hold on.
+{dungeon} hums with nothing.
+Nobody broadcasts in here.
+This place has no name. Spooky.
+{dungeon} eats light. Stay close.
+Glitches in the corners. Eek.
+Echoes with no source. Hm.
+The floor flickers in {dungeon}.
+I feel watched. By static.
+{dungeon}: unlisted, unloved, ours.
+Daemons live here. Quietly.
+Void halls. My fur is fuzzy.
+Even my shadow looks nervous.
+Hello? Hello? ...hello?
+{dungeon} is a secret in a secret.
+The dark here is extra dark.
+Something blinked. Not me.
+Into the unknown. Literally.
+{dungeon} whispers in hex.
+Ghost signal, ghost halls.
+Stay brave. I'm mostly brave.
+This dungeon forgot its own name.
+{dungeon} is full of missing bits.
+
+[dungeon.home]
+Home turf! I know every corner.
+{dungeon} is home. We got this.
+Our own network. Safe and cozy.
+Home dungeon! The walls know me.
+I know where the snacks are here.
+Home turf means home rules.
+{dungeon}: my house, my halls.
+Nothing scary at home. Mostly.
+This is my turf. Back off, bugs!
+Home sweet dungeon.
+I've napped in these halls.
+Safe halls, comfy floors.
+I patrol {dungeon} every day.
+Home turf bonus: courage!
+These are my packets.
+I can do {dungeon} in my sleep.
+Welcome to my castle!
+Home! Even the bugs are polite.
+Our router, our rules.
+Every echo here sounds like us.
+I feel strong at home.
+Home turf. I'll heal up between floors.
+{dungeon}? Easy. I live here.
+Bugs at home? Not on my watch.
+This is where I hatched. Ish.
+Familiar walls. Happy tail.
+Home dungeon! Snack breaks allowed.
+My home network has a basement?!
+I'll show you around {dungeon}.
+I know the shortcuts here.
+
+[dungeon.home.heal]
+Home turf snack. +{hp} HP.
+Quick nap at home. +{hp} HP.
+Home heals. +{hp} HP!
+Cozy break: +{hp} HP.
+I patched up at home. +{hp} HP.
+A home hug. +{hp} HP.
+Home air fixes everything. +{hp} HP.
+Rested by the router. +{hp} HP.
+Home turf recharge! +{hp} HP.
+Comfy floors. +{hp} HP.
+Home sweet heal. +{hp} HP.
+Tea break at home. +{hp} HP.
+Home turf: back to {hp} better.
+The house helps. +{hp} HP.
+Snuggled the router. +{hp} HP.
+Home cooking! +{hp} HP.
+
+[dungeon.floor]
+Floor {floor}. Here we go.
+B{floor}F. Smells new.
+Down to floor {floor}!
+Floor {floor}. Stay sharp.
+Stairs! Floor {floor}.
+Floor {floor}. I hear something.
+Deeper. Floor {floor}.
+Floor {floor}, here I come!
+New floor, new foes. Floor {floor}.
+Floor {floor}. Don't step on traps.
+B{floor}F. Paws ready.
+Floor {floor}. Is it darker here?
+Floor {floor}. My antenna wiggles.
+Going down! Floor {floor}.
+Floor {floor}. Map loading...
+Floor {floor}: let's explore.
+Floor {floor}. Smells like bugs.
+B{floor}F. Onward!
+Floor {floor}. Keep close.
+Floor {floor}. We can do this.
+Floor {floor}. Watch the corners.
+Down we go. Floor {floor}.
+Floor {floor}. Treasure maybe?
+Floor {floor}. I'm not scared.
+Floor {floor}! Still going!
+Floor {floor}. Brave paws.
+Next floor: {floor}. Easy. Maybe.
+Floor {floor}. Quiet... too quiet.
+Floor {floor}. Let's find the stairs.
+B{floor}F. Hello, new floor!
+Floor {floor}. Ooh, echoes.
+Floor {floor}. I see footprints.
+Floor {floor}. The walls hum.
+Floor {floor}. One more, then snacks.
+Floor {floor}. Look out for loot!
+Floor {floor}. I smell stairs.
+Floor {floor}. No turning back! Kidding.
+Floor {floor}. Keep moving.
+Floor {floor}. My tail says danger.
+Floor {floor}. Adventure time!
+
+[dungeon.floor.boss]
+Floor {floor}. Boss floor. Gulp.
+Boss ahead: {boss}!
+B{floor}F. Something BIG lives here.
+Floor {floor}. I hear the boss.
+{boss} waits on floor {floor}.
+Boss time! Floor {floor}.
+Floor {floor}. Fatal error ahead.
+This is it. {boss}!
+Floor {floor}. Big shadow. Big boss.
+{boss} is down here. Brave face.
+Boss floor. Deep breaths.
+Floor {floor}. The air feels heavy.
+I smell a kernel panic.
+{boss}! I trained for this!
+Floor {floor}. Boss music, please.
+Floor {floor}. Let's beat {boss}.
+Boss floor {floor}. Paws up!
+Here comes {boss}. Eek. Okay.
+Floor {floor}: the big one.
+Big room. Bigger boss.
+{boss} guards floor {floor}.
+Floor {floor}. Boss. Snacks after.
+
+[dungeon.floor.checkpoint]
+Floor {floor}. Checkpoint! Phew.
+Checkpoint at floor {floor}. Saved.
+Floor {floor}: we can start here now.
+A checkpoint! Floor {floor}.
+Floor {floor}. Safe spot. Breathe.
+Checkpoint! I'll remember floor {floor}.
+Floor {floor}. Our new starting line.
+Floor {floor}. Checkpoint flag up!
+Rest point. Floor {floor}.
+Floor {floor}. Saved our spot.
+Checkpoint {floor}. Proud of us.
+Floor {floor}. No more stairs to redo.
+Floor {floor}. Bookmarked!
+Floor {floor}: checkpoint reached.
+Floor {floor}. A safe little room.
+
+[dungeon.cleared]
+Floor {floor} cleared!
+All clear! Onward.
+Floor {floor}: done and dusted.
+That floor is ours.
+Cleared! I'm on a roll.
+Floor {floor} down. Next!
+Every bug squished. Floor {floor}.
+Clean sweep on floor {floor}!
+Floor {floor}. Clear as a ping.
+Victory lap! Floor {floor}.
+Nothing left here but crumbs.
+Floor {floor} conquered!
+That was fun. More floors!
+All clear. My paws are tired.
+Floor {floor}: zero foes left.
+Cleared it. Did you see me?
+Floor {floor}. Mission complete.
+Bugs gone. Floor {floor} is safe.
+Easy peasy. Floor {floor}.
+We cleared floor {floor}! High five!
+Floor {floor}: nothing but dust now.
+Done! Where are the stairs?
+Floor {floor}. Squeaky clean.
+Every room checked. All clear!
+Floor {floor}: defragmented.
+Cleared! Stairs, here we come.
+Floor {floor} is quiet now.
+We did it! Floor {floor}.
+That's floor {floor}. Next please!
+Floor {floor}, cleared with style.
+
+[dungeon.stairs]
+Stairs! Skipping ahead.
+Down the stairs we go.
+Sneaky! Floor {floor} skipped.
+Found the stairs. Bye, floor {floor}!
+No fighting? Fine by me.
+Shortcut! Floor {floor} done.
+Stealth mode: floor {floor}.
+We tiptoed past floor {floor}.
+Stairs first, questions later.
+Speedrun! Floor {floor}.
+Floor {floor}. Skipped. Shh.
+Down we hop!
+The stairs were right there!
+Ninja pet, floor {floor}.
+Floor {floor}: snuck right through.
+Running past the bugs. Wheee!
+
+[dungeon.fainted]
+Ow... back to the checkpoint.
+I fainted. Next time, floor {floor}.
+Too deep. I need a nap.
+Ouch. We'll start from the checkpoint.
+Floor {floor} won. For now.
+I'm okay. Just... dizzy.
+Ugh. That floor was mean.
+Back to the start. I'll be stronger.
+I saw stars. And bugs. Mostly bugs.
+Floor {floor} beat me. Rematch!
+Need snacks. And a bandage.
+Oof. Our record is safe at least.
+Down but not out!
+That hurt my pride. And my HP.
+Checkpoint, here I come. Slowly.
+Next time I'll bring more cookies.
+Floor {floor} was too much today.
+Wobbly paws. Time to rest.
+I'll remember that trap.
+Fainted... but we got far!
+
+[dungeon.fled]
+We ran. Smart move.
+Retreat! Live to dig another day.
+Out of {dungeon}! Phew.
+Nope. Nope. Leaving.
+Escaped floor {floor}!
+Tactical exit!
+Back to the surface. Fresh air!
+We'll be back, {dungeon}.
+That's enough dungeon for now.
+Running is a skill too.
+Safe! My heart is racing.
+Floor {floor}, see you later.
+Left {dungeon} in one piece.
+Strategic retreat complete.
+Sneaking out of {dungeon}...
+I'd rather snack than fight.
+Exit found. Bye, bugs!
+Out we go. Nobody saw that.
+Good call. That floor was spooky.
+Back home with all my HP.
+
+[dungeon.leave]
+Leaving {dungeon}. Good dig!
+Bye, {dungeon}! Till next time.
+Back to the surface!
+That was a good trip.
+{dungeon} will be waiting.
+Out of the dungeon. Snack time?
+See you soon, {dungeon}.
+Map saved. Let's go home.
+What a dive!
+Fresh air! I missed you.
+I'll dream about {dungeon}.
+Dungeon closed. For today.
+Climbing out of {dungeon}...
+That was fun. Again later?
+Bye stairs. Bye bugs.
+Back up we go!
+Good run. My paws are tired.
+We'll go deeper next time.
+{dungeon}, you were fun.
+Leaving with stories to tell.
+
+[dungeon.record]
+New record: floor {floor}!
+Deepest ever! Floor {floor}!
+We've never been this deep!
+Floor {floor}. A new low! Good low.
+Record broken: floor {floor}.
+Floor {floor}. Nobody's been here.
+Deeper than ever before!
+New depth record! Floor {floor}.
+Floor {floor}: uncharted. Ours now.
+I'm writing this one down. Floor {floor}!
+Record! Floor {floor}! Wheee!
+Floor {floor} is our new best.
+Look how deep we are!
+New personal best: floor {floor}.
+Floor {floor}! I'm so proud of us.
+Pushing the map deeper. Floor {floor}.
+Even deeper! Floor {floor}.
+Floor {floor}. A new frontier.
+I can't see the surface anymore.
+New record. Do a little dance!
+
+[dungeon.milestone]
+Floor {floor}! Boss beaten!
+{boss} is down! Floor {floor}!
+Floor {floor} conquered. Checkpoint!
+Kernel panic? Kernel PANICKED.
+We beat the boss of floor {floor}!
+Floor {floor}! The legends are true.
+Milestone! Floor {floor}!
+The boss fell. We stand.
+Floor {floor}. Unstoppable!
+Victory! New checkpoint unlocked.
+Floor {floor}: boss defeated!
+{boss} won't bother us again.
+That boss was huge. We were huger.
+Floor {floor}! Write a song about it!
+Boss down! Snack party!
+We did it! Floor {floor} boss done.
+Floor {floor}. The depths fear us.
+A whole new layer unlocked!
+Boss beaten. Checkpoint saved.
+Floor {floor} milestone! Happy wiggle!
+Ten floors? Twenty? Who's counting!
+Floor {floor}! The map trembles.
+Fatal error: boss not found. Ha!
+Deep paws, brave heart. Floor {floor}!
+Floor {floor}: boss gone, path open.
+
+[dungeon.inrange]
+In range! Bonus XP in here.
+Strong signal: x1.5 XP!
+{dungeon} is close. Extra XP!
+Signal's live. XP bonus on!
+We're in range. Power up!
+Live signal bonus active.
+Close by! Bonus XP today.
+In range means extra XP!
+The signal's right here. Bonus!
+Fresh signal, fresh XP.
+{dungeon} is live. XP boost!
+Bonus active. Let's farm!
+In range. I feel charged!
+Live dungeon! x1.5 XP.
+Signal strong, XP strong.
+
+# Fixed one-line dungeon descriptions, picked by the seed (not random).
+[dungeon.flavor.net]
+A router cave of humming relays.
+Tunnels of beacons and lost packets.
+A mesh of halls that hop channels.
+An access point with a deep basement.
+Halls lined with blinking antennas.
+A maze of handshakes and timeouts.
+A relay tower, upside down.
+A packet storm in a stone shell.
+A cave where every echo is a ping.
+Long corridors of crowded channels.
+A router with too many hallways.
+Wide halls full of drifting frames.
+An uplink that leads only down.
+A signal forest of copper roots.
+A busy hub that never sleeps.
+A beacon shrine buried in noise.
+A labyrinth of SSIDs and spam.
+A tunnel net spun by worms.
+Stacked floors of lagging traffic.
+A gateway to a deeper gateway.
+
+[dungeon.flavor.volt]
+A coil maze that buzzes in the dark.
+A battery vault with sparking floors.
+Twisty halls that want to pair.
+A speaker crypt full of static.
+A charged cave of tiny devices.
+Copper tunnels with live wires.
+A pairing chamber with no exit.
+Halls that pulse at 2.4 GHz.
+A storm in a matchbox.
+A gadget graveyard, still humming.
+Narrow corridors of short range.
+A low-energy cave with high voltage.
+A headset hive, buzzing softly.
+A lab of loose wires and sparks.
+A tower of tangled earbuds.
+Static rooms that raise your fur.
+A smartwatch tomb, still ticking.
+A buzzing hive of beacons.
+A cave lit only by sparks.
+An arc of halls that crackle.
+
+[dungeon.flavor.data]
+Rows of tables stacked to the roof.
+A cache cellar full of crumbs.
+An archive of old, angry logs.
+A filing maze of numbered rooms.
+A server closet that goes down forever.
+Halls of sorted, humming drives.
+An index of rooms, mostly accurate.
+A printer cave full of jams.
+A LAN party that never ended.
+Shelves of bits and missing bytes.
+A database dungeon with bad joins.
+Green-lit halls of blinking hosts.
+A backup vault nobody restored.
+A spreadsheet tomb of forgotten cells.
+Tidy halls hiding untidy bugs.
+A network share with too many folders.
+A pile of zeros with ones on top.
+A ledger maze of tiny packets.
+A tower of disks, spinning slowly.
+A cold room full of warm servers.
+
+[dungeon.flavor.void]
+A hidden hall with no name on the door.
+A place the map forgot.
+Halls of static and missing frames.
+A ghost network, broadcasting nothing.
+A cave where glitches nest.
+An unlisted maze, very dark.
+A blank space between channels.
+A void that hums back at you.
+Rooms that flicker in and out.
+A daemon den behind the noise.
+A null pointer, but it's a cave.
+A black glass hall of echoes.
+A secret beneath a secret.
+A corrupted save, still running.
+Halls that rename themselves.
+A signal that should not be here.
+Corridors made of missing bits.
+A quiet abyss with loud things.
+A shadow SSID with a basement.
+A hole in the air, very deep.

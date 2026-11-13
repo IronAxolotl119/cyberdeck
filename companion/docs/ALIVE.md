@@ -114,6 +114,10 @@ To add lines, put new lines under any `[section]`, or add a new section. No code
 | `pet.life` | `{}` | `life` (bond, obedience, modifiers, sick, tantrum, ask, likes, quirks, time_of_day, temp, weather, costume, place, turf, shelf_count, adventure, rival, usual_time, egg, link) |
 | `pet.reset` | `{confirm:true}` | `reset, pet`. Without confirm it returns `bad_payload`. |
 | `pet.stats` | `{}` (or `pet.status {full:true}`, which adds the sheet as `full`) | Every stat: raw fields for bars, plus `pages[{title,lines}]` in the order Overview, Combat, Care, Traits & Evolution, Moves & Loadout, Bag, Battle Record, Discoveries. Lines are ASCII and 44 characters or fewer, and undiscovered favorites stay hidden. See DUNGEON_INTEGRATION.md, "Full stats". |
+| `pet.dungeons` | `{}` | `dungeons[]` (id, name, kind, type, rare, difficulty, in_range, home, depth_record, checkpoint, last_seen, unlocked_at, ...), ordered home first, then in range, then by depth. See DUNGEON_INTEGRATION.md, "Network dungeons". |
+| `pet.dungeon.enter` | `{id, floor?}` | `seed`, `floor`, `layout`, `theme`, `enemies`, `boss`, `checkpoint`, `xp_mult`, `loot_mult`, `say`. `floor` defaults to the last checkpoint. |
+| `pet.dungeon.floor` | `{id, floor, result: cleared/stairs/fainted/fled, xp?, enemies?, loot?, boss_beaten?}` | `xp`, `loot`, `bond`, `depth_record`, `new_record`, `checkpoint_reached`, `next` (`null` when the run ends), `say`, `log`. |
+| `pet.dungeon.leave` | `{id, floor?}` | `depth_record`, `checkpoint`, `say`. |
 
 Each reply's type is the request type plus `.ok`. A bad payload gives `error {code:"bad_payload"}`.
 

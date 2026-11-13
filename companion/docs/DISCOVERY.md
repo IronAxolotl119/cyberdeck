@@ -25,7 +25,10 @@ Request payload:
 | `id`       | yes      | stable id of the device or tag (MAC, host, UID, …). Missing or blank → `bad_payload`. |
 | `interest` | no       | clamped to 1–3 (default 1). Values outside that range are not an error. |
 | `event`    | no       | dashboard event name; stored nowhere, only flavour. |
-| `label`    | no       | human name used in the reaction text. |
+| `label`    | no       | human name used in the reaction text (and the dungeon name). |
+| `rssi`     | no       | dBm. Sets the unlocked dungeon's difficulty (strong = easy). |
+| `security` | no       | e.g. `open`, `wpa2`. Anything but open/none = secured (tougher boss). `secured:true` works too. |
+| `rare`     | no       | `true` marks a rare find (treasure, VOID-themed dungeon). |
 
 Reply payload:
 
@@ -34,6 +37,10 @@ Reply payload:
  "reaction":"PULSE logged cafe-guest (+7 XP).",
  "level":1,"level_up":false,"pet":{...}}
 ```
+
+`dungeon` is `{id, name, new}` for wifi / bt / lan (each one unlocks a
+network dungeon; see DUNGEON_INTEGRATION.md "Network dungeons"), or
+`null` for rfid.
 
 `learned_move` and `strengthened_move` are the move's display name, or
 `null`. `pet` is the usual status object (including `environment`).

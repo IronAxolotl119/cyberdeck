@@ -285,6 +285,12 @@ class BattleMixin:
         result = apply_combat_end(creature, payload)
         if not result["ok"]:
             return message.error("bad_payload", result["reason"])
+        # Network dungeon fights: count them per dungeon; in range = bonus XP.
+        mult = self.dungeon_combat_tally(payload, result["result"])
+        if mult > 1.0 and result["result"] == "win" and result["xp_granted"] > 0:
+            bonus = int(round(result["xp_granted"] * (mult - 1.0)))
+            creature.add_xp(bonus)
+            result["xp_granted"] += bonus
         self._note_growth(before_species, before_level, before_moves)
         life.on_combat_end(creature, result["result"], self.rng, now)  # lingering moods, memories
         outcome = result["result"]
@@ -347,6 +353,7 @@ class BattleMixin:
             "reaction": result["reaction"],
             "say": say,
             "log": [clamp_say(line) for line in log],
+            "xp_mult": mult,
             **self._battle_common(),
             "pet": self.pet_dict(),
         })

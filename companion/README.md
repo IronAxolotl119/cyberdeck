@@ -410,6 +410,28 @@ Mood, bond, obedience, and tantrums still change how PULSE fights. The
 exact protocol and screen mockups are in
 [docs/DUNGEON_INTEGRATION.md](docs/DUNGEON_INTEGRATION.md#battle-protocol-turn-based-48-columns).
 
+## Network dungeons
+
+Every Wi-Fi network, Bluetooth device and LAN device PULSE discovers
+unlocks a dungeon named after it.
+
+- **Look:** each dungeon's look, layout, enemy mix and boss title come
+  from a seed. The seed is a hash of the device's BSSID or MAC, so the
+  same network always makes the same dungeon. Raw identifiers never leave
+  the companion.
+- **Theme:** wifi leans NET, bt leans VOLT, lan leans DATA, and hidden or
+  rare signals lean VOID.
+- **Difficulty:** set by signal strength and security.
+- **Floors:** there's a boss every 5 floors, and a checkpoint after each
+  one.
+- **Bonuses:** dungeons in range give x1.5 XP. The home network is a safer
+  home turf that heals PULSE between floors.
+
+The messages are `pet.dungeons`, `pet.dungeon.enter`, `pet.dungeon.floor`
+and `pet.dungeon.leave`, plus `dungeon_found` events. There are about 560
+dungeon lines in `pet/lines/dungeons.lines`. See
+[docs/DUNGEON_INTEGRATION.md](docs/DUNGEON_INTEGRATION.md#network-dungeons).
+
 ## Roadmap
 
 1. **Core simulation** (this repo). Stats, a tick loop, one evolution line with

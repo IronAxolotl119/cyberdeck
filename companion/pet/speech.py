@@ -141,6 +141,8 @@ def sentence_case(text: str) -> str:
     """Capitalize the first letter and a lone 'i' (pools are written casually)."""
     text = _LONE_I.sub("I", text)
     for i, ch in enumerate(text):
+        if ch.isdigit():  # "4 dungeons", not "4 Dungeons"
+            return text
         if ch.isalpha():
             return text[:i] + ch.upper() + text[i + 1:]
         if ch == "*":  # leave *actions* alone
