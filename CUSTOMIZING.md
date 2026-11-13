@@ -36,6 +36,7 @@ marked **(Rich)** or **(classic)** in the table.
 | PULSE's lines on the LCD          | `text/lcd_blurbs.txt` (then `lcd reload`) |
 | Songs for the buzzer             | `songs/*.txt` |
 | Boot animation, visualizer, games| `config/fx.ini` |
+| Dungeon battles: enemies, faces, odds | `config/battle.ini` (defaults in `cyberdeck/battledata.py`, guide in `docs/BATTLE.md`) |
 | The deck's sassy status lines    | `config/moods.ini` |
 | Typing-challenge phrases         | `text/hack_phrases.txt` |
 | Your location, units, ISS options| `config/world.ini` |
@@ -351,7 +352,8 @@ to `[panes]` to see what is playing. Rename or add `alert.txt` and set
 |---------|--------------|
 | `hack [target]` | Fake "hack the mainframe" show: scrolling code, stage bars, ACCESS GRANTED. Any key exits. |
 | `typehack` | Typing-speed challenge with a trace timer; `typehack scores` for the board. |
-| `dungeon` | ASCII roguelike with PULSE at your side. Arrows/WASD move, `>` stairs, `g` gifts loot to PULSE, `i` bag, `q` quit. On PULSE's turn: `1`-`9` pick its move, space = let it choose, `.` = hold back. |
+| `dungeon` | ASCII roguelike. Arrows/WASD move, `>` stairs, `g` gifts loot to PULSE, `i` bag, `q` quit. Walking into an enemy starts a turn-based battle: FIGHT / BAG / PULSE / RUN (arrows + Enter, or `f` `b` `p` `r`; `1`-`4` moves, `a` lets PULSE pick, Esc goes back). See docs/BATTLE.md. |
+| `battle` | `battle <enemy> [level]`: a battle on its own; in headless scripts `battle fight <n>`, `auto`, `bag <n>`, `pulse`, `run`, `show`, `end`. |
 | `loot`, `loot gift <n>`, `pet gift <n>` | Your saved loot; gifts go to PULSE with the `pet.gift` message. |
 | `loot add <item>` | Put a loot item in the bag without crawling (for scripts and trying gifts), e.g. `loot add evo chip`. |
 | `boot` | Replay the boot animation. |
@@ -371,7 +373,10 @@ to `[panes]` to see what is playing. Rename or add `alert.txt` and set
   its real stats from the companion; no link = solo), `pulse_moves`
   (`ask` = you pick its move each round, `auto` = it picks), and
   `pulse_target_chance` (0–1, how often a monster next to you goes for
-  PULSE instead). The HUD shows PULSE's HP and energy.
+  PULSE instead). The HUD shows PULSE's HP and energy. `battle`
+  (yes = walking into an enemy opens the turn-based battle screen;
+  no = the old crawl where PULSE fights next to you on the map).
+  The battle odds, enemies and faces are in `config/battle.ini`.
 
 ### Give the deck a personality (moods.ini)
 

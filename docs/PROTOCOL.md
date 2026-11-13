@@ -303,6 +303,36 @@ the authority: the deck only applies the numbers it gets back.
 - The deck plays solo if `pet.combat.stats` fails, is unknown, or says
   the pet is asleep.
 
+### Turn-based battles (FIGHT / BAG / PULSE / RUN)
+
+The companion's "Battle protocol" (companion/docs/DUNGEON_INTEGRATION.md)
+adds a one-on-one battle on top of the messages above. How it plays:
+[BATTLE.md](BATTLE.md). Who owns what:
+
+| Deck | Companion |
+|---|---|
+| enemy HP, enemy AI (which attack), base damage, the flee roll, XP and loot | PULSE's HP/EN, the type chart, effectiveness, crits, the bag, the lines PULSE says |
+
+| Message | Payload the deck sends | What the deck uses from the reply |
+|---|---|---|
+| `pet.combat.roster` | `{}` (once per run) | `types`, `chart` (missing: built-in chart) |
+| `pet.combat.stats` | `{enemy}` | `type`, typed `moves` (max 4), `bag`, `status`, `bond`, `say` |
+| `pet.combat.action` | `{move?, enemy, turn}` | `damage`, `hit`, `crit`, `effectiveness`, `log`, `say` (missing: deck writes the log, x1) |
+| `pet.combat.hit` | `{damage, enemy, attack_type}` | `damage_taken`, `effectiveness`, `fainted`, `log`, `say` |
+| `pet.combat.item` | `{item, enemy, turn}` | `used`, `log`, `say`, `bag`; `error` `none_left` / `not_usable_in_battle` / `no_effect` (no turn used) |
+| `pet.combat.run` | `{enemy}` (once per battle) | optional `say_ok` / `say_fail` lines; the deck rolls the odds itself |
+| `pet.combat.end` | `{result, xp, enemies, loot}` | `xp_granted`, `bond`, `log`, `say`, `learned`, `pet` |
+| `pet.combat.moves` | `{moves: [names]}` | the new loadout (not used in battle yet) |
+| `pet.inventory` | `{action: list\|add\|drop, item?, qty?}` | `bag` (the sim pet answers it; the deck reads the bag from `pet.combat.stats`) |
+
+Enemy objects carry `id`, `name`, `type`, `level`, `hp`, `max_hp`,
+`attack`, `defense`, `speed` and `boss`. Every `say` line is ASCII, at
+most 44 characters. An older companion that answers `unknown type` to
+any of the new messages still works: moves without a type are NORM,
+matchups are x1, and BAG reports an empty bag. The deck's sim pet
+(`cyberdeck/companion.py`) answers all of these the same way the
+companion does.
+
 ### Discoveries (`pet.discovery`)
 
 The interface's awareness tab reports each first sighting of a Wi-Fi

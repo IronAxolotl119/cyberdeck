@@ -146,8 +146,10 @@ launcher menu.
   evolution pop-ups, hunger and boredom alerts, `gpio led|set|read|beep`,
   `music play <song>` on the buzzer.
 - **Fun:** boot animation, ticker visualizer, deck moods, `hack`,
-  `typehack`, `dungeon` (PULSE fights at your side with its real stats;
-  loot can be gifted to it; `loot add <item>` for scripts).
+  `typehack`, `dungeon` (walk into an enemy for a Pokemon-style
+  turn-based battle: FIGHT / BAG / PULSE / RUN, fought by PULSE with its
+  real moves; see [docs/BATTLE.md](docs/BATTLE.md)), `battle <enemy>`,
+  and loot that can be gifted to PULSE (`loot add <item>` for scripts).
 - **Outside world:** `weather`, `sun`, `moon`, `iss` (passes over you,
   computed on the deck), plus a `sky` panel.
 
@@ -174,7 +176,8 @@ Next steps after this scaffold:
 Boards exchange newline-delimited JSON objects with three keys:
 `type`, `id`, and `payload`. Requests and replies share the same
 `id`. Types include `hello`, `ping`, `pet.status`, `pet.feed`,
-`pet.play`, `pet.gift`, `pet.rest`/`sleep`/`evolve`, `pet.combat.*`,
+`pet.play`, `pet.gift`, `pet.rest`/`sleep`/`evolve`, `pet.combat.*`
+(including the battle messages `item`, `moves`, `roster`, `run`), `pet.inventory`,
 `pet.discovery`, plus their `*.ok` replies, `pet.event` pushes and
 `error`. Full rules are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 

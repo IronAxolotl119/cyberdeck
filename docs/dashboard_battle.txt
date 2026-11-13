@@ -1,0 +1,34 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ ▓▒░ CYBERDECK//MAIN ░▒▓           SIM   FIELD ○   LINK ◆ SIM   ⚠ 5           08:00:53 Fri 15 Jan ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  Awareness   PULSE   ◢ CONSOLE ◣   Dungeon   Notes   Fun   [ ] switch · 2 panels                   
+┏━  ▶ BATTLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                         +----------------------------------------------+                         ┃
+┃                         |                   FIREWALL  Lv3  FIRE        |                         ┃
+┃                         |                   HP [#########.]  46/52     |                         ┃
+┃                         |                     [=_=]                    |                         ┃
+┃                         |  [(^_^)]                                     |                         ┃
+┃                         |  PULSE  Lv6  AETHLING  FIRE                  |                         ┃
+┃                         |  HP [##########]  39/40                      |                         ┃
+┃                         |  EN [#######...]  68/100                     |                         ┃
+┃                         +----------------------------------------------+                         ┃
+┃                         | FIREWALL took 6 damage.                      |                         ┃
+┃                         | FIREWALL used BLOCK!                         |                         ┃
+┃                         | It's not very effective...                   |                         ┃
+┃                         | PULSE took 1 damage.                         |                         ┃
+┃                         +----------------------------------------------+                         ┃
+┃                         | PULSE: Barely felt it.                       |                         ┃
+┃                         +----------------------------------------------+                         ┃
+┃                         |   BLUE PULSE     [ICE ] PWR  9 EN  5 R1      |                         ┃
+┃                         | > SIGNAL BURST   [DATA] PWR 10 EN 12 R0      |                         ┃
+┃                         |   BEACON BURST   [FIRE] PWR  8 EN  7 R0      |                         ┃
+┃                         |   TAG BITE       [VOLT] PWR  9 EN  7 R0      |                         ┃
+┃                         +----------------------------------------------+                         ┃
+┃                         | A dense DATA burst. Great vs VOID.           |                         ┃
+┃                         | Rank 0  Acc 80  vs FIRE: weak                |                         ┃
+┃                         +----------------------------------------------+                         ┃
+┃                         | up/down  enter use  1-4  a auto  esc back    |                         ┃
+┃                         +----------------------------------------------+                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  RUN to flee · esc back · ^C close  ━┛
+ ⟫ 08:00:32 PULSE logged AXOLOTL_NET (+4 XP).                                                       
+ arrows/⏎  pick  f b p r  fight bag pulse run  esc  back  ^C  close                                 

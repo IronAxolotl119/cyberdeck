@@ -9,14 +9,24 @@
   pet gift <n>       same as `loot gift`
 
 In the dungeon:
-  arrows / wasd / hjkl   move (walk into a monster to fight it)
+  arrows / wasd / hjkl   move (walk into a monster to start a battle)
   >                      go down the stairs (deeper = tougher, better loot)
   g                      gift the newest loot to PULSE right now
   i                      show / hide your loot bag
   .                      wait a turn
   q / Esc                leave (your loot is kept)
 
-PULSE fights at your side (config/fx.ini [dungeon] pulse = yes):
+Battles (config/fx.ini [dungeon] battle = yes, the default): walking
+into an enemy, or an enemy walking into you, opens a Pokemon-style
+turn-based battle on a 48-column ASCII screen: FIGHT / BAG / PULSE / RUN.
+PULSE does the fighting with its real moves; the deck plays the enemy.
+The rules, the screen and the keys are in features/battle.py and
+docs/BATTLE.md; enemies, faces and odds in cyberdeck/battledata.py and
+config/battle.ini. Without PULSE (no link, asleep, fainted, an old
+companion) you fight with your own fists, as before.
+
+With battle = no, PULSE fights at your side the old way
+(config/fx.ini [dungeon] pulse = yes):
   * at the start the deck asks the companion for PULSE's real combat
     stats (pet.combat.stats): hp, energy, attack, moves with power,
     accuracy and energy cost. The HUD shows PULSE's HP and energy.
@@ -36,7 +46,8 @@ PULSE fights at your side (config/fx.ini [dungeon] pulse = yes):
     the HUD says why.
 
 Map symbols:  @ you   # wall   . floor   > stairs   * loot   ! repair kit
-              b bug  g glitch  v virus  w worm  D daemon
+              b bug  g glitch  s spam  v virus  l lag  w worm  F firewall
+              D daemon  K kernel panic (boss of every 5th floor)
 
 Loot kinds match the pet.gift protocol message (docs/PROTOCOL.md):
 food lowers hunger, toys cheer PULSE up, batteries restore energy,
@@ -57,6 +68,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from cyberdeck.activity import Activity, Row
+from cyberdeck.battledata import ODDS, ROSTER, EnemyKind, load_battle_config, roster_entry
 from cyberdeck.commands import PET_ACTIONS, CompanionError, run_pet_hooks
 from cyberdeck.config import Settings
 from cyberdeck.fx import banner
@@ -87,14 +99,10 @@ LOOT_TABLE = [
     ("evo chip", "evolve", 0, "legendary", 1),
 ]
 
-# name, glyph, hp, attack, first depth it appears on
-MONSTERS = [
-    ("bug", "b", 3, 1, 1),
-    ("glitch", "g", 5, 2, 1),
-    ("virus", "v", 8, 3, 2),
-    ("worm", "w", 12, 4, 3),
-    ("daemon", "D", 18, 5, 4),
-]
+# name, glyph, hp, attack, first depth it appears on — the small "solo"
+# numbers for fighting with your fists. The full enemy list (types, faces,
+# battle stats) is ROSTER in cyberdeck/battledata.py.
+MONSTERS = [(k.name, k.glyph, k.solo_hp, k.solo_attack, k.depth) for k in ROSTER if not k.boss]
 
 WALL, FLOOR, STAIRS = "#", ".", ">"
 MOVES = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0),
@@ -114,11 +122,27 @@ class Monster:
     attack: int
 
     level: int = 1
+    kind: EnemyKind | None = None       # its roster entry (type, face, battle stats)
+    enemy: Any = None                   # its battle self (battle.Enemy), made on the first battle
+    calm: int = 0                       # turns before it may start another battle
 
     def describe(self) -> dict[str, Any]:
-        """The enemy snapshot sent in pet.combat.action / hit."""
-        return {"name": self.name, "level": self.level, "hp": self.hp, "attack": self.attack,
-                "defense": 0, "speed": 0}
+        """The enemy snapshot sent in pet.combat.action / hit (the old crawl)."""
+        kind = self.kind or roster_entry(self.name)
+        out = {"name": self.name, "level": self.level, "hp": self.hp, "attack": self.attack,
+               "defense": 0, "speed": 0}
+        if kind is not None:
+            out.update(id=kind.id, type=kind.type)
+        return out
+
+    def battle_enemy(self) -> Any:
+        """This monster's battle stats (kept between battles, so damage sticks)."""
+        from cyberdeck.features.battle import Enemy
+
+        if self.enemy is None:
+            kind = self.kind or roster_entry(self.name) or ROSTER[0]
+            self.enemy = Enemy.spawn(kind, self.level)
+        return self.enemy
 
 
 # --- PULSE as a party member ---------------------------------------------------------
@@ -144,6 +168,7 @@ class PulseAlly:
         self.stats: CombatStats | None = None
         self.defeated: list[str] = []      # enemies beaten while PULSE was in the party
         self.ended = False
+        self.chart: dict[str, Any] | None = None   # the companion's type chart (asked once)
 
     # One request; None (and offline) on any trouble.
     def _ask(self, typ: str, payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -264,6 +289,11 @@ class Game:
     ally: PulseAlly | None = None          # PULSE, when it joined the run
     pulse_moves: str = "ask"               # ask | auto
     pulse_target_chance: float = 0.35
+    battles: bool = False                  # walking into an enemy starts a turn-based battle
+    roster: tuple[EnemyKind, ...] = ROSTER
+    odds: dict[str, float] = field(default_factory=lambda: dict(ODDS))
+    on_say: Callable[[str, str], None] | None = None   # battle say lines -> the LCD
+    on_battle_end: Callable[[Any], None] | None = None
 
     def __post_init__(self) -> None:
         self.depth = 0
@@ -274,6 +304,9 @@ class Game:
         self.over = False
         self.found: list[dict[str, Any]] = []
         self.messages: deque[str] = deque(maxlen=4)
+        self.battle: Any = None                # the open battle (features/battle.Battle)
+        self.battles_won = 0
+        self.battle_xp = 0
         self.new_level()
 
     # --- map generation ------------------------------------------------------
@@ -312,13 +345,23 @@ class Game:
                 if self.grid[y][x] == FLOOR and (x, y) != (self.px, self.py)
                 and abs(x - self.px) + abs(y - self.py) > 4]
         self.rng.shuffle(free)
-        kinds = [m for m in MONSTERS if m[4] <= self.depth]
+        kinds = [k for k in self.roster if not k.boss and k.depth <= self.depth] or [self.roster[0]]
         for _ in range(min(10, 2 + self.depth)):
             if free:
-                name, glyph, hp, atk, _d = self.rng.choice(kinds)
+                kind = self.rng.choice(kinds)
                 x, y = free.pop()
                 bonus = self.depth // 3
-                self.monsters.append(Monster(name, glyph, x, y, hp + bonus * 2, atk + bonus, self.depth))
+                self.monsters.append(Monster(kind.name, kind.glyph, x, y, kind.solo_hp + bonus * 2,
+                                             kind.solo_attack + bonus, self.depth, kind))
+        # A boss guards the stairs on every Nth floor (kernel panic: every 5th).
+        for kind in (k for k in self.roster if k.boss and k.every and self.depth % k.every == 0):
+            spots = sorted((p for p in free if p != self.stairs),
+                           key=lambda p: abs(p[0] - self.stairs[0]) + abs(p[1] - self.stairs[1]))
+            if spots:
+                x, y = spots[0]
+                free.remove((x, y))
+                self.monsters.append(Monster(kind.name, kind.glyph, x, y, kind.solo_hp, kind.solo_attack,
+                                             self.depth + 1, kind))
         for _ in range(self.rng.randint(3, 5)):
             if free:
                 self.items[free.pop()] = self.roll_loot()
@@ -366,11 +409,15 @@ class Game:
         """Your turn: walk, fight, or pick things up; then the monsters move."""
         if self.over:
             return
+        if self.battle is not None:
+            return
         if self.awaiting is not None:
             self.say(f"{self.ally_name}'s turn first: 1-9 pick a move, space = auto, . = rest")
             return
         nx, ny = self.px + dx, self.py + dy
         target = self.monster_at(nx, ny)
+        if target is not None and self.battles and self.start_battle(target):
+            return                       # the battle is this turn
         if target is not None:
             hit = self.rng.randint(2, 4) + self.depth // 3
             self.last_target = target
@@ -385,8 +432,52 @@ class Game:
         self.end_round()
 
     def wait(self) -> None:
-        if not self.over and self.awaiting is None:
+        if not self.over and self.awaiting is None and self.battle is None:
             self.end_round()
+
+    # --- turn-based battles (features/battle.py) -----------------------------------
+
+    @property
+    def can_battle(self) -> bool:
+        return self.battles and self.ally is not None and self.ally.can_act
+
+    def start_battle(self, m: Monster, ambush: bool = False) -> bool:
+        """Open a battle with monster m. False = PULSE can't (you fight solo)."""
+        if not self.can_battle:
+            return False
+        from cyberdeck.features.battle import Battle
+
+        battle = Battle(self.ally, m.battle_enemy(), depth=self.depth, rng=self.rng, odds=self.odds,
+                        on_say=self.on_say, roll_loot=self.roll_loot)
+        if not battle.start():
+            self.say(f"{self.ally_name} can't battle: {battle.note or self.ally.note}. fists it is!")
+            return False
+        battle.monster = m
+        self.battle = battle
+        self.last_target = m
+        self.say(f"the {m.name} jumps you!" if ambush else f"battle! {self.ally_name} vs the {m.name}")
+        return True
+
+    def close_battle(self) -> None:
+        """The battle screen closed: apply the result to the map."""
+        b, self.battle = self.battle, None
+        if b is None:
+            return
+        m = getattr(b, "monster", None)
+        if not b.over:
+            b._finish("flee", [])
+        if b.result == "win" and m in self.monsters:
+            self.monsters.remove(m)
+            self.score += 10 * self.depth * (3 if b.enemy.kind.boss else 1)
+            self.battles_won += 1
+            self.battle_xp += b.xp_granted
+            if self.ally is not None:
+                self.ally.defeated.append(m.name)
+        elif m is not None:
+            m.calm = b.enemy.calm
+        self.say(b.summary())
+        if self.on_battle_end is not None:
+            self.on_battle_end(b)
 
     def damage(self, target: Monster, amount: int, who: str) -> None:
         """Apply a hit to a monster; remove it (and score) when it drops."""
@@ -420,6 +511,9 @@ class Game:
     def end_round(self) -> None:
         """After you act: PULSE's turn (maybe waiting for your pick), then the monsters."""
         if self.over:
+            return
+        if self.battles:                 # PULSE fights in battles, not alongside you
+            self.monsters_turn()
             return
         target = self.pet_target() if self.ally is not None and self.ally.can_act else None
         if target is not None:
@@ -495,6 +589,12 @@ class Game:
     def monsters_turn(self) -> None:
         for m in list(self.monsters):
             dist = max(abs(m.x - self.px), abs(m.y - self.py))
+            if m.calm > 0:               # just fled from (or beat PULSE): it keeps its distance
+                m.calm -= 1
+                continue
+            if dist == 1 and self.can_battle:
+                if self.start_battle(m, ambush=True):
+                    return
             if dist == 1:
                 dmg = self.rng.randint(1, m.attack)
                 ally = self.ally
@@ -531,6 +631,16 @@ class Game:
     def finish(self) -> list[str]:
         """End of run: tell the companion (pet.combat.end) and summarise."""
         ally = self.ally
+        if self.battle is not None:      # closed mid-battle (ctrl+c): count it as running away
+            self.close_battle()
+        if self.battles:
+            if ally is None or ally.stats is None:
+                return []
+            if not ally.online and not self.battles_won:
+                return [f"{ally.name}: {ally.note or 'could not battle'}"]
+            # Every battle already sent its own pet.combat.end.
+            return [f"{ally.name}: {self.battles_won} battle{'s' if self.battles_won != 1 else ''} won, "
+                    f"+{self.battle_xp} xp"]
         if ally is None or ally.stats is None:
             return []
         result = "lose" if self.over else ("win" if ally.defeated else "flee")
@@ -671,8 +781,18 @@ class DungeonActivity(Activity):
         self.finished = False
         game.on_loot = loot_bag(ctx).add
 
+    @property
+    def subtitle(self) -> str:
+        """The hint on the frame (the unified UI shows it bottom right)."""
+        return " battle: RUN to flee · esc back " if self.game.battle is not None else " q / esc leave "
+
     def on_key(self, key: str) -> None:
         g = self.game
+        if g.battle is not None:
+            # The battle screen has the keys (FIGHT / BAG / PULSE / RUN).
+            if g.battle.key(key):
+                g.close_battle()
+            return
         if key in {"q", "esc"}:
             self.done = True
         elif g.over:
@@ -718,6 +838,10 @@ class DungeonActivity(Activity):
 
     def render(self, width: int, height: int) -> list[Row]:
         g = self.game
+        if g.battle is not None:
+            from cyberdeck.features.battle import render_battle
+
+            return render_battle(g.battle, width, height)
         if g.over:
             return self._game_over(width, height)
         rows: list[Row] = []
@@ -768,7 +892,8 @@ class DungeonActivity(Activity):
         return rows[:height]
 
     def headless(self) -> list[str]:
-        return ["dungeon needs the full-screen UI. a taste of depth 1:"] + self.game.map_text()
+        return (["dungeon needs the full-screen UI. a taste of depth 1:"] + self.game.map_text()
+                + ["battles work here too: `battle bug`, then `battle fight 1`, `battle bag 1`, `battle run`"])
 
 
 def pulse_hud(g: Game) -> Row:
@@ -785,12 +910,32 @@ def pulse_hud(g: Game) -> Row:
     return [("   │ ", "dim"), (f"{ally.name} ", "title"), (f"HP {ally.hp}/{ally.max_hp}", role), (energy, "text")]
 
 
+def roll_battle_loot(depth: int = 1, rng: random.Random | None = None) -> dict[str, Any]:
+    """A loot-table item for PULSE's battle bag (the `battle` command's drops)."""
+    rng = rng or random.Random()
+    weights = [w * (1 + depth * 0.5 if r != "common" else 1) for *_x, r, w in LOOT_TABLE]
+    name, kind, power, rarity, _w = rng.choices(LOOT_TABLE, weights=weights)[0]
+    return {"name": name, "kind": kind, "power": power, "rarity": rarity, "depth": depth}
+
+
 def new_game(ctx: "Context", seed: int | None = None) -> Game:
     s = Settings.load("fx.ini", ctx.config_dir)
+    roster, odds = load_battle_config(ctx.config_dir)
     game = Game(width=max(30, s.get_int("dungeon", "width", 56)), height=max(12, s.get_int("dungeon", "height", 17)),
                 max_hp=max(5, s.get_int("dungeon", "hp", 20)), rng=random.Random(seed),
                 pulse_moves="auto" if s.get_str("dungeon", "pulse_moves", "ask").lower() == "auto" else "ask",
-                pulse_target_chance=max(0.0, min(1.0, s.get_float("dungeon", "pulse_target_chance", 0.35))))
+                pulse_target_chance=max(0.0, min(1.0, s.get_float("dungeon", "pulse_target_chance", 0.35))),
+                battles=s.get_bool("dungeon", "battle", True), roster=roster or ROSTER, odds=odds)
+    if game.battles:
+        from cyberdeck.features.battle import lcd_hook
+
+        game.on_say = lcd_hook(ctx)
+
+        def battle_over(b: Any) -> None:
+            if b.end_body:
+                run_pet_hooks(ctx, "battle", dict(b.end_body, enemy=b.enemy.name))
+                ctx.services.pop("pet_cache", None)
+        game.on_battle_end = battle_over
     if s.get_bool("dungeon", "pulse", True):
         ally = PulseAlly(ctx.companion.request)
         if not ctx.companion.is_linked():

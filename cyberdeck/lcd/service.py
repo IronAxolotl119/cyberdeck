@@ -290,6 +290,19 @@ class LcdService:
             self.notify(f"{name} reached level {res.get('level', '?')}!", "{diamond}LEVEL UP!", NOTICE, "pet",
                         f"pet:level_up:{res.get('level', '')}", now=now)
 
+    def battle_say(self, text: str, foe: str = "", now: float | None = None) -> str:
+        """PULSE's newest battle line: a blurb, and a pop-up rate-limited like other notices."""
+        text = str(text or "").strip()
+        if not text:
+            return "skip"
+        self.add_blurb(text, now)
+        if not self.s.battle:
+            return "skip"
+        title = "{bell}VS " + to_lcd(str(foe or "FOE")).upper()[:12]
+        with self._lock:                 # only the newest battle line waits in the queue
+            self.queue.items = [m for m in self.queue.items if not m.key.startswith("battle:")]
+        return self.notify(text, title, NOTICE, "pet", f"battle:{text}", now=now)
+
     def awareness_alert(self, kind: str, event: str, label: str, ident: str = "", interest: int = 2,
                         now: float | None = None) -> str:
         """An Awareness & Diagnostics alert (already passed the AlertFilter)."""

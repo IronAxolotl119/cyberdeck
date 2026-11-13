@@ -57,6 +57,17 @@ TYPE_PET_COMBAT_HIT = "pet.combat.hit"
 TYPE_PET_COMBAT_HIT_OK = "pet.combat.hit.ok"      # {damage} hurts, {heal} heals
 TYPE_PET_COMBAT_END = "pet.combat.end"
 TYPE_PET_COMBAT_END_OK = "pet.combat.end.ok"
+# Turn-based battles (companion/docs/DUNGEON_INTEGRATION.md "Battle protocol").
+TYPE_PET_COMBAT_ITEM = "pet.combat.item"            # {item} use a bag item in battle
+TYPE_PET_COMBAT_ITEM_OK = "pet.combat.item.ok"
+TYPE_PET_COMBAT_MOVES = "pet.combat.moves"          # {set?, auto?} the 4-move loadout
+TYPE_PET_COMBAT_MOVES_OK = "pet.combat.moves.ok"
+TYPE_PET_COMBAT_ROSTER = "pet.combat.roster"        # {} enemies + type chart
+TYPE_PET_COMBAT_ROSTER_OK = "pet.combat.roster.ok"
+TYPE_PET_COMBAT_RUN = "pet.combat.run"              # {enemy} suggested flee odds (optional)
+TYPE_PET_COMBAT_RUN_OK = "pet.combat.run.ok"
+TYPE_PET_INVENTORY = "pet.inventory"                # {action list|add|drop, item?, qty?} the bag
+TYPE_PET_INVENTORY_OK = "pet.inventory.ok"
 TYPE_ERROR = "error"
 
 # Optional push message from the companion (never answered). Only sent

@@ -273,7 +273,10 @@ class RealCompanionDiscovery(unittest.TestCase):
     """Round-trip against companion/companion.py on a free (non-7777) port."""
 
     def setUp(self):
-        script = ROOT / "companion" / "companion.py"
+        import os
+
+        # CYBERDECK_COMPANION_DIR = test another companion checkout (see tests/helpers.py).
+        script = Path(os.environ.get("CYBERDECK_COMPANION_DIR") or ROOT / "companion") / "companion.py"
         if not script.exists():
             self.skipTest("no companion/ checkout")
         self.port = free_port()

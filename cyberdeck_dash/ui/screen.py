@@ -172,7 +172,11 @@ def footer(dash, now: float) -> Group:
             line.append(" " + viz, style=th.good)
     hints = Text(no_wrap=True, overflow="crop")
     if dash.bridge is not None and dash.bridge.activity is not None:
-        keys = (("q/esc", "leave"), ("^C", "close"), ("keys", f"go to {dash.bridge.activity.title.lower()}"))
+        act = dash.bridge.activity
+        in_battle = act.title == "BATTLE" or getattr(getattr(act, "game", None), "battle", None) is not None
+        keys = ((("arrows/⏎", "pick"), ("f b p r", "fight bag pulse run"), ("esc", "back"), ("^C", "close"))
+                if in_battle else
+                (("q/esc", "leave"), ("^C", "close"), ("keys", f"go to {act.title.lower()}")))
     elif dash.console_typing():
         keys = (("⏎", "run"), ("Tab", "complete"), ("↑↓", "history"), ("PgUp", "scroll"), ("Esc", "clear"),
                 ("[ ]", "tabs (empty line)"), ("F2", "launcher"))
@@ -216,7 +220,8 @@ def activity_panel(dash, now: float):
         w, h = getattr(act, "overlay_size", (40, 12))
         return Align.center(Panel(view, title=title, title_align="left", box=box.DOUBLE, border_style=th.accent2,
                                   width=w + 2, height=h + 2, style=f"on {th.title_bg}"), vertical="middle")
-    return Panel(view, title=title, title_align="left", subtitle=Text(" q / esc leave ", style=th.dim),
+    hint = str(getattr(act, "subtitle", "") or " q / esc leave ")
+    return Panel(view, title=title, title_align="left", subtitle=Text(hint, style=th.dim),
                  subtitle_align="right", box=box.HEAVY, border_style=th.focus, padding=(0, 1))
 
 

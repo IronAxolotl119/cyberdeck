@@ -24,6 +24,7 @@ MFRC522 RFID reader and GPIO buttons.
 ![interface](dashboard.png)
 
 More pictures: [Dungeon tab, mid-run](dashboard_dungeon.png) ·
+[a dungeon battle](dashboard_battle.png) ([how battles work](BATTLE.md)) ·
 [Console tab](dashboard_console.png) · plain text (100x30):
 [dashboard_snapshot.txt](dashboard_snapshot.txt)
 
@@ -65,6 +66,9 @@ Docs pictures (no terminal needed):
 python3 -m cyberdeck --snapshot docs/dashboard --seed 7
 python3 -m cyberdeck --snapshot docs/dashboard_dungeon --seed 7 --tab dungeon --keys enter,right,right,down
 python3 -m cyberdeck --snapshot docs/dashboard_console --seed 7 --tab console
+python3 -m cyberdeck --snapshot docs/dashboard_battle --seed 7 --size 100x34 --tab console \
+    --keys "battle firewall 3,enter,enter,f,2,enter,enter,f,down"
+# PNGs: cairosvg docs/<name>.svg -o docs/<name>.png --output-width 1600
 ```
 
 Tests: `python3 -m unittest discover -s tests/dash -t .`

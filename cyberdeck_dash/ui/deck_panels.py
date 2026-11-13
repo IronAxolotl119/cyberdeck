@@ -196,7 +196,7 @@ def render_dungeon(dash, big: bool):
     th = dash.theme
     b = dash.bridge
     linked = b.link.is_linked()
-    lines = [Text("ASCII roguelike · PULSE at your side", style=f"bold {th.accent}", no_wrap=True,
+    lines = [Text("ASCII roguelike · turn-based PULSE battles", style=f"bold {th.accent}", no_wrap=True,
                   overflow="ellipsis")]
     status = Text("PULSE  ", style=th.dim, no_wrap=True, overflow="ellipsis")
     status.append("joins with real stats" if linked else "link down: solo run", style=th.good if linked else th.warn)
@@ -207,8 +207,9 @@ def render_dungeon(dash, big: bool):
     keys = Table.grid(padding=(0, 1))
     keys.add_column(style=th.accent, no_wrap=True)
     keys.add_column(style=th.dim, no_wrap=True, overflow="ellipsis")
-    for k, v in (("arrows/wasd", "move, bump = fight"), (">", "stairs down"), ("1-9", "PULSE's move"),
-                 ("space / .", "auto / PULSE rests"), ("g / i", "gift loot / bag"), ("q / esc", "leave, keep loot")):
+    for k, v in (("arrows/wasd", "move, bump = battle"), (">", "stairs down"), ("g / i", "gift loot / bag"),
+                 ("q / esc", "leave, keep loot"), ("battle:", "FIGHT BAG PULSE RUN"),
+                 ("arrows+enter", "or f b p r, 1-4 moves"), ("esc", "back a menu")):
         keys.add_row(k, v)
     lines += [Text(""), keys]
     if dash.dungeon_last:
@@ -216,7 +217,7 @@ def render_dungeon(dash, big: bool):
         for line in dash.dungeon_last[-4:]:
             lines.append(Text(line, style=th.text, no_wrap=not big, overflow="ellipsis"))
     lines.append(Text("\n@ you  # wall  > stairs  * loot  ! kit", style=th.dim, no_wrap=True, overflow="ellipsis"))
-    lines.append(Text("b g v w D  bug glitch virus worm daemon", style=th.dim, no_wrap=True, overflow="ellipsis"))
+    lines.append(Text("b g s v l w F D  K boss (every 5th floor)", style=th.dim, no_wrap=True, overflow="ellipsis"))
     return Group(*lines)
 
 

@@ -32,7 +32,7 @@ from cyberdeck.features.dungeon import Game, PulseAlly, pulse_hud
 from cyberdeck.popups import Popup, PopupQueue, PopupSettings, popup_for_event, render_popup
 from cyberdeck.protocol import Message
 
-from helpers import make_ctx, write_config
+from helpers import companion_battle_data_missing, companion_script, make_ctx, write_config
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -489,7 +489,8 @@ class DungeonCombatTests(unittest.TestCase):
         self.assertEqual(g.finish(), ["PULSE: lost contact (companion link is down)"])
 
     def test_activity_keys_hud_and_end(self):
-        ctx = make_ctx(write_config({"fx.ini": "[dungeon]\npulse = yes\npulse_moves = ask\n"}))
+        # The old side-by-side crawl (battle = no); battles are in tests/test_battle.py.
+        ctx = make_ctx(write_config({"fx.ini": "[dungeon]\npulse = yes\npulse_moves = ask\nbattle = no\n"}))
         game = dungeon.new_game(ctx, seed=3)
         self.assertTrue(game.ally.online)
         act = dungeon.DungeonActivity(ctx, game)
@@ -579,7 +580,7 @@ class RealCompanionEndToEnd(unittest.TestCase):
 
         from cyberdeck.link import StreamCompanionLink, TcpTransport
 
-        script = ROOT / "companion" / "companion.py"
+        script = companion_script()
         if not script.exists():
             self.skipTest("no companion/ checkout")
         port = free_port()
@@ -653,6 +654,8 @@ class RealCompanionEndToEnd(unittest.TestCase):
         self.assertIn("bad_payload", str(self.link.request("pet.evolve", {"species": "Nonsensemon"}).payload))
 
     def test_dungeon_fight(self):
+        if companion_battle_data_missing():
+            self.skipTest(companion_battle_data_missing())
         ally = PulseAlly(self.link.request)
         if not self.supports("pet.combat.stats"):
             self.assertFalse(ally.join())

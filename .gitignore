@@ -25,4 +25,4 @@ htmlcov/
 .vscode/
 
 # Runtime data written by the deck (history, notes, todos, scores, cache)
-data/
+/data/

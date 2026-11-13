@@ -73,6 +73,7 @@ class LcdSettings:
     pet_events: list[str] = field(default_factory=lambda: list(DEFAULT_PET_EVENTS))
     awareness_alerts: bool = True
     reactions: bool = True          # pet.discovery.ok with a learned/strengthened move or level-up
+    battle: bool = True             # PULSE's dungeon battle lines (FIGHT / BAG / RUN) pop up
     link_changes: bool = True
     battery_low: int = 15           # percent; 0 = never
 
@@ -120,6 +121,7 @@ def load_lcd_settings(settings: Settings | None = None, config_dir: str | Path |
         pet_events=[e.lower() for e in s.get_list("notify", "pet_events", d.pet_events)],
         awareness_alerts=s.get_bool("notify", "awareness_alerts", d.awareness_alerts),
         reactions=s.get_bool("notify", "reactions", d.reactions),
+        battle=s.get_bool("notify", "battle", d.battle),
         link_changes=s.get_bool("notify", "link_changes", d.link_changes),
         battery_low=max(0, s.get_int("notify", "battery_low", d.battery_low)),
     )

@@ -27,6 +27,25 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from cyberdeck.battledata import (
+    ITEMS,
+    MAX_LOADOUT,
+    ODDS,
+    SIM_LINES,
+    SIM_MOVE_TYPES,
+    SIM_SPECIES_TYPES,
+    STARTER_BAG,
+    ROSTER,
+    TYPES,
+    clamp_say,
+    effectiveness,
+    effectiveness_label,
+    flee_chance,
+    item_key,
+    norm_type,
+    roster_entry,
+    slug,
+)
 from cyberdeck.protocol import (
     STAGES as _STAGES,
     TYPE_HELLO,
@@ -39,6 +58,14 @@ from cyberdeck.protocol import (
     TYPE_PET_COMBAT_END_OK,
     TYPE_PET_COMBAT_HIT,
     TYPE_PET_COMBAT_HIT_OK,
+    TYPE_PET_COMBAT_ITEM,
+    TYPE_PET_COMBAT_ITEM_OK,
+    TYPE_PET_COMBAT_MOVES,
+    TYPE_PET_COMBAT_MOVES_OK,
+    TYPE_PET_COMBAT_ROSTER,
+    TYPE_PET_COMBAT_ROSTER_OK,
+    TYPE_PET_COMBAT_RUN,
+    TYPE_PET_COMBAT_RUN_OK,
     TYPE_PET_COMBAT_STATS,
     TYPE_PET_COMBAT_STATS_OK,
     TYPE_PET_EVOLVE,
@@ -48,6 +75,8 @@ from cyberdeck.protocol import (
     TYPE_PET_FEED_OK,
     TYPE_PET_GIFT,
     TYPE_PET_GIFT_OK,
+    TYPE_PET_INVENTORY,
+    TYPE_PET_INVENTORY_OK,
     TYPE_PET_PLAY,
     TYPE_PET_PLAY_OK,
     TYPE_PET_REST,
@@ -114,11 +143,11 @@ DEFAULT_MOVE = (5, 85, 6)
 # Animated text faces by mood (two frames each), as sent in pet.avatar.ok.
 FACE_FRAMES = {"joyful": ("(^o^)", "(^O^)/"), "playful": ("(^_^)", "(^_~)"), "content": ("(o_o)", "(-_o)"),
                "hungry": ("(>_<)", "(>o<)"), "tired": ("(=_=)", "(-_-)"), "grumpy": ("(>_>)", "(<_<)"),
-               "asleep": ("(-_-) zZ", "(-_-) Zz")}
+               "sad": ("(;_;)", "(T_T)"), "asleep": ("(-_-) zZ", "(-_-) Zz")}
 FACE_INTERVAL_MS = 600
 
 # Item kinds the pet understands in a pet.gift message (see PROTOCOL.md).
-GIFT_KINDS = {"food", "toy", "battery", "evolve", "trinket"}
+GIFT_KINDS = {"food", "toy", "battery", "evolve", "trinket", "medicine"}
 
 # Discoveries (pet.discovery, companion/docs/DISCOVERY.md): the dashboard's
 # Wi-Fi / Bluetooth / LAN / RFID finds feed PULSE. Base XP per kind at
@@ -186,6 +215,15 @@ class PetState:
     seen: set[str] = field(default_factory=set)
     move_ranks: dict[str, int] = field(default_factory=dict)
     recent_finds: list[float] = field(default_factory=list)
+    # Battles: the item bag {id: {"qty": n, …}}, health status (ok | glitch),
+    # bond 0-100, the chosen 4-move loadout (None = automatic), a short
+    # sad spell after a lost battle, and a generator for lines and crits.
+    bag: dict[str, dict[str, Any]] = field(default_factory=lambda: {k: {"qty": v} for k, v in STARTER_BAG.items()})
+    status: str = "ok"
+    bond: float = 40.0
+    battle_moves: list[str] | None = None
+    sad_hours: float = 0.0
+    line_rng: random.Random = field(default_factory=lambda: random.Random(11), repr=False)
 
     @property
     def species(self) -> str:
@@ -278,26 +316,127 @@ class PetState:
     def face_frames(self) -> tuple[str, ...]:
         return FACE_FRAMES["asleep"] if self.asleep else FACE_FRAMES.get(self.mood(), FACE_FRAMES["content"])
 
-    # --- combat ------------------------------------------------------------------------
+    # --- combat: turn-based battles ---------------------------------------------------
+    # Mirrors the real companion (companion/docs/DUNGEON_INTEGRATION.md,
+    # "Battle protocol"): typed moves, the type chart, crits, a battle log,
+    # say lines (<= 44 chars), the item bag, the 4-move loadout and flee odds.
+    # Lines and crits use their own random generator (line_rng) so the hit
+    # rolls stay the same as before for old replays and tests.
 
     def _move_info(self, name: str) -> tuple[int, int, int, str | None]:
+        if name.lower() == "guard":
+            return 0, 100, 0, "guard"
         power, accuracy, cost = MOVE_INFO.get(name.lower(), DEFAULT_MOVE)
         return power + 2 * self.move_ranks.get(name.lower(), 0), accuracy, cost, None
 
-    def combat_stats(self) -> dict[str, Any]:
-        """pet.combat.stats.ok: the live combat sheet (energy lives in the pet object)."""
-        moves = []
+    def pet_type(self) -> str:
+        """PULSE's own (defending) type, from its species."""
+        return SIM_SPECIES_TYPES.get(self.species.lower(), "NORM")
+
+    @staticmethod
+    def move_type(name: str) -> str:
+        return SIM_MOVE_TYPES.get(name.lower(), ("NORM", ""))[0]
+
+    def _say(self, key: str, foe: str = "foe") -> str:
+        pool = SIM_LINES.get(key) or ("",)
+        return clamp_say(self.line_rng.choice(pool).replace("{foe}", foe))
+
+    def battle_move(self, name: str) -> dict[str, Any]:
+        """One FIGHT-menu row: {id, name, type, power, energy_cost, accuracy, rank, desc…}."""
+        power, accuracy, cost, effect = self._move_info(name)
+        rank = self.move_ranks.get(name.lower(), 0)
+        mtype, desc = SIM_MOVE_TYPES.get(name.lower(), ("NORM", f"{name}."))
+        return {"id": slug(name), "name": name, "type": mtype, "power": power, "energy_cost": cost,
+                "accuracy": accuracy, "rank": rank, "bonus": 2 * rank, "kind": "guard" if effect else "strike",
+                "effect": effect, "desc": clamp_say(desc)}
+
+    def loadout(self) -> list[str]:
+        """The (at most 4) moves in the FIGHT menu, in the order PULSE learned them."""
+        if self.battle_moves:
+            chosen = [m for m in self.moves if m.lower() in {b.lower() for b in self.battle_moves}]
+            if chosen:
+                return chosen[:MAX_LOADOUT]
+        if len(self.moves) <= MAX_LOADOUT:
+            return list(self.moves)
+        # Auto: the strongest move of each type first, then the strongest of the rest.
+        strongest = sorted(self.moves, key=lambda m: -self._move_info(m)[0])
+        picks: list[str] = []
+        for m in strongest:
+            if self.move_type(m) not in {self.move_type(p) for p in picks}:
+                picks.append(m)
+        picks += [m for m in strongest if m not in picks]
+        picks = picks[:MAX_LOADOUT]
+        chirp = next((m for m in self.moves if m.lower() == "chirp"), None)
+        if chirp and chirp not in picks:
+            picks[-1] = chirp                 # Chirp stays as the cheap fallback
+        return [m for m in self.moves if m in picks]
+
+    def battle_pet(self) -> dict[str, Any]:
+        """The pet card on the battle screen."""
+        return {"name": self.name, "species": self.species, "type": self.pet_type(), "level": self.level,
+                "hp": self.hp, "max_hp": self.max_hp, "energy": int(round(self.energy)), "max_energy": 100,
+                "mood": "asleep" if self.asleep else self.mood(), "status": self.status_word(),
+                "face": self.face_frames()[0], "bond": self.bond_tier()}
+
+    def status_word(self) -> str:
+        return "fainted" if self.hp <= 0 else self.status
+
+    def bond_tier(self) -> str:
+        for limit, word in ((80, "best friends"), (60, "close"), (40, "friendly"), (20, "warming up")):
+            if self.bond >= limit:
+                return word
+        return "wary"
+
+    def normalize_enemy(self, raw: Any) -> dict[str, Any]:
+        """The deck's enemy object with missing fields filled in from the roster by id or name."""
+        data = raw if isinstance(raw, dict) else {}
+        kind = roster_entry(data.get("id")) or roster_entry(data.get("name"))
+
+        def num(key: str, default: int) -> int:
+            value = data.get(key)
+            return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+        level = max(1, num("level", 1))
+        base = kind.stats(level) if kind else {"hp": 1, "attack": 1, "defense": 0, "speed": 1}
+        hp = num("hp", base["hp"])
+        return {"id": str(data.get("id") or (kind.id if kind else slug(data.get("name")) or "foe")),
+                "name": str(data.get("name") or (kind.name if kind else "foe")),
+                "type": norm_type(data.get("type"), kind.type if kind else "NORM"),
+                "level": level, "hp": hp, "max_hp": num("max_hp", max(hp, base["hp"])),
+                "attack": num("attack", base["attack"]), "defense": num("defense", base["defense"]),
+                "speed": num("speed", base["speed"]), "face": str(data.get("face") or (kind.face if kind else "(o_o)")),
+                "boss": bool(data.get("boss", kind.boss if kind else False))}
+
+    def flee_odds(self, foe: dict[str, Any]) -> float:
+        return flee_chance(self.speed, self.level, int(foe.get("speed") or 0), int(foe.get("level") or 1),
+                           bool(foe.get("boss")))
+
+    def combat_stats(self, enemy: dict[str, Any] | None = None) -> dict[str, Any]:
+        """pet.combat.stats.ok: the combat sheet; with an enemy it is also the battle start."""
+        known = []
         for name in self.moves:
             power, accuracy, cost, effect = self._move_info(name)
             rank = self.move_ranks.get(name.lower(), 0)
-            moves.append({"name": name, "power": power, "accuracy": accuracy, "energy_cost": cost,
-                          "kind": "electric", "effect": effect, "rank": rank, "bonus": 2 * rank})
-        return {"hp": self.hp, "max_hp": self.max_hp, "attack": self.attack, "defense": self.defense,
-                "speed": self.speed, "level": self.level, "moves": moves, "fainted": self.hp <= 0,
-                "asleep": self.asleep, "guarding": self.guarding}
+            known.append({"name": name, "power": power, "accuracy": accuracy, "energy_cost": cost,
+                          "kind": "electric", "effect": effect, "rank": rank, "bonus": 2 * rank,
+                          "type": self.move_type(name)})
+        out: dict[str, Any] = {
+            "hp": self.hp, "max_hp": self.max_hp, "attack": self.attack, "defense": self.defense,
+            "speed": self.speed, "level": self.level, "fainted": self.hp <= 0,
+            "asleep": self.asleep, "guarding": self.guarding,
+            "moves": [self.battle_move(m) for m in self.loadout()], "known_moves": known,
+            "bag": self.bag_payload(), "pet": self.battle_pet(), "type": self.pet_type(),
+            "energy": int(round(self.energy)), "max_energy": 100, "say": "",
+        }
+        if enemy is not None:
+            foe = self.normalize_enemy(enemy)
+            out.update(enemy=foe, flee_chance=self.flee_odds(foe),
+                       say=self._say("start.boss" if foe["boss"] else "start", foe["name"]),
+                       log=[clamp_say(f"A wild {foe['name'].upper()} appeared!"), clamp_say(f"Go, {self.name}!")])
+        return out
 
-    def _pick_move(self, requested: str | None) -> tuple[str, bool]:
-        """(move name, fallback?) — the pet's own pick when none (or a bad one) is asked for."""
+    def _pick_move(self, requested: str | None, foe: dict[str, Any] | None = None) -> tuple[str, bool]:
+        """(move name, fallback?). No move asked = the best one against the enemy's type."""
         def affordable(name: str) -> bool:
             return self._move_info(name)[2] <= self.energy
         if requested:
@@ -306,86 +445,288 @@ class PetState:
                 return known, False
             chirp = next((m for m in self.moves if m.lower() == "chirp"), None)
             return (chirp, True) if chirp and affordable(chirp) else ("Guard", True)
-        options = [m for m in self.moves if affordable(m)]
+        options = [m for m in self.loadout() if affordable(m)]
         if not options:
             return "Guard", False
-        best = max(options, key=lambda m: self._move_info(m)[0] * self._move_info(m)[1])
-        return best, False
+        defense = int((foe or {}).get("defense") or 0)
+        ftype = (foe or {}).get("type", "NORM")
 
-    def combat_action(self, move: str | None, enemy: dict[str, Any]) -> dict[str, Any]:
+        def expected(m: str) -> float:
+            power, accuracy, _cost, _e = self._move_info(m)
+            return max(1, power + self.attack - defense) * effectiveness(self.move_type(m), ftype) * accuracy
+        return max(options, key=expected), False
+
+    def combat_action(self, move: str | None, enemy: dict[str, Any], turn: int | None = None) -> dict[str, Any]:
         """PULSE acts on an enemy (the formulas in DUNGEON_INTEGRATION.md)."""
-        foe = str(enemy.get("name") or "foe")
-        out: dict[str, Any] = {"move": move, "hit": False, "damage": 0, "effect": None, "energy_spent": 0}
+        foe = self.normalize_enemy(enemy)
+        name_up, foe_up = self.name.upper(), foe["name"].upper()
+        out: dict[str, Any] = {"move": move, "hit": False, "damage": 0, "effect": None, "energy_spent": 0,
+                               "enemy": foe, "turn": turn, "crit": False, "missed": False, "obeyed": True,
+                               "effectiveness": 1.0, "effectiveness_label": "normal", "energy_cost": 0}
         if self.asleep or self.hp <= 0:
             why = "asleep" if self.asleep else "fainted"
             out.update(acted=False, reason=why, reaction=f"{self.name} is {why} and cannot fight.",
-                       pet_hp=self.hp, pet=self.as_payload())
+                       say="", log=[clamp_say(f"{name_up} is {why} and can't fight!")],
+                       pet_hp=self.hp, hp=self.hp, energy=int(round(self.energy)), status=self.status_word(),
+                       pet=self.as_payload())
             return out
-        name, fallback = self._pick_move(move)
-        out["move"] = name
+        name, fallback = self._pick_move(move, foe)
+        mtype = self.move_type(name)
+        out.update(move=name, move_used=name, type=mtype)
+        log = [clamp_say(f"{name_up} used {name.upper()}!")]
         if name == "Guard":
             self.guarding = True
             out.update(hit=True, effect="guard", reaction=f"{self.name} braces itself (Guard).")
+            log.append(clamp_say(f"{name_up} is guarding!"))
+            say = self._say("guard", foe["name"])
         else:
             power, accuracy, cost, _effect = self._move_info(name)
             self.energy = _clamp(self.energy - cost, 0.0, 100.0)
-            out["energy_spent"] = cost
-            speed = enemy.get("speed") if isinstance(enemy.get("speed"), int) else 0
-            chance = max(5, min(100, accuracy + (self.speed - speed) // 2))
+            out.update(energy_spent=cost, energy_cost=cost)
+            chance = max(5, min(100, accuracy + (self.speed - int(foe["speed"])) // 2))
             if self.rng.randint(1, 100) <= chance:
-                defense = enemy.get("defense") if isinstance(enemy.get("defense"), int) else 0
-                damage = max(1, power + self.attack - defense)
-                out.update(hit=True, damage=damage, reaction=f"{self.name} uses {name} on the {foe} for {damage}.")
+                mult = effectiveness(mtype, foe["type"])
+                out.update(effectiveness=mult, effectiveness_label=effectiveness_label(mult), hit=True)
+                if mult == 0:
+                    log.append(clamp_say(f"It doesn't affect {foe_up}..."))
+                    out["reaction"] = f"{self.name}'s {name} does nothing to the {foe['name']}."
+                    say = self._say("immune", foe["name"])
+                else:
+                    base = max(1, power + self.attack - int(foe["defense"]))
+                    crit = self.line_rng.random() < ODDS["crit"]
+                    if crit:
+                        base = int(base * ODDS["crit_mult"])
+                        log.append("A critical hit!")
+                    damage = max(1, int(base * mult))
+                    if mult > 1:
+                        log.append("It's super effective!")
+                    elif mult < 1:
+                        log.append("It's not very effective...")
+                    log.append(clamp_say(f"{foe_up} took {damage} damage."))
+                    out.update(damage=damage, crit=crit,
+                               reaction=f"{self.name} uses {name} on the {foe['name']} for {damage}.")
+                    say = self._say("crit" if crit else "super" if mult > 1 else "weak" if mult < 1 else "move",
+                                    foe["name"])
             else:
-                out["reaction"] = f"{self.name}'s {name} misses the {foe}."
-        out.update(acted=True, pet_hp=self.hp)
+                out.update(missed=True, reaction=f"{self.name}'s {name} misses the {foe['name']}.")
+                log.append(clamp_say(f"{name_up}'s attack missed!"))
+                say = self._say("miss", foe["name"])
+        out.update(acted=True, pet_hp=self.hp, hp=self.hp, energy=int(round(self.energy)),
+                   status=self.status_word(), say=say, log=log)
         if fallback:
             out["fallback"] = True
+        if not move:
+            out["auto"] = True
         out["pet"] = self.as_payload()
         return out
 
-    def combat_hit(self, damage: int = 0, heal: int = 0, enemy: str = "foe") -> dict[str, Any]:
-        """An enemy hits PULSE (defense and Guard soak some), or a heal (negative damage too)."""
+    def combat_hit(self, damage: int = 0, heal: int = 0, enemy: Any = "foe",
+                   attack_type: str | None = None) -> dict[str, Any]:
+        """An enemy hits PULSE (defense, the type chart and Guard soak some), or a heal."""
+        foe = self.normalize_enemy(enemy if isinstance(enemy, dict) else {"name": str(enemy or "foe")})
         if damage < 0:
             heal, damage = heal - damage, 0
         healed = 0
+        log: list[str] = []
+        say = ""
         if heal > 0:
             before = self.hp
             self.hp = min(self.max_hp, self.hp + heal)
             healed = self.hp - before
+            log.append(clamp_say(f"{self.name.upper()} recovered {healed} HP."))
         taken = 0
+        # An old-style hit (no attack_type and an enemy not in the roster) is untyped: x1.
+        typed = attack_type is not None or roster_entry(foe["id"]) is not None or foe["type"] != "NORM"
+        atype = norm_type(attack_type, foe["type"])
+        mult = effectiveness(atype, self.pet_type()) if typed else 1.0
         if damage > 0:
+            log.append(clamp_say(f"{foe['name'].upper()} attacks!"))
             taken = max(0, damage - self.defense // 4)
+            if taken > 0:
+                taken = 0 if mult == 0 else max(1, int(taken * mult))
             if self.guarding:
                 taken //= 2
                 self.guarding = False
             self.hp = max(0, self.hp - taken)
-        return {"damage_taken": taken, "healed": healed, "pet_hp": self.hp, "fainted": self.hp <= 0,
-                "pet": self.as_payload()}
+            if mult > 1:
+                log.append("It's super effective!")
+            elif 0 < mult < 1:
+                log.append("It's not very effective...")
+            log.append(clamp_say(f"{self.name.upper()} took {taken} damage."))
+            if self.hp <= 0:
+                log.append(clamp_say(f"{self.name.upper()} fainted!"))
+                say = self._say("faint", foe["name"])
+            elif mult == 0:
+                say = self._say("immune_hit", foe["name"])
+            elif mult < 1:
+                say = self._say("resist", foe["name"])
+            elif self.hp <= self.max_hp // 4:
+                say = self._say("lowhp", foe["name"])
+            else:
+                say = self._say("hurt", foe["name"])
+        return {"damage": damage, "damage_taken": taken, "attack_type": atype, "effectiveness": mult,
+                "effectiveness_label": effectiveness_label(mult), "healed": healed, "pet_hp": self.hp,
+                "hp": self.hp, "energy": int(round(self.energy)), "status": self.status_word(),
+                "fainted": self.hp <= 0, "low_hp": 0 < self.hp <= self.max_hp // 4,
+                "say": say, "log": log, "pet": self.as_payload()}
 
-    def combat_end(self, result: str, xp: int, enemies: list[Any]) -> dict[str, Any] | None:
-        """The run is over: grant xp (events report level-ups and new moves). None = bad result."""
+    def combat_end(self, result: str, xp: int | None, enemies: list[Any],
+                   loot: list[Any] | None = None) -> dict[str, Any] | None:
+        """The battle (or run) is over: XP, mood, bond, loot into the bag. None = bad result."""
         if result not in {"win", "lose", "flee"}:
             return None
+        foes = [self.normalize_enemy(e if isinstance(e, dict) else {"name": str(e)}) for e in enemies]
+        boss = any(f["boss"] for f in foes)
+        if xp is None:   # the companion's default: 5 + 3 x level per enemy, x3 for a boss
+            xp = sum((5 + 3 * f["level"]) * (3 if f["boss"] else 1) for f in foes) if result == "win" else 0
         xp = max(0, int(xp))
+        level_before, moves_before = self.level, list(self.moves)
         self.gain_xp(xp)
+        learned = next((m for m in self.moves if m not in moves_before), None)
+        bond_before = self.bond
+        up = self.name.upper()
+        log: list[str] = []
         if result == "win":
-            self.happiness = _clamp(self.happiness + 5.0, 0.0, 100.0)
+            self.happiness = _clamp(self.happiness + 8.0, 0.0, 100.0)
+            self.bond = _clamp(self.bond + (5.0 if boss else 2.0), 0.0, 100.0)
             reaction = f"{self.name} cheers! (+{xp} xp)"
+            log += [f"{up} won the battle!", f"{up} gained {xp} XP!"]
+            say = self._say("learned" if learned else "level_up" if self.level > level_before
+                            else "win.boss" if boss else "win")
         elif result == "lose":
-            self.happiness = _clamp(self.happiness - 8.0, 0.0, 100.0)
+            self.happiness = _clamp(self.happiness - 10.0, 0.0, 100.0)
+            self.sad_hours = 1.0
             if self.hp <= 0:
                 self.care_mistakes += 1
+                self.hp = 1          # limps home; a rest heals it fully
             reaction = f"{self.name} droops after the loss. (+{xp} xp)"
+            log += [f"{up} lost the battle...", f"{up} limped home with {self.hp} HP."]
+            say = self._say("lose")
         else:
+            self.happiness = _clamp(self.happiness - 2.0, 0.0, 100.0)
             reaction = f"{self.name} is glad to be out of there. (+{xp} xp)"
+            log.append("Got away safely!")
+            say = self._say("flee")
+        if self.level > level_before:
+            log.append(f"{up} grew to Lv {self.level}!")
+        if learned:
+            log.append(f"{up} learned {learned.upper()}!")
+        added = []
+        for item in loot or []:
+            entry = self.bag_add(item if isinstance(item, dict) else {"name": str(item)})
+            if entry:
+                added.append(entry)
+                log.append(f"Put {entry['name'].upper()} in the bag.")
         self._check_needs()
         self._check_evolution()
-        return {"result": result, "xp_granted": xp, "reaction": reaction, "pet": self.as_payload()}
+        return {"result": result, "xp": xp, "xp_granted": xp, "level_up": self.level > level_before,
+                "level": self.level, "learned_move": learned, "bond_delta": round(self.bond - bond_before, 1),
+                "bond": self.bond_tier(), "mood": self.mood(), "fainted": result == "lose",
+                "loot_added": added, "reaction": reaction, "say": say,
+                "log": [clamp_say(line) for line in log], "hp": self.hp, "energy": int(round(self.energy)),
+                "status": self.status_word(), "pet": self.as_payload()}
+
+    # --- the battle bag (pet.combat.item, pet.inventory) --------------------------------
+
+    def _item_info(self, key: str) -> dict[str, Any] | None:
+        if key in ITEMS:
+            name, kind, amount, usable, desc = ITEMS[key]
+            return {"id": key, "name": name, "kind": kind, "amount": amount, "usable_in_battle": usable, "desc": desc}
+        stored = self.bag.get(key)
+        if not isinstance(stored, dict):
+            return None
+        kind = str(stored.get("kind") or "trinket")
+        amount = int(stored.get("amount") or 0)
+        usable = kind in {"food", "battery", "medicine"}
+        desc = {"food": f"Restores {amount} HP.", "battery": f"Restores {amount} EN.",
+                "medicine": f"Cures glitch. Restores {amount} HP."}.get(kind, "A keepsake. Not for battle.")
+        return {"id": key, "name": str(stored.get("name") or key), "kind": kind, "amount": amount,
+                "usable_in_battle": usable, "desc": clamp_say(desc)}
+
+    def bag_add(self, item: dict[str, Any], qty: int = 1) -> dict[str, Any] | None:
+        """Put an item (a loot dict or a name) in the bag. Returns {id, name, qty}."""
+        key = item_key(item.get("id") or item.get("name"))
+        if not key:
+            return None
+        entry = self.bag.setdefault(key, {"qty": 0})
+        if key not in ITEMS:
+            kind = str(item.get("kind") or "trinket")
+            kind = kind if kind in GIFT_KINDS | {"medicine"} else "trinket"
+            power = item.get("power", 10)
+            amount = int(power) if isinstance(power, (int, float)) and not isinstance(power, bool) else 10
+            entry.update(name=str(item.get("name") or key), kind=kind,
+                         amount=max(5, amount) if kind == "food" else max(10, amount) if kind == "battery" else amount)
+        entry["qty"] = int(entry.get("qty", 0)) + max(1, int(qty))
+        info = self._item_info(key) or {"name": key}
+        return {"id": key, "name": info["name"], "qty": entry["qty"]}
+
+    def bag_payload(self) -> list[dict[str, Any]]:
+        out = []
+        for key, entry in self.bag.items():
+            info = self._item_info(key)
+            if info and int(entry.get("qty", 0)) > 0:
+                out.append({"id": key, "name": info["name"], "kind": info["kind"], "qty": int(entry["qty"]),
+                            "usable_in_battle": info["usable_in_battle"], "desc": info["desc"]})
+        return out
+
+    def combat_item(self, ref: str) -> dict[str, Any]:
+        """Use a bag item in battle. {"error": code} for none_left / not_usable_in_battle."""
+        key = item_key(ref)
+        info = self._item_info(key)
+        entry = self.bag.get(key) or {}
+        label = (info or {}).get("name", ref)
+        item = {"id": key, "name": label, "kind": (info or {}).get("kind", "trinket"), "qty": int(entry.get("qty", 0))}
+        if info is None or int(entry.get("qty", 0)) <= 0:
+            return {"error": "none_left", "item": item, "say": clamp_say(f"No {label} left in the bag.")}
+        if not info["usable_in_battle"]:
+            return {"error": "not_usable_in_battle", "item": item, "say": clamp_say(f"Not now! Save the {label}.")}
+        up, kind, amount = self.name.upper(), info["kind"], info["amount"]
+        log = [clamp_say(f"You used {label.upper()}!")]
+        cleared = False
+        if kind == "battery":
+            before = self.energy
+            self.energy = _clamp(self.energy + amount, 0.0, 100.0)
+            gained = int(round(self.energy - before))
+            if gained:
+                log.append(clamp_say(f"{up} recovered {gained} EN."))
+        else:
+            if kind == "medicine" and self.status == "glitch":
+                self.status, cleared = "ok", True
+                log.append(clamp_say(f"{up} is cured of glitch!"))
+            before = self.hp
+            self.hp = min(self.max_hp, self.hp + amount)
+            gained = self.hp - before
+            if gained:
+                log.append(clamp_say(f"{up} recovered {gained} HP."))
+            gained = gained or int(cleared)
+        if not gained:
+            return {"ok": False, "consumed": False, "reason": "no_effect", "item": item, "hp": self.hp,
+                    "energy": int(round(self.energy)), "status": self.status_word(), "status_cleared": False,
+                    "say": self._say("no_effect"), "log": [], "bag": self.bag_payload(), "pet": self.as_payload()}
+        entry["qty"] = int(entry["qty"]) - 1
+        item["qty"] = entry["qty"]
+        return {"ok": True, "consumed": True, "item": item, "hp": self.hp, "energy": int(round(self.energy)),
+                "status": self.status_word(), "status_cleared": cleared, "say": self._say("item"), "log": log,
+                "bag": self.bag_payload(), "pet": self.as_payload()}
+
+    def set_loadout(self, names: list[Any] | None, auto: bool = False) -> dict[str, Any] | None:
+        """pet.combat.moves: set 1-4 known moves (None = just read), or auto. None = bad list."""
+        if auto:
+            self.battle_moves = None
+        elif names is not None:
+            wanted = [str(n).strip().lower() for n in names if str(n).strip()]
+            known = {m.lower() for m in self.moves} | {slug(m) for m in self.moves}
+            if not 1 <= len(wanted) <= MAX_LOADOUT or any(w not in known and slug(w) not in known for w in wanted):
+                return None
+            self.battle_moves = [m for m in self.moves if m.lower() in wanted or slug(m) in {slug(w) for w in wanted}]
+        return {"moves": [self.battle_move(m) for m in self.loadout()],
+                "known": [self.battle_move(m) for m in self.moves], "auto": not self.battle_moves}
 
 
     def mood(self) -> str:
         """Pick a short mood word from the current needs."""
+        if self.sad_hours > 0:
+            return "sad"           # just lost a battle
         if self.hunger >= 82:
             return "hungry"
         if self.energy <= 18:
@@ -418,6 +759,9 @@ class PetState:
             "defense": self.defense,
             "speed": self.speed,
             "moves": list(self.moves),
+            "type": self.pet_type(),
+            "status": self.status_word(),
+            "bond": self.bond_tier(),
             "care_mistakes": self.care_mistakes,
             "asleep": self.asleep,
             "environment": self.environment(),
@@ -443,6 +787,7 @@ class PetState:
             self.asleep = False
             self.events.append(("woke", {"reason": "rested"}))
         self.age_hours += dt / 3600.0
+        self.sad_hours = max(0.0, self.sad_hours - dt / 3600.0)
         self.stage_hours += dt / 3600.0 * self.evolution_speed
         self.frame = 1 - self.frame
         self._check_evolution()
@@ -486,12 +831,22 @@ class PetState:
             "pet": self.as_payload(),
         }
 
-    def gift(self, item: dict[str, Any]) -> dict[str, Any]:
-        """Receive an item from the main deck (dungeon loot). See PROTOCOL.md."""
+    def gift(self, item: dict[str, Any], store: bool = False) -> dict[str, Any]:
+        """Receive an item from the main deck (dungeon loot). See PROTOCOL.md.
+
+        Gifts apply right away. Only store=True (or medicine for a pet that
+        is not sick) puts the item in the battle bag instead."""
         name = str(item.get("name") or "").strip()
         kind = str(item.get("kind") or "trinket").lower()
         if kind not in GIFT_KINDS:
             kind = "trinket"
+        if store or (kind == "medicine" and self.status != "glitch"):
+            entry = self.bag_add(dict(item, kind=kind))
+            self.inventory = (self.inventory + [name])[-20:]
+            return {"accepted": True, "stored": True, "item": {"name": name, "kind": kind},
+                    "bag_item": entry, "reaction": f"{self.name} tucks the {name} into the bag for later.",
+                    "effects": {"hunger": 0, "happiness": 0, "energy": 0, "stage": None}, "say": None,
+                    "pet": self.as_payload()}
         try:
             power = max(0.0, min(100.0, float(item.get("power", 10))))
         except (TypeError, ValueError):
@@ -518,6 +873,10 @@ class PetState:
         elif kind == "battery":
             self.energy = _clamp(self.energy + power, 0.0, 100.0)
             reaction = f"{self.name} plugs into the {name}. charged up!"
+        elif kind == "medicine":
+            self.status = "ok"
+            self.hp = min(self.max_hp, self.hp + 5)
+            reaction = f"{self.name} takes the {name}. no more glitches!"
         elif kind == "evolve":
             # Ready right now with every branch unlocked; the deck still picks.
             self.chip_ready = True
@@ -804,7 +1163,8 @@ class SimCompanionLink(CompanionLink):
             item = (message.payload or {}).get("item")
             if not isinstance(item, dict) or not str(item.get("name") or "").strip():
                 return message.error("bad_item", "pet.gift needs payload.item with a name")
-            return message.reply(TYPE_PET_GIFT_OK, self.pet.gift(item))
+            return message.reply(TYPE_PET_GIFT_OK,
+                                 self.pet.gift(item, store=(message.payload or {}).get("store") is True))
         if typ == TYPE_PET_AVATAR:
             return message.reply(TYPE_PET_AVATAR_OK, self.pet.avatar())
         payload = message.payload or {}
@@ -821,7 +1181,76 @@ class SimCompanionLink(CompanionLink):
                 return message.error("bad_payload", f"unknown species: {species or '(none)'}")
             return message.reply(TYPE_PET_EVOLVE_OK, {**result, "pet": self.pet.as_payload()})
         if typ == TYPE_PET_COMBAT_STATS:
-            return message.reply(TYPE_PET_COMBAT_STATS_OK, self.pet.combat_stats())
+            enemy = payload.get("enemy")
+            if enemy is not None and not isinstance(enemy, dict):
+                return message.error("bad_payload", "pet.combat.stats enemy must be an object")
+            return message.reply(TYPE_PET_COMBAT_STATS_OK, self.pet.combat_stats(enemy))
+        if typ == TYPE_PET_COMBAT_ITEM:
+            ref = payload.get("item")
+            if isinstance(ref, dict):
+                ref = ref.get("id") or ref.get("name")
+            if not isinstance(ref, str) or not ref.strip():
+                return message.error("bad_payload", "pet.combat.item needs payload.item (an item id or name)")
+            result = self.pet.combat_item(ref.strip())
+            if result.get("error"):
+                code = result["error"]
+                text = "none of that item left in the bag" if code == "none_left" else "that item cannot be used in battle"
+                return message.error(code, text, say=result["say"], item=result["item"])
+            return message.reply(TYPE_PET_COMBAT_ITEM_OK, result)
+        if typ == TYPE_PET_INVENTORY:
+            action = str(payload.get("action") or "list").lower()
+            ref = payload.get("item")
+            qty = payload.get("qty", 1)
+            qty = qty if isinstance(qty, int) and not isinstance(qty, bool) and qty > 0 else 1
+            if action == "add":
+                item = ref if isinstance(ref, dict) else {"name": str(ref or "")}
+                changed = self.pet.bag_add(item, qty)
+                if changed is None:
+                    return message.error("bad_payload", "pet.inventory add needs an item")
+                return message.reply(TYPE_PET_INVENTORY_OK, {"action": "add", "changed": changed,
+                                                             "bag": self.pet.bag_payload()})
+            if action == "drop":
+                key = item_key(ref.get("id") or ref.get("name") if isinstance(ref, dict) else ref)
+                entry = self.pet.bag.get(key)
+                if not entry or int(entry.get("qty", 0)) <= 0:
+                    return message.error("none_left", "none of that item left in the bag")
+                entry["qty"] = max(0, int(entry["qty"]) - qty)
+                return message.reply(TYPE_PET_INVENTORY_OK, {"action": "drop", "changed": {"id": key, "qty": entry["qty"]},
+                                                             "bag": self.pet.bag_payload()})
+            if action != "list":
+                return message.error("bad_payload", "pet.inventory action must be list, add or drop")
+            return message.reply(TYPE_PET_INVENTORY_OK, {"action": "list", "bag": self.pet.bag_payload()})
+        if typ == TYPE_PET_COMBAT_MOVES:
+            names = payload.get("set")
+            if names is not None and not isinstance(names, list):
+                return message.error("bad_payload", "pet.combat.moves set must be a list of move names")
+            result = self.pet.set_loadout(names, payload.get("auto") is True)
+            if result is None:
+                return message.error("bad_payload", "pick 1 to 4 moves PULSE knows")
+            return message.reply(TYPE_PET_COMBAT_MOVES_OK, result)
+        if typ == TYPE_PET_COMBAT_ROSTER:
+            enemies = []
+            for kind in ROSTER:
+                enemies.append({"id": kind.id, "name": kind.name, "glyph": kind.glyph, "type": kind.type,
+                                "weak": kind.weak, "depth": kind.depth, "face": kind.face, "hp": kind.hp,
+                                "attack": kind.attack, "defense": kind.defense, "speed": kind.speed,
+                                "per_level": dict(kind.per_level), "boss": kind.boss, "extra": False,
+                                "desc": kind.desc,
+                                "weak_to": [t for t in TYPES if effectiveness(t, kind.type) > 1],
+                                "resists": [t for t in TYPES if 0 < effectiveness(t, kind.type) < 1],
+                                "immune_to": [t for t in TYPES if effectiveness(t, kind.type) == 0]})
+            return message.reply(TYPE_PET_COMBAT_ROSTER_OK, {"types": list(TYPES), "enemies": enemies,
+                                                             "chart": {a: {d: effectiveness(a, d) for d in TYPES}
+                                                                       for a in TYPES}})
+        if typ == TYPE_PET_COMBAT_RUN:
+            enemy = payload.get("enemy")
+            if enemy is not None and not isinstance(enemy, dict):
+                return message.error("bad_payload", "pet.combat.run enemy must be an object")
+            foe = self.pet.normalize_enemy(enemy or {})
+            return message.reply(TYPE_PET_COMBAT_RUN_OK, {"chance": self.pet.flee_odds(foe),
+                                                          "say_ok": self.pet._say("flee", foe["name"]),
+                                                          "say_fail": self.pet._say("flee.fail", foe["name"]),
+                                                          "enemy": foe})
         if typ == "pet.discovery":
             kind = str(payload.get("kind") or "").strip().lower()
             ident = str(payload.get("id") or "").strip()
@@ -838,7 +1267,8 @@ class SimCompanionLink(CompanionLink):
             enemy = payload.get("enemy")
             if enemy is not None and not isinstance(enemy, dict):
                 return message.error("bad_payload", "pet.combat.action enemy must be an object")
-            return message.reply(TYPE_PET_COMBAT_ACTION_OK, self.pet.combat_action(move, enemy or {}))
+            turn = payload.get("turn") if isinstance(payload.get("turn"), int) else None
+            return message.reply(TYPE_PET_COMBAT_ACTION_OK, self.pet.combat_action(move, enemy or {}, turn))
         if typ == TYPE_PET_COMBAT_HIT:
             if "damage" not in payload and "heal" not in payload:
                 return message.error("bad_payload", "pet.combat.hit needs payload.damage or payload.heal")
@@ -846,13 +1276,16 @@ class SimCompanionLink(CompanionLink):
                 value = payload.get(key, 0)
                 return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
             enemy = payload.get("enemy")
-            name = enemy.get("name") if isinstance(enemy, dict) else enemy
+            attack_type = payload.get("attack_type")
             return message.reply(TYPE_PET_COMBAT_HIT_OK,
-                                 self.pet.combat_hit(number("damage"), number("heal"), str(name or "foe")))
+                                 self.pet.combat_hit(number("damage"), number("heal"),
+                                                     enemy if isinstance(enemy, dict) else str(enemy or "foe"),
+                                                     attack_type if isinstance(attack_type, str) else None))
         if typ == TYPE_PET_COMBAT_END:
-            xp = payload.get("xp") if isinstance(payload.get("xp"), int) else 0
+            xp = payload.get("xp") if isinstance(payload.get("xp"), int) else None
             enemies = payload.get("enemies") if isinstance(payload.get("enemies"), list) else []
-            result = self.pet.combat_end(str(payload.get("result") or "").strip().lower(), xp, enemies)
+            loot = payload.get("loot") if isinstance(payload.get("loot"), list) else []
+            result = self.pet.combat_end(str(payload.get("result") or "").strip().lower(), xp, enemies, loot)
             if result is None:
                 return message.error("bad_payload", "result must be 'win', 'lose', or 'flee'")
             return message.reply(TYPE_PET_COMBAT_END_OK, result)

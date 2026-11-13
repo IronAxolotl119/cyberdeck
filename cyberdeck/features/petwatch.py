@@ -358,6 +358,10 @@ def log_pet_action(ctx: "Context", action: str, payload: dict) -> None:
     elif action == "combat":
         text = (f"dungeon run {payload.get('result', '?')}: +{payload.get('xp_granted', payload.get('xp_gained', 0))} xp"
                 + (f" — {payload['reaction']}" if payload.get("reaction") else ""))
+    elif action == "battle":
+        text = (f"battle vs {payload.get('enemy', '?')}: {payload.get('result', '?')}, "
+                f"+{payload.get('xp_granted', payload.get('xp', 0))} xp"
+                + (f" — {payload['say']}" if payload.get("say") else ""))
     elif action == "gift":
         item = payload.get("item") or {}
         verb = "got a gift" if payload.get("accepted", True) else "turned down a gift"
