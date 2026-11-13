@@ -65,6 +65,8 @@ from link.protocol import (
     TYPE_PET_COMBAT_ROSTER,
     TYPE_PET_COMBAT_RUN,
     TYPE_PET_INVENTORY,
+    TYPE_PET_STATS,
+    TYPE_PET_STATS_OK,
     TYPE_PET_RIVAL,
     TYPE_PET_SAY,
     TYPE_PET_SCOLD,
@@ -270,7 +272,12 @@ class CompanionHandler(BattleMixin, AliveMixin):
         elif typ == TYPE_PING:
             reply = message.reply(TYPE_PONG, {"ok": True, "source": self.source})
         elif typ == TYPE_PET_STATUS:
-            reply = message.reply(TYPE_PET_STATUS_OK, {"pet": self.pet_dict()})
+            body = {"pet": self.pet_dict()}
+            if payload.get("full") is True:
+                body["full"] = self.full_stats()
+            reply = message.reply(TYPE_PET_STATUS_OK, body)
+        elif typ == TYPE_PET_STATS:
+            reply = message.reply(TYPE_PET_STATS_OK, self.full_stats())
         elif typ == TYPE_PET_FEED:
             reply = self._feed(message, payload)
         elif typ == TYPE_PET_PLAY:

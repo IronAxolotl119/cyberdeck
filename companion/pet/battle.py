@@ -329,6 +329,17 @@ def to_ascii(text: str) -> str:
     return " ".join(text.split())
 
 
+def fit_row(text: str, limit: int = SAY_MAX) -> str:
+    """Like clamp_say but keeps inner spacing (for aligned stat rows)."""
+    for a, b in _ASCII_SWAPS.items():
+        text = text.replace(a, b)
+    text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii")
+    text = "".join(ch if ch.isprintable() else " " for ch in text).rstrip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
 def clamp_say(text: str, limit: int = SAY_MAX) -> str:
     """Plain ASCII, at most `limit` characters, cut at a word boundary."""
     text = to_ascii(text or "")

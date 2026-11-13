@@ -86,6 +86,12 @@ class BattleMixin:
             "status": pet_status(self.creature),
         }
 
+    def full_stats(self) -> dict[str, Any]:
+        """pet.stats / pet.status {full:true}: every stat, raw + pages."""
+        from pet.fullstats import full_stats
+
+        return full_stats(self.creature, self._mood_word(), self.now())
+
     # ------------------------------------------------------------- stats
     def _combat_stats(self, message: Message, payload: dict[str, Any]) -> Message:
         creature = self.creature
@@ -282,6 +288,12 @@ class BattleMixin:
         self._note_growth(before_species, before_level, before_moves)
         life.on_combat_end(creature, result["result"], self.rng, now)  # lingering moods, memories
         outcome = result["result"]
+        tally = {"win": "wins", "lose": "losses", "flee": "flees"}[outcome]
+        life.record[tally] = int(life.record.get(tally, 0)) + 1
+        if outcome == "win" and result["boss"]:
+            life.record["bosses"] = int(life.record.get("bosses", 0)) + 1
+        if result["fainted"]:
+            life.record["faints"] = int(life.record.get("faints", 0)) + 1
         if outcome == "win":
             life.add_bond(4.0 if result["boss"] else 1.0)  # on top of +1 from on_combat_end
         elif outcome == "lose" and result["fainted"]:
@@ -314,7 +326,7 @@ class BattleMixin:
                 log.append(f"{name} limps home with 1 HP.")
             key = "battle.defeat"
         else:
-            log.append("Got away safely!")
+            # The deck prints its own "Got away safely!"; PULSE only reacts (say).
             key = "battle.fled"
         for item in result["loot_added"]:
             log.append(f"Put {item['name'].upper()} in the bag.")
@@ -328,7 +340,8 @@ class BattleMixin:
             "learned_move": learned[0] if learned else None,
             "bond_delta": round(life.bond - bond_before, 1),
             "bond": life.bond_tier(),
-            "mood": self._mood_word(),
+            # A loss always reads as sad here, whatever the stats say.
+            "mood": "sad" if outcome == "lose" else self._mood_word(),
             "fainted": result["fainted"],
             "loot_added": result["loot_added"],
             "reaction": result["reaction"],

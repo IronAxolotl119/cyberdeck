@@ -113,6 +113,7 @@ To add lines, put new lines under any `[section]`, or add a new section. No code
 | `pet.egg` | `{action: status/lay/hatch, move?, trait?, confirm?}` | Status: `egg, can_lay, generation, lineage`. Hatch needs `confirm:true`. |
 | `pet.life` | `{}` | `life` (bond, obedience, modifiers, sick, tantrum, ask, likes, quirks, time_of_day, temp, weather, costume, place, turf, shelf_count, adventure, rival, usual_time, egg, link) |
 | `pet.reset` | `{confirm:true}` | `reset, pet`. Without confirm it returns `bad_payload`. |
+| `pet.stats` | `{}` (or `pet.status {full:true}`, which adds the sheet as `full`) | Every stat: raw fields for bars, plus `pages[{title,lines}]` in the order Overview, Combat, Care, Traits & Evolution, Moves & Loadout, Bag, Battle Record, Discoveries. Lines are ASCII and 44 characters or fewer, and undiscovered favorites stay hidden. See DUNGEON_INTEGRATION.md, "Full stats". |
 
 Each reply's type is the request type plus `.ok`. A bad payload gives `error {code:"bad_payload"}`.
 

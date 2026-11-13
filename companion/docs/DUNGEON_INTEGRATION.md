@@ -399,9 +399,13 @@ defense, the type chart against PULSE's type, and guard.
 {"damage":8,"damage_taken":8,"attack_type":"DATA","effectiveness":1.0,
  "effectiveness_label":"normal","hp":12,"pet_hp":12,"energy":72,
  "status":"ok","fainted":false,"low_hp":false,
- "say":"Ouch!","log":["BUG attacks!","PULSE took 8 damage."],"healed":0,"pet":{...}}
+ "say":"Ouch!","log":["PULSE took 8 damage."],"healed":0,"pet":{...}}
 ```
 
+- **The deck writes the enemy's attack line itself**, as `FOE used
+  ATTACK!`. The companion's `log` only reports the result: an
+  effectiveness line if any, then `PULSE took N damage.` or `It doesn't
+  affect PULSE...`, then `PULSE fainted!` if PULSE fainted.
 - The `say` key is one of: `faint` when PULSE faints (the log ends with
   `PULSE fainted!`), `immune_hit`, `resist`, `lowhp` (HP at 25% or
   less), or `hurt`.
@@ -444,7 +448,8 @@ The bag:
   - A medicine gift for a pet that is not sick
   - `pet.combat.end {loot:[...]}`
   - `pet.inventory {action:"add"}`
-- `pet.inventory {action:"list"|"add"|"drop", item?, qty?}` returns
+- `pet.inventory {action:"list"|"add"|"drop", item?, qty?}` (optional)
+  returns
   `{bag:[{id,name,kind,qty,usable_in_battle,desc}], changed?}`.
 
 ### 5. RUN
@@ -483,14 +488,29 @@ The optional `pet.combat.run {enemy}` returns
     (−10).
   - If PULSE fainted, it counts as a care mistake, then HP is restored
     to **1** so it can limp home. Resting still heals it fully.
-  - `say` is a defeat line.
-- **flee**: mood −2, and `say` is a "got away" line.
+  - `say` is a defeat line, and `mood` is always `"sad"` in a loss reply.
+- **flee**: mood −2.
+  - **The deck writes its own `Got away safely!` log line.** The
+    companion's flee reply has no generic escape line in `log`. Its `log`
+    is empty unless loot was added.
+  - `say` is PULSE's own reaction (a "got away" personality line). Show it
+    after the deck's line.
 - `loot` is a list of `{name, kind, power}` objects or names. They go
   into the bag on any result.
 - `enemies` is a list of names or enemy objects. Bosses count for the
   bond and XP bonus.
 
-### Move menu: `pet.combat.moves {set?, auto?}`
+### Optional for now
+
+`pet.combat.moves`, `pet.inventory`, `pet.combat.roster`, and
+`pet.combat.run` are **optional**. A deck can run the whole battle with
+only stats, action, hit, item, and end:
+
+- `pet.combat.stats` already returns the loadout and the bag.
+- `pet.combat.item` already returns the updated bag.
+- The deck can keep its own copy of the roster.
+
+### Move menu: `pet.combat.moves {set?, auto?}` (optional)
 
 - Returns `moves` (the loadout of at most 4 moves, the same shape as in
   stats), `known` (every move PULSE knows), and `auto` (a bool).
@@ -502,19 +522,21 @@ The optional `pet.combat.run {enemy}` returns
 ### Screens (48 columns, ASCII)
 
 These are suggestions. Main owns the UI. Every row is exactly 48
-characters.
+characters. The layout is classic: the **enemy is top-right** and **PULSE
+is bottom-left**.
 
 **Encounter.** Shown after `pet.combat.stats {enemy}`. The log rows are
 the reply's `log` and then `say`.
 
 ```
 +----------------------------------------------+
-| BUG  Lv2  DATA                               |
-| HP [##########]  22/22         (o_o)         |
-|                                              |
-|      [(^_^)]        PULSE  Lv4  NORM         |
-|                     HP [##########] 20/20    |
-|                     EN [########..] 80/100   |
+|                               BUG  Lv2  DATA |
+|                        HP [##########] 22/22 |
+|                                    (o_o)     |
+|     [(^_^)]                                  |
+| PULSE  Lv4  NORM                             |
+| HP [##########] 20/20                        |
+| EN [########..] 80/100                       |
 +----------------------------------------------+
 | A wild BUG appeared!                         |
 | Go, PULSE!                                   |
@@ -531,8 +553,7 @@ which the deck computes from the chart in `pet.combat.roster`.
 
 ```
 +----------------------------------------------+
-| BUG  Lv2  DATA                               |
-| HP [##########]  22/22                       |
+|        BUG  Lv2  DATA  HP [##########] 22/22 |
 | PULSE  Lv4  HP [##########] 20/20  EN 80     |
 +----------------------------------------------+
 | > STATIC SNAP   VOLT  EN 8   PWR 14          |
@@ -552,7 +573,8 @@ out. The bottom row is `desc`.
 
 ```
 +----------------------------------------------+
-| BAG                         PULSE HP 4/20    |
+|        BUG  Lv2  DATA  HP [##########] 22/22 |
+| PULSE  Lv4  HP [##........]  4/20  EN 80     |
 +----------------------------------------------+
 | > CACHE COOKIE      x3                       |
 |   BATTERY           x1                       |
@@ -565,22 +587,29 @@ out. The bottom row is `desc`.
 +----------------------------------------------+
 ```
 
-**Log / victory.** Print each action's `log` lines, then its `say`. At
-the end, print `pet.combat.end`'s `log`, then its `say`.
+**Log / victory.** For each turn, print the lines in this order:
+
+1. The deck's own enemy line, `FOE used ATTACK!`.
+2. The `pet.combat.hit` `log`.
+3. The `pet.combat.action` `log`, then its `say`.
+
+At the end, print `pet.combat.end`'s `log`, then its `say`.
 
 ```
 +----------------------------------------------+
-| BUG  Lv2  DATA                               |
-| HP [..........]   0/22      (x_x)            |
+|        BUG  Lv2  DATA  HP [..........]  0/22 |
+|                                    (x_x)     |
+|     [(^o^)]                                  |
 | PULSE  Lv5  HP [#######...] 16/22  EN 64     |
 +----------------------------------------------+
+| BUG used BITE!                               |
+| PULSE took 6 damage.                         |
 | PULSE used STATIC SNAP!                      |
 | It's super effective!                        |
 | BUG took 40 damage.                          |
 | PULSE won the battle!                        |
 | PULSE gained 40 XP!                          |
 | PULSE grew to Lv 5!                          |
-| Put DATA COOKIE in the bag.                  |
 | Level up! Stronger already!                  |
 +----------------------------------------------+
 | [any key] continue                           |
@@ -592,3 +621,87 @@ card: `pet.status` mood, bond, and nickname, with a "cheer" action that
 sends `pet.praise` and shows its `say`, or `pet.say {topic:"cheer"}` for
 a free line. A praise that lands after a good turn counts as "deserved"
 and builds obedience.
+
+
+## Full stats: `pet.stats` (and `pet.status {full:true}`)
+
+Everything about PULSE on one sheet, for a stats screen.
+
+- `pet.stats {}` returns `pet.stats.ok` with the sheet.
+- `pet.status {full:true}` returns the usual `pet` plus the same sheet as
+  `full`. Without `full:true`, `pet.status` is unchanged.
+
+**Raw fields**, for drawing XP, HP, EN, and evolution bars:
+
+| Group | Fields |
+|---|---|
+| Identity | `name`, `nickname`, `species`, `species_id`, `stage`, `type`, `generation` |
+| Level and XP | `level`, `xp`, `xp_level_start`, `xp_next_level`, `xp_to_next`, `xp_pct` |
+| Age | `age_hours` (simulated), `age_days` (real), `birthday`, `next_birthday` |
+| Combat | `hp`, `max_hp`, `energy`, `max_energy` (100), `attack`, `defense`, `speed`, `speed_bonus`, `crit_chance`, `accuracy_mod`, `damage_mult`, `disobey_chance`, `guarding`, `status` |
+| Care | `hunger` (protocol need: 0 full, 100 starving), `fullness`, `happiness` (mood including lingering modifiers), `obedience` (0-100), `discipline` (wild / willful / good / loyal), `care_mistakes` |
+| Mood | `mood`, `mood_offset`, `modifiers[]`, `bond` (tier), `bond_hearts` (0-5) |
+| Status | `sick`, `tantrum` |
+| Personality | `quirks{catchphrase, dance, sneeze, tic, fav_idle}` |
+| Favorites | `favorites` (only the ones discovered so far), `favorites_hidden` (count) |
+| Evolution | `evolution{next_stage, ready, progress_pct, eta_hours, gates{age, level, xp: {have, need, pct}}, choices[]}` |
+| Moves | `moves[]` (name, type, power, energy_cost, accuracy, rank, desc), `loadout[]` (names), `loadout_auto` |
+| Bag | `bag[]`, `bag_items`, `bag_total` |
+| Battle record | `record{wins, losses, flees, bosses, faints, fights}` (lifetime, saved), `rival{name, wins, losses}` |
+| Discoveries | `discoveries`, `networks_known`, `treasures`, `trinkets`, `favorite_trinket`, `adventures`, `diary_entries` |
+
+**Pre-formatted rows**
+
+- `pages: [{title, lines}]` comes in this fixed order: **Overview, Combat,
+  Care, Traits & Evolution, Moves & Loadout, Bag, Battle Record,
+  Discoveries**.
+- Titles are 20 characters or fewer. Every line is plain ASCII and 44
+  characters or fewer, with spacing kept for alignment.
+- `lines` is the same content as one flat list, with `== Title ==` rows as
+  page breaks.
+- Undiscovered favorites show as `???`.
+- In Moves & Loadout, a `*` marks a move that is in the battle loadout.
+- Tests check the titles, the page order, and the line limits.
+
+**Stats screen (48 columns).** A suggestion: page through `pages` with the
+arrow keys. These two pages were generated from a real sheet.
+
+```
++----------------------------------------------+
+| BITSY STATS                    Overview  1/8 |
++----------------------------------------------+
+| BITSY  (Aethling)                            |
+| Aethling  rookie  FIRE                       |
+| Lv 9  XP 400/450                             |
+| XP [####......] 50 to go                     |
+| HP [########..] 31/38                        |
+| EN [######....] 64/100                       |
+| Mood playful  Bond bonded                    |
+| Status ok                                    |
+| Age 12.0d  Born 2026-10-31                   |
++----------------------------------------------+
+| [<-/->] page   [esc] back                    |
++----------------------------------------------+
+```
+
+```
++----------------------------------------------+
+| BITSY STATS          Traits & Evolution  4/8 |
++----------------------------------------------+
+| Catchphrase  krrk-tastic!                    |
+| Dance        antenna twirl                   |
+| Sneeze       tiny                            |
+| Fav idle     chase bug                       |
+| Fav food     fruity                          |
+| Hates food   ???                             |
+| Fav signal   ???                             |
+| Hates signal ???                             |
+| Next: champion  64%                          |
+| AGE   [######....] 64%                       |
+| LEVEL [#######...] 69%                       |
+| XP    [##########] 100%                      |
+| Can become: Luminode, Hexwave(locked)        |
++----------------------------------------------+
+| [<-/->] page   [esc] back                    |
++----------------------------------------------+
+```

@@ -189,6 +189,8 @@ class Life:
         self.legacy: dict[str, Any] | None = dict(d["legacy"]) if d.get("legacy") else None
         self.egg: dict[str, Any] | None = dict(d["egg"]) if d.get("egg") else None
         self.gifts_given: int = int(d.get("gifts_given", 0))
+        # Lifetime battle record (pet.combat.end): wins, losses, flees, bosses.
+        self.record: dict[str, int] = {k: int(v) for k, v in (d.get("record") or {}).items()}
         self.activity_since_pet: int = int(d.get("activity_since_pet", 0))
         self.last_activity: str = str(d.get("last_activity", ""))
         self.weather: dict[str, Any] | None = dict(d["weather"]) if d.get("weather") else None
@@ -313,6 +315,7 @@ class Life:
             "legacy": dict(self.legacy) if self.legacy else None,
             "egg": dict(self.egg) if self.egg else None,
             "gifts_given": self.gifts_given,
+            "record": dict(self.record),
             "activity_since_pet": self.activity_since_pet,
             "last_activity": self.last_activity,
             "weather": dict(self.weather) if self.weather else None,

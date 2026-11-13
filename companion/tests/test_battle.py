@@ -527,7 +527,22 @@ class StatsMovesEndTests(unittest.TestCase):
     def test_flee(self) -> None:
         end = req(make(), "pet.combat.end", {"result": "flee", "xp": 0}).payload
         self.assertEqual(end["result"], "flee")
-        self.assertIn("Got away safely!", end["log"])
+        # The deck writes "Got away safely!"; the companion only adds PULSE's reaction.
+        self.assertNotIn("Got away safely!", end["log"])
+        self.assertEqual(end["log"], [])
+        self.assertTrue(end["say"])
+
+    def test_lost_battle_mood_is_sad(self) -> None:
+        for hp in (0, 12):  # fainted or not
+            h = make(mood=95)
+            h.creature.stats.hp = hp
+            end = req(h, "pet.combat.end", {"result": "lose", "xp": 0, "enemies": ["bug"]}).payload
+            self.assertEqual(end["mood"], "sad")
+
+    def test_hit_log_leaves_the_attack_line_to_the_deck(self) -> None:
+        out = req(make(), "pet.combat.hit", {"damage": 6, "enemy": {"name": "bug"}}).payload
+        self.assertFalse(any("attacks" in line or "used" in line for line in out["log"]))
+        self.assertTrue(out["log"][-1].startswith("PULSE took"))
 
     def test_flee_chance(self) -> None:
         pet = make(speed=10, level=5).creature

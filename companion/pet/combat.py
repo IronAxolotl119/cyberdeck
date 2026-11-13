@@ -488,7 +488,8 @@ def apply_hit(
             creature.stats.clamp()
             label = effectiveness_label(mult)
             foe_up = clamp_say((foe["name"] if foe else "the foe").upper(), 16)
-            log = [f"{foe_up} attacks!"]
+            # The deck writes "FOE used ATTACK!" itself; we report the result.
+            log: list[str] = []
             if mult == 0:
                 log.append(f"It doesn't affect {name}...")
             else:

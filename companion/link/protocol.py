@@ -93,6 +93,9 @@ TYPE_PET_COMBAT_RUN = "pet.combat.run"
 TYPE_PET_COMBAT_RUN_OK = "pet.combat.run.ok"
 TYPE_PET_INVENTORY = "pet.inventory"
 TYPE_PET_INVENTORY_OK = "pet.inventory.ok"
+# Every stat on one sheet (also pet.status {full: true} -> payload.full).
+TYPE_PET_STATS = "pet.stats"
+TYPE_PET_STATS_OK = "pet.stats.ok"
 # Opt-in extension: unsolicited pushes when hello.payload.events is true.
 # Only emitted after the main deck asks for them. detail is a dict.
 TYPE_PET_EVENT = "pet.event"
