@@ -82,6 +82,17 @@ TYPE_PET_LIFE = "pet.life"
 TYPE_PET_LIFE_OK = "pet.life.ok"
 TYPE_PET_RESET = "pet.reset"
 TYPE_PET_RESET_OK = "pet.reset.ok"
+# Turn-based battle extras (docs/DUNGEON_INTEGRATION.md "Battle protocol").
+TYPE_PET_COMBAT_ITEM = "pet.combat.item"
+TYPE_PET_COMBAT_ITEM_OK = "pet.combat.item.ok"
+TYPE_PET_COMBAT_MOVES = "pet.combat.moves"
+TYPE_PET_COMBAT_MOVES_OK = "pet.combat.moves.ok"
+TYPE_PET_COMBAT_ROSTER = "pet.combat.roster"
+TYPE_PET_COMBAT_ROSTER_OK = "pet.combat.roster.ok"
+TYPE_PET_COMBAT_RUN = "pet.combat.run"
+TYPE_PET_COMBAT_RUN_OK = "pet.combat.run.ok"
+TYPE_PET_INVENTORY = "pet.inventory"
+TYPE_PET_INVENTORY_OK = "pet.inventory.ok"
 # Opt-in extension: unsolicited pushes when hello.payload.events is true.
 # Only emitted after the main deck asks for them. detail is a dict.
 TYPE_PET_EVENT = "pet.event"

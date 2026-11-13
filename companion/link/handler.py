@@ -16,6 +16,7 @@ from typing import Any, Callable
 from avatar.faces import avatar_payload, normalize_mood, pet_avatar
 from discovery.effects import apply_signals
 from discovery.simulated import SimulatedScanner
+from link.battle import BattleMixin
 from link.alive import AliveMixin, life_payload
 from link.protocol import (
     PROTO_VERSION,
@@ -59,6 +60,11 @@ from link.protocol import (
     TYPE_PET_PRAISE,
     TYPE_PET_RENAME,
     TYPE_PET_RESET,
+    TYPE_PET_COMBAT_ITEM,
+    TYPE_PET_COMBAT_MOVES,
+    TYPE_PET_COMBAT_ROSTER,
+    TYPE_PET_COMBAT_RUN,
+    TYPE_PET_INVENTORY,
     TYPE_PET_RIVAL,
     TYPE_PET_SAY,
     TYPE_PET_SCOLD,
@@ -215,7 +221,7 @@ def _clean_power(raw: Any) -> int:
         return 10
 
 
-class CompanionHandler(AliveMixin):
+class CompanionHandler(BattleMixin, AliveMixin):
     """Dispatch one already-decoded request and optionally queue pet.event pushes."""
 
     def __init__(
@@ -278,7 +284,17 @@ class CompanionHandler(AliveMixin):
         elif typ == TYPE_PET_SLEEP:
             reply = self._sleep(message, payload)
         elif typ == TYPE_PET_COMBAT_STATS:
-            reply = message.reply(TYPE_PET_COMBAT_STATS_OK, stats_payload(self.creature))
+            reply = self._combat_stats(message, payload)
+        elif typ == TYPE_PET_COMBAT_ITEM:
+            reply = self._combat_item(message, payload)
+        elif typ == TYPE_PET_COMBAT_MOVES:
+            reply = self._combat_moves(message, payload)
+        elif typ == TYPE_PET_COMBAT_ROSTER:
+            reply = self._combat_roster(message, payload)
+        elif typ == TYPE_PET_COMBAT_RUN:
+            reply = self._combat_run(message, payload)
+        elif typ == TYPE_PET_INVENTORY:
+            reply = self._inventory(message, payload)
         elif typ == TYPE_PET_COMBAT_ACTION:
             reply = self._combat_action(message, payload)
         elif typ == TYPE_PET_COMBAT_HIT:
@@ -619,6 +635,30 @@ class CompanionHandler(AliveMixin):
         reaction = ""
         pet_name = PET_NAME
 
+        # Into the battle bag instead of using it now: payload.store true, or
+        # medicine for a pet that is not sick (it saves it for later).
+        store = payload.get("store") is True or (kind == "medicine" and not self.creature.life.sick)
+        if store:
+            from pet.battle import Bag
+
+            bag = Bag(self.creature)
+            info = bag.add({"name": name, "kind": kind, "power": power})
+            self.creature.receive_gift(name)
+            reaction = f"{pet_name} tucks the {name} into the bag for later."
+            return message.reply(
+                TYPE_PET_GIFT_OK,
+                {
+                    "accepted": True,
+                    "stored": True,
+                    "item": cleaned,
+                    "bag_item": {"id": info["id"], "name": info["name"], "qty": bag.qty(info["id"])},
+                    "reaction": reaction,
+                    "effects": {"hunger": 0, "happiness": 0, "energy": 0, "stage": None},
+                    "say": None,
+                    "pet": self.pet_dict(),
+                },
+            )
+
         if kind == "food":
             set_need_hunger(self.creature, need_hunger(self.creature) - power)
             self.creature.stats.mood = _clamp(self.creature.stats.mood + 5.0)
@@ -884,71 +924,6 @@ class CompanionHandler(AliveMixin):
                 "asleep": bool(self.creature.asleep),
                 "changed": changed,
                 "reason": reason,
-                "say": say,
-                "pet": self.pet_dict(),
-            },
-        )
-
-    def _combat_action(self, message: Message, payload: dict[str, Any]) -> Message:
-        move = payload.get("move")
-        if move is not None and not isinstance(move, str):
-            return message.error("bad_payload", "pet.combat.action move must be a string")
-        enemy = payload.get("enemy")
-        if enemy is not None and not isinstance(enemy, dict):
-            return message.error("bad_payload", "pet.combat.action enemy must be an object")
-        result = perform_action(self.creature, move, enemy or {}, self.rng)
-        body = {
-            "move": result["move"],
-            "hit": result["hit"],
-            "damage": result["damage"],
-            "effect": result["effect"],
-            "energy_spent": result["energy_spent"],
-            "pet_hp": result["pet_hp"],
-            "reaction": result["reaction"],
-            "pet": self.pet_dict(),
-        }
-        if not result["acted"]:
-            body["acted"] = False
-            body["reason"] = result["reason"]
-        else:
-            body["acted"] = True
-            if result.get("fallback"):
-                body["fallback"] = True
-        for extra in ("crit", "disobeyed", "mood_effect", "cheer"):
-            if result.get(extra):
-                body[extra] = result[extra]
-        return message.reply(TYPE_PET_COMBAT_ACTION_OK, body)
-
-    def _combat_hit(self, message: Message, payload: dict[str, Any]) -> Message:
-        if "heal" not in payload and "damage" not in payload:
-            return message.error("bad_payload", "pet.combat.hit needs payload.damage or payload.heal")
-        result = apply_hit(self.creature, payload)
-        return message.reply(
-            TYPE_PET_COMBAT_HIT_OK,
-            {
-                "damage_taken": result["damage_taken"],
-                "healed": result["healed"],
-                "pet_hp": result["pet_hp"],
-                "fainted": result["fainted"],
-                "pet": self.pet_dict(),
-            },
-        )
-
-    def _combat_end(self, message: Message, payload: dict[str, Any]) -> Message:
-        before_level = self.creature.stats.level
-        before_moves = list(self.creature.known_move_ids)
-        before_species = self.creature.species_id
-        result = apply_combat_end(self.creature, payload)
-        if not result["ok"]:
-            return message.error("bad_payload", result["reason"])
-        self._note_growth(before_species, before_level, before_moves)
-        say = self.creature.life.on_combat_end(self.creature, result["result"], self.rng, self.now())
-        return message.reply(
-            TYPE_PET_COMBAT_END_OK,
-            {
-                "result": result["result"],
-                "xp_granted": result["xp_granted"],
-                "reaction": result["reaction"],
                 "say": say,
                 "pet": self.pet_dict(),
             },

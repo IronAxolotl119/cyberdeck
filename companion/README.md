@@ -385,6 +385,31 @@ Companion flags for this:
 | `--weather LAT,LON` | Optional real weather from Open-Meteo. It silently does nothing when offline. |
 | `--life-pace N` | Make idle life, chatter, adventures, and rivals N× more frequent. Useful for demos. |
 
+## Turn-based battles
+
+Dungeon fights are turn-based, Pokemon style, on a 48-column ASCII
+screen. Cyberdeck Main draws the battle and owns the enemies. This
+companion owns PULSE and everything it says.
+
+- **Types:** seven types (NORM, VOLT, DATA, NET, FIRE, ICE, VOID) with a
+  2x / 0.5x / immune chart. Every move has a type, and so does each
+  species.
+- **Roster:** a 12-enemy roster in `pet/data/roster.json`, also sent by
+  `pet.combat.roster`.
+- **Bag:** cookies, batteries, and medicine, used with `pet.combat.item`
+  and managed with `pet.inventory`.
+- **Moves:** a 4-move battle loadout (`pet.combat.moves`).
+- **Battle log:** ready-to-print battle log lines, such as
+  "PULSE used STATIC SNAP!" and "It's super effective!".
+- **Voice:** about 860 battle lines in `pet/lines/battle.lines`. They cover
+  taunts by enemy type, move reactions, super / weak / immune, misses,
+  crits, low HP, items, fleeing, fainting, victory, and disobedience.
+  Every one is plain ASCII and at most 44 characters.
+
+Mood, bond, obedience, and tantrums still change how PULSE fights. The
+exact protocol and screen mockups are in
+[docs/DUNGEON_INTEGRATION.md](docs/DUNGEON_INTEGRATION.md#battle-protocol-turn-based-48-columns).
+
 ## Roadmap
 
 1. **Core simulation** (this repo). Stats, a tick loop, one evolution line with

@@ -1,0 +1,1006 @@
+# Battle text. Every line must be plain ASCII and at most 44 characters
+# after slots are filled (tests/test_battle.py checks this).
+# Slots: {name} {foe} {move} {item} {amount} {type}
+
+[battle.start]
+A wild {foe}! I got this.
+{foe} wants to fight? Okay!
+Stand back. {foe} is mine.
+Oh no, a {foe}. Oh YES!
+Battle mode: ON.
+I have been training for this!
+{foe}, you picked the wrong pet.
+Let us dance, {foe}.
+Eek! Okay. Brave face. Brave face.
+Hi {foe}. Bye {foe}. Soon.
+My antenna is tingling. Fight time!
+You look squishy, {foe}.
+I will not lose to a {foe}!
+Ready when you are, partner.
+Ooh, a {foe}. Can I keep it?
+Look, a {foe}! Point me at it.
+Fight! Fight! Fight!
+I am small but I am FAST.
+{foe} spotted. Engaging cuteness.
+Tell me what to do, I trust you.
+Do not worry, I bite. Gently.
+A {foe} in our dungeon? Rude.
+Let me at it! Let me at it!
+This {foe} is going down.
+Hold my snack. I got this.
+Here we go again!
+Whoa, a {foe}. Stay behind me.
+My circuits are buzzing. Let us go!
+{foe}! Prepare to be pinged!
+Time to show off my moves.
+Is that a {foe}? Ew. Fight it.
+Battle! Finally something fun!
+
+[battle.start.norm]
+Just a plain {foe}. Easy. Probably.
+A regular {foe}. No tricks, okay?
+Normal type. Normal beating then.
+Nothing fancy about you, {foe}.
+Plain and simple. Like my lunch.
+A basic {foe}. I am not basic.
+You are so normal, {foe}. Boring!
+No type tricks? Fair fight then.
+Vanilla {foe}. I prefer cookies.
+A plain fight. I can do plain.
+Just a {foe}? Easy peasy.
+No weakness, no strength. Fair.
+A normal fight. I am ready.
+Plain {foe}. Plain beating.
+Let us keep it simple.
+
+[battle.start.volt]
+A VOLT {foe}! My fur is standing up.
+Zappy {foe}. Do not touch my tail.
+It crackles! I crackle back!
+VOLT type. Careful, it bites hard.
+Ow, the air hums. VOLT {foe}!
+That {foe} is all charged up.
+Sparks! I love sparks. Not these.
+A live wire. Ground me, partner.
+VOLT {foe}. Static meets static!
+It is buzzing louder than me!
+Watch out for its sparks!
+A charged {foe}! Stay grounded.
+It hums like a power line.
+VOLT {foe}. Ouch already.
+My pixels are frizzy!
+
+[battle.start.data]
+A DATA {foe}. Full of bad bytes.
+Corrupted DATA! Zap it clean!
+DATA type. VOLT and FIRE melt it.
+It is leaking bits everywhere. Gross.
+A {foe} made of junk files.
+DATA {foe}. Let me defrag you.
+I smell bad code. It is {foe}.
+It looks buggy. Squash time!
+That {foe} is all checksums. Weird.
+DATA bugs hate a good jolt.
+Corrupt {foe} spotted!
+Bad DATA! Bad!
+I can see its broken bits.
+A {foe} full of junk code.
+Time to clean house!
+
+[battle.start.net]
+A NET {foe}! It pings everyone.
+NET type. Burn it or freeze it!
+It is spamming the whole channel.
+{foe} is flooding the network!
+A NET {foe}. Packet war!
+It is routing around me. Rude.
+That {foe} never stops talking.
+NET {foe}. Heat or ice, partner.
+It keeps sending me requests. No.
+Unsubscribe me from {foe}!
+It is broadcasting nonsense!
+Packet storm incoming!
+A noisy {foe}! Heat it up!
+It is clogging the pipes!
+So much traffic! Ugh!
+
+[battle.start.fire]
+A FIRE {foe}! It is so hot in here.
+FIRE type. Do we have ICE?
+My fan is spinning just looking.
+{foe} is overheating on purpose!
+Hot hot hot! Cool it down!
+FIRE {foe}. Do not burn my antenna.
+It glows like a bad CPU.
+A wall of flame! Find the ICE.
+FIRE moves bounce off this one.
+Thermal warning! {foe} is here.
+Hot {foe}! Do not touch!
+It is melting the floor!
+Cool it with ICE, partner!
+My fan cannot keep up!
+Toasty {foe}. Too toasty.
+
+[battle.start.ice]
+An ICE {foe}. Brr, my pixels.
+ICE type. A good zap will thaw it.
+It is so slow. And so cold.
+{foe} froze the frame rate!
+Laaaag. I mean, hi {foe}.
+ICE {foe}. VOLT melts that fast.
+My paws are sticking to the floor.
+It moves like a frozen download.
+Chilly {foe}. Warm up, partner!
+Frozen {foe}. Let us crack it.
+A frozen {foe}! Thaw it!
+It is so cold my bits hurt.
+Zap it warm, partner!
+Frosty {foe}. Brrr.
+It is slow. Use that!
+
+[battle.start.void]
+A VOID {foe}. It has no edges...
+VOID type. DATA can find it.
+I cannot see its outline. Spooky.
+{foe} is made of nothing. Scary!
+Stare into the VOID? No thanks.
+VOID {foe}. Packets vanish there.
+It looks hungry for memory.
+The lights flicker near {foe}.
+VOID things hate clean DATA.
+Where does it end? WHERE?
+It is a hole in the screen!
+A {foe} from nowhere!
+Scan it with DATA!
+The VOID stares back...
+NET moves vanish in it!
+
+[battle.start.boss]
+KERNEL PANIC! Everything is red!
+A boss! Okay. Breathe. Fight!
+This is the big one, partner.
+The whole floor is crashing!
+Boss fight! Give it everything!
+I am scared. Let us win anyway.
+{foe}! The final error!
+Save first? No time. FIGHT!
+It is huge. I am... less huge.
+DATA moves! Use DATA moves!
+Every screen is blue. Here it comes!
+Stay with me. We can do this.
+
+[battle.move]
+Take that!
+Hyah!
+How about this?
+Here it comes!
+Catch!
+Eat this, {foe}!
+Boop!
+Special delivery!
+With feeling!
+Watch this one!
+For snacks!
+For you, partner!
+My best shot!
+Nyoom!
+All my bits into this!
+Pew pew!
+Get pinged!
+Hiiiyah!
+Ready? Go!
+One, two, {move}!
+Remember this one, {foe}?
+You asked for it!
+Full power!
+Bonk!
+Surprise!
+Did you see that?
+Zip zap!
+This is my favorite move.
+I practiced this one!
+Coming through!
+Hup!
+And... now!
+
+[battle.move.norm]
+A good old {move}!
+Simple but honest. {move}!
+Classic {move}!
+Back to basics!
+No frills. Just {move}.
+Plain {move}, extra spicy.
+
+[battle.move.volt]
+Zap! Zap! ZAP!
+Feel the static!
+Bzzzt! {move}!
+Shocking, right?
+Sparks fly!
+Overcharge!
+
+[battle.move.data]
+Compiling... {move}!
+Have some clean DATA!
+Defragmenting you!
+Byte-sized attack!
+Checksum this!
+Rewriting your code!
+
+[battle.move.net]
+Packets incoming!
+Broadcasting {move}!
+Ping! Ping! Ping!
+All channels open!
+Routing pain to you!
+Multicast mayhem!
+
+[battle.move.fire]
+Hot hot hot!
+Overclock burn!
+Toasty {move}!
+Feel the heat!
+Thermal spike!
+Melt down!
+
+[battle.move.ice]
+Chill out!
+Freeze frame!
+Brrr! {move}!
+Cold boot!
+Ice ice {move}!
+Frost bite!
+
+[battle.move.void]
+Into the dark!
+Null and void!
+Vanish!
+Out of bounds!
+Static from nowhere!
+Zero, zero, zero!
+
+[battle.super]
+It is super effective!
+Ha! That one really stung!
+Right in the weak spot!
+{type} wins! Told you!
+Super effective! Again! Again!
+That did a LOT.
+Look at it wobble!
+Perfect match-up!
+Weakness found!
+The type chart is my friend.
+Woo! Massive damage!
+It did not like that one bit.
+Bullseye on the weakness!
+That is how you do it!
+Crushed it!
+{foe} hates {type} moves!
+Super effective, as planned.
+Big numbers! I love big numbers.
+It flinched! It really flinched!
+We found its weak spot!
+Kaboom!
+That was the right call, partner!
+{move} was the perfect pick!
+It is shaking! Keep going!
+Double damage! Double fun!
+Ouch for {foe}! Yay for me!
+Totally super effective!
+It is going down!
+Weak to {type}! Noted.
+I felt that one from here!
+
+[battle.weak]
+It is not very effective...
+Hmm. That barely tickled it.
+It shrugged that off.
+{foe} resists {type}. Boo.
+Not the best match-up.
+Half damage. Half sad.
+Maybe a different move?
+It did not even blink.
+Weak sauce. My bad.
+Wrong type, partner!
+That bounced right off.
+{type} does not work well here.
+Ugh, it resists that.
+Barely a scratch.
+Try something else?
+It laughed at me. Rude.
+Not very effective. Hmm.
+That was a whiff of a hit.
+I need a better type for this.
+Resisted! Rats.
+Hmm, it is armored against that.
+Low damage. Thinking...
+Was that a hit or a pat?
+Not my best match-up.
+We should switch it up.
+It did a little. Very little.
+Pfft. That was weak.
+That type is no good here.
+It barely noticed.
+Let us try another move.
+
+[battle.immune]
+It had no effect!
+Nothing. Not even a dent.
+{foe} is immune to {type}!
+It went right through it.
+Zero damage? Zero?!
+Totally immune. Huh.
+That type does nothing here.
+Like hitting a cloud.
+It did not even notice.
+Immune! Pick another move!
+Nope. No effect at all.
+Wasted turn. Sorry!
+It just... absorbed it?
+{type} cannot touch it!
+Nothing happened. Awkward.
+
+[battle.miss]
+Missed!
+Whoops. Too fast for me.
+Aw, it dodged!
+Swing and a miss!
+Where did it go?
+My aim was off. Sorry!
+It slipped past me!
+Darn it! So close!
+I hit the floor instead.
+{foe} juked me!
+My bad. Lag spike.
+Not even close. Ugh.
+That went into the wall.
+Next one will hit!
+It ducked! Cheater!
+I blinked. Sorry.
+Missed by a pixel!
+Hey, hold still!
+It is too slippery!
+Air ball!
+Whiff!
+Wrong tile! Wrong tile!
+I need glasses.
+Packet loss! Missed!
+It saw that coming.
+Rats! Missed again.
+I tripped on a bit.
+Nope, nothing.
+So fast! I could not track it.
+Miss! But I looked cool.
+
+[battle.crit]
+A critical hit!
+CRIT! Did you see that?!
+Right in the core!
+Perfect hit!
+Bang! Critical!
+Nailed it!
+Wow, I did not know I could do that!
+That one was perfect.
+Critical hit! I am on fire!
+Super strike!
+It found a gap in the armor!
+Right on the pixel!
+Max damage!
+Lucky shot! Or skill. Skill.
+That one counted double!
+Critical! Write that down!
+Clean hit!
+My best hit ever!
+Bullseye!
+Wham! Critical!
+Ka-POW!
+Pure precision.
+That one will leave a mark.
+The crowd goes wild!
+Crit! Crit! Crit!
+I felt that one land!
+Text book hit!
+Ten out of ten!
+Boom! Critical!
+For you, partner! Crit!
+
+[battle.hurt]
+Ow! Okay, that hurt.
+Hey! Not cool, {foe}!
+Ouch!
+I felt that in my bits.
+That stung!
+Oof. I am okay. I think.
+Rude!
+Ow ow ow!
+Just a scratch. A big one.
+You will pay for that, {foe}!
+Agh! My antenna!
+I am fine! I am FINE!
+That was a good hit, {foe}.
+Ouchie.
+I can take it!
+Hmph. Lucky shot.
+Owie. Keep going!
+That left a dent.
+Do not worry about me!
+Grr! My turn next!
+My pixels! You scuffed them!
+Oof, right in the cache.
+Hey, I was not ready!
+That rattled my fan.
+Yowch!
+It hits harder than it looks.
+Still standing!
+Ow. Okay. Angry now.
+I will remember that.
+Shake it off. Shake it off.
+
+[battle.resist]
+Ha! Barely felt it.
+Is that all you got?
+Resisted! Nice try.
+That tickled.
+Nope. Not effective.
+My type blocks that!
+Nice try, {foe}!
+Pfft. Weak.
+I am built for this!
+That bounced off!
+Hardly a scratch.
+You will need more than that.
+My armor says no.
+Resisted! Go me!
+Too weak, {foe}!
+Barely a bump.
+Bring a better type!
+Shrugged it off!
+Not even close to hurting.
+Ha! Wrong type, {foe}!
+
+[battle.immune_hit]
+Ha! It went right through me!
+Immune! Cannot touch this!
+No effect on me!
+That does nothing to me.
+I did not even feel it.
+Whoosh. Nothing.
+Wrong type, totally immune!
+Zero damage! Love that.
+Nice try. I am immune.
+That passed through like air.
+
+[battle.guard]
+Shields up!
+I will just hide here a sec.
+Bracing!
+Noise veil, go!
+Guard mode on.
+Turtle time!
+Hit me if you can!
+Defensive stance!
+I am a wall. A cute wall.
+Covering up!
+Brace for impact!
+Safe in my static bubble.
+Let it come. I am ready.
+Guarding! Smart, right?
+Hiding is a strategy!
+
+[battle.lowhp]
+I do not feel so good...
+HP is low! Help!
+I need a snack. Like, now.
+My screen is blinking red.
+One more hit and I am done.
+Partner? Maybe a cookie?
+I am running on fumes.
+Everything is wobbly.
+Can we heal? Please?
+I am hanging on by a pixel!
+Low health! Low health!
+Hurts... but I can keep going.
+Do not give up on me!
+Maybe we should run?
+Ugh. Red bar. Bad bar.
+I see a bright light. Kidding.
+Cookie. Need cookie.
+I am okay. Not okay. Okay.
+Medic! Medic!
+Just a little more...
+My HP is blinking!
+Help help help!
+I am really hurt, partner.
+Running on one bar!
+Maybe use the bag?
+I can still fight! Barely.
+Ouch. Everything is red.
+One snack could save me.
+Not looking good...
+Hold on, hold on...
+
+[battle.faint]
+I... need a nap...
+Bzzt... shutting down...
+I tried my best...
+So... dizzy...
+Sorry, partner...
+{foe} wins this time...
+Everything... going dark...
+Ugh. I am out.
+Tell my snacks I loved them...
+I will be back. Probably.
+Rebooting... later...
+Fainted. Owie.
+Too strong... too strong...
+Low battery... night night...
+I could not do it. Sorry.
+Down for the count...
+My pixels are scattered...
+Just... resting my eyes...
+Good game, {foe}...
+Need... cookie...
+Bzzt... bzz...
+Need... recharge...
+My bar is empty...
+Oof. Lights out.
+I see... static...
+Game over... for now...
+Did we win? No? Okay...
+Wake me when it is over...
+Taking a forced nap...
+Error 404: energy not found...
+
+[battle.item.heal]
+Yum! {amount} HP back!
+Cookie power! +{amount} HP!
+Nom nom. I feel better!
+Ahh, that hit the spot.
+Healed up! Let us go!
+That {item} was delicious!
+Crunch! +{amount} HP!
+Snack break! Back in it!
+Mmm. Fighting fuel.
+Much better. Thanks!
+Restored! Round two!
+Tasty AND healing!
+I love battle snacks.
+Patched up and ready!
+HP up! Spirits up!
+Thanks, partner. Nom.
+Back from the brink!
+Healed! {foe}, watch out!
+Yummy recovery!
+Okay, I am good now!
+Much better! +{amount} HP!
+Crumbs everywhere. Worth it.
+Health restored!
+Ahh, refreshing!
+I can fight again!
+That {item} saved me!
+Mmm, battle cookie.
+Healing up! Thanks!
+Ready for more!
+HP going up!
+
+[battle.item.energy]
+Zap! +{amount} EN!
+Fully charged up!
+Battery boost! Wheee!
+I can feel the volts!
+Energy back! Let us go!
+Recharged! Bring it on!
+Charging... charged!
+My moves are back online!
+Buzzing with power!
+Plugged in! +{amount} EN!
+Oooh, tingly. Good tingly.
+Power up!
+Ready to go again!
+Juiced up!
+That {item} hit the spot!
+
+[battle.item.cure]
+Glitch gone! I am me again!
+The medicine worked!
+My pixels are back in order!
+No more glitches!
+Debugged! Thanks, partner!
+I feel so much clearer.
+Patched! Let us finish this.
+Cured! All systems green!
+Bye bye, glitch!
+Clean code, clean me!
+Ahh, that is better.
+Status cleared!
+
+[battle.item.no_effect]
+That will not do anything now.
+I do not need that right now.
+Save it for later, partner.
+I am already full of that.
+Maybe later!
+No effect. I am fine there.
+Keep it in the bag.
+Not right now, thanks!
+I am topped up already.
+Nah, I am good on that.
+
+[battle.item.none_left]
+We are all out of that!
+The bag is empty there.
+None left! Uh oh.
+Out of stock!
+We used the last one.
+No more of those, sorry.
+Bag check: nope.
+Empty! Pick something else.
+Fresh out!
+Nothing left in there.
+
+[battle.item.not_usable]
+That cannot be used in battle!
+Not now! We are fighting!
+Save that for after the fight.
+That is not a battle item.
+Hold that thought. Fight first.
+I cannot use that here.
+Later! Busy now!
+Nope, not in battle.
+That stays in the bag for now.
+Wrong time for that!
+
+[battle.flee.ok]
+Run away! Run away!
+We got away!
+Retreat! Strategic retreat!
+Bye, {foe}! Never again!
+Phew, that was close.
+Zoom! Safe!
+We will fight another day.
+Escaped! My heart is racing.
+Nope nope nope. Gone!
+Running is a valid strategy.
+Safe! Let us not do that again.
+Outta here!
+Lost it in the corridor!
+Got away clean!
+{foe} cannot keep up!
+Tactical exit!
+We live to snack again.
+Speedy escape!
+Smart call, partner.
+Home free!
+
+[battle.flee.fail]
+It blocked the way!
+Cannot escape!
+Too slow! It caught up!
+No way out!
+{foe} will not let us go!
+Run failed! Fight it is!
+It cut us off!
+We are stuck! Okay, fight!
+The door is locked!
+It is faster than us!
+Nowhere to run!
+Escape blocked!
+Ack! Caught!
+No luck. Turn and fight!
+It grabbed my tail!
+It is still right behind us!
+Blocked! Ugh!
+We could not shake it!
+It is too quick!
+No exit! Fight!
+Caught by the tail!
+It locked the corridor!
+Escape denied!
+Grr. Fine. We fight.
+Running did not work!
+
+[battle.victory]
+We won! We won!
+Victory! Snack time?
+{foe} is down! Yay!
+Easy! Mostly easy.
+That is how we do it!
+Teamwork!
+Champion of the dungeon!
+Did you see me? I was great!
+Another one bites the bits!
+GG, {foe}.
+Victory dance!
+We make a great team.
+I am getting stronger!
+Win! I love winning.
+That was fun! Again?
+Defeated! Next!
+I knew we could do it.
+Ha! Too easy!
+Look at all that XP!
+We did it, partner!
+Clean win!
+{foe} deleted.
+Best team ever!
+Woo! Victory!
+High five! Well, high antenna!
+I will remember this one.
+Next floor, here we come!
+Totally crushed it.
+Another win for the record!
+Proud of us!
+We are unstoppable!
+That was close. But we WON!
+Yay! Treat me!
+Bested!
+I feel like a hero.
+We cleared it!
+Victory tastes like cookies.
+{foe} never stood a chance.
+Battle over. We rule.
+Win streak!
+
+[battle.victory.boss]
+WE BEAT THE BOSS!
+Kernel panic: resolved!
+The floor is safe again!
+Boss down! I am shaking!
+Legends! We are legends!
+That was the hardest fight ever!
+System restored! Woo!
+I cannot believe we did that!
+Boss defeated! Party time!
+Blue screen? More like WIN screen!
+Best day ever!
+We saved the whole dungeon!
+
+[battle.defeat]
+We lost... I am sorry.
+I will train harder.
+That {foe} was too strong.
+Next time. Next time for sure.
+I need a long rest.
+I let you down...
+Ugh. Everything hurts.
+Can we go home?
+I am okay. Just sad.
+We will get it next time.
+Loss logged. Lesson learned.
+My pride is dented.
+A hug would help.
+Sorry, partner.
+I fought hard though.
+That stung. Inside and out.
+I will remember that {foe}.
+Rest, then revenge.
+Bad day for {name}.
+Not our fight today.
+Defeated... but not done.
+We will train and come back.
+That one got me good.
+I need snacks and a nap.
+Ow. My pride.
+Okay. That one hurt.
+Lost this round.
+We will beat {foe} someday.
+I am sorry I fainted.
+Next time I will be stronger.
+
+[battle.fled]
+We made it out.
+Safe and sound.
+That was a close one.
+Better luck next floor.
+No XP, but no bruises.
+Running was smart.
+Phew. Let us regroup.
+We will be back, {foe}!
+Live to fight again!
+Okay, my heart can slow down now.
+
+[battle.disobey]
+No! I want to use {move}!
+I am doing {move} instead!
+My way! {move}!
+I know better! {move}!
+Nope. {move}. Trust me.
+You said what? {move}!
+Ignoring you. {move}!
+I felt like {move}.
+{move} is cooler!
+Hmph. {move} instead.
+My move, my rules!
+Not listening! {move}!
+Freestyle! {move}!
+Watch me do {move}!
+I am the boss. {move}!
+La la la, {move}!
+Shush. {move} time.
+You will see. {move}!
+Instincts say {move}!
+{move}! Because I said so.
+Trust me, {move} is better!
+I got this. {move}!
+Shh. Watching me do {move}.
+Plot twist: {move}!
+I had a feeling about {move}.
+Your move was boring. {move}!
+Improvising! {move}!
+Going rogue! {move}!
+Nah. {move} instead.
+Just this once. {move}!
+
+[battle.refuse]
+Nope. Too grumpy. Too tired.
+I am not doing that.
+Fight it yourself.
+Hmph. No.
+Too tired to care.
+Not in the mood!
+I refuse!
+Sit-down strike!
+Ask nicely. Then ask again.
+Zzz... no.
+Not moving. Nope.
+I am on break.
+Nah.
+Grr. Leave me alone.
+Make me.
+
+[battle.tantrum]
+I am NOT fighting right now!
+Hmph! Do it yourself!
+NO NO NO NO!
+I am sulking. Go away.
+Not until you say sorry.
+Tantrum in progress!
+Leave me alone!
+I do not care about {foe}!
+I am mad at YOU, not {foe}!
+Grrrrr!
+Do not talk to me.
+Rawr! No!
+I am in a mood.
+Absolutely not!
+Ask me later. Much later.
+
+[battle.levelup]
+I leveled up! Feel my power!
+Level up! Stronger already!
+Ding! New level!
+I grew! Look at me!
+Level up! Snacks to celebrate?
+Stats up! I feel amazing!
+Upgrade complete!
+New level, new me!
+I can feel it! Level up!
+I am getting so strong!
+Stronger every fight!
+Level up! Best day!
+
+[battle.learned]
+I learned {move}!
+New move: {move}!
+Ooh, {move}! I want to try it!
+{move} unlocked!
+I figured out {move}!
+Check out {move}!
+Added {move} to my tricks!
+{move}! That is so cool!
+Learned {move}! Next fight!
+Wait till you see {move}!
+
+# Move descriptions for the move menu (<= 44 chars, ASCII).
+[desc.chirp]
+A tiny radio peep. Weak but cheap.
+A cheap peep. Every Chirplet knows it.
+Small NORM hit that costs almost no EN.
+
+[desc.static_snap]
+A sharp VOLT crackle. Great vs DATA.
+Snaps built-up static at the foe.
+VOLT jolt. Bugs and lag hate it.
+
+[desc.echo_pulse]
+A NET wave that bounces back louder.
+Bouncing NET wave. Nothing in VOID.
+Echoing NET hit. Good vs VOLT.
+
+[desc.bright_arc]
+A hot FIRE arc. Melts DATA and NET.
+Big FIRE arc. Less accurate.
+Searing light. Firewalls ignore it.
+
+[desc.stray_handshake]
+A borrowed NET greeting packet.
+NET hit learned from a nearby device.
+Friendly packet, unfriendly impact.
+
+[desc.packet_burst]
+A rushed DATA spray. Shreds VOID.
+Big DATA burst. Kernel panics hate it.
+Spray of DATA borrowed from a beacon.
+
+[desc.noise_veil]
+VOID hiss. Halves the next hit taken.
+Guard: the next hit does half damage.
+Hide in static. Halves the next hit.
+
+[desc.signal_sniff]
+A curious DATA sniff. Good vs VOID.
+Cheap DATA poke that finds glitches.
+Sniffs out VOID things. Low cost.
+
+[desc.beacon_burst]
+A bright FIRE pop from a loud AP.
+FIRE pop. Burns spam and viruses.
+Hot beacon flash. Good vs NET.
+
+[desc.channel_hop]
+A quick NET skip across channels.
+Hops channels to hit from the side.
+NET hit. Does nothing to VOID.
+
+[desc.blue_pulse]
+A soft ICE pulse. Cools FIRE down.
+Cold blue pulse. Freezes worms.
+ICE hit learned from Bluetooth.
+
+[desc.tooth_echo]
+An icy echo of a Bluetooth handshake.
+ICE echo. Great vs firewalls.
+Chilly echo that slows NET foes.
+
+[desc.ping_echo]
+A bounced DATA ping. Very accurate.
+DATA ping that rarely misses.
+Cheap DATA hit. Good vs VOID.
+
+[desc.arp_whisper]
+A VOID murmur from the local net.
+Spooky VOID whisper. Hurts NORM.
+Quiet VOID hit. Weak vs DATA foes.
+
+[desc.tag_bite]
+A sharp VOLT nibble from an RFID tag.
+VOLT bite. Strong vs DATA and ICE.
+Close-range VOLT chomp.
+
+[desc.near_field]
+A tight VOLT field. Very accurate.
+Close-range VOLT field. Hits ICE.
+Accurate VOLT zap from a badge.
+
+[desc.guard]
+Brace. Halves the next hit. Free.
+Free guard. Halves the next hit.
+Cover up and wait it out.
+
+# Item descriptions for the bag (<= 44 chars, ASCII).
+[item.cache_cookie]
+Restores 20 HP. Crunchy.
+[item.glitch_berry]
+Restores 15 HP. Tastes like static.
+[item.data_cookie]
+Restores 25 HP. Full of crumbs.
+[item.byte_burger]
+Restores 40 HP. A whole meal.
+[item.battery]
+Restores 30 EN.
+[item.power_cell]
+Restores 25 EN.
+[item.overclock_chip]
+Restores 50 EN. Runs hot.
+[item.medicine]
+Cures glitch. Restores 5 HP.
+[item.patch_kit]
+Cures glitch. Restores 10 HP.
+[item.evo_chip]
+Evolves PULSE. Not for battle.
+[item.food]
+Restores HP.
+[item.battery_generic]
+Restores EN.
+[item.keepsake]
+A keepsake. Not for battle.

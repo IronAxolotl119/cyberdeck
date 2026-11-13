@@ -102,8 +102,19 @@ class Creature:
         sighting_keys: set[str] | None = None,
         move_ranks: dict[str, int] | None = None,
         life: Life | None = None,
+        bag: dict[str, dict] | None = None,
+        battle_moves: list[str] | None = None,
     ) -> None:
         self.name = name
+        # Battle bag (pet/battle.py Bag): {item_id: {"qty": n, ...}}. New pets
+        # (and old saves without a bag) start with a few snacks and a battery.
+        if bag is None:
+            from pet.battle import STARTER_BAG
+
+            bag = {key: {"qty": qty} for key, qty in STARTER_BAG.items()}
+        self.bag: dict[str, dict] = {k: dict(v) for k, v in bag.items()}
+        # Up to 4 move ids chosen for the battle menu (empty = automatic).
+        self.battle_moves: list[str] = list(battle_moves or [])
         self.species_id = species_id
         self.stats = stats if stats is not None else Stats()
         self.stats.clamp()
@@ -611,6 +622,8 @@ class Creature:
             "sighting_keys": sorted(self.sighting_keys),
             "move_ranks": {k: int(v) for k, v in sorted(self.move_ranks.items())},
             "life": self.life.to_dict(),
+            "bag": {k: dict(v) for k, v in sorted(self.bag.items())},
+            "battle_moves": list(self.battle_moves),
         }
 
     @classmethod
@@ -631,6 +644,8 @@ class Creature:
             sighting_keys=set(data.get("sighting_keys") or []),
             move_ranks=dict(data.get("move_ranks") or {}),
             life=Life.from_dict(data.get("life"), now=time.time()),
+            bag=data["bag"] if isinstance(data.get("bag"), dict) else None,
+            battle_moves=list(data.get("battle_moves") or []),
         )
 
     # ------------------------------------------------------------------
@@ -658,7 +673,7 @@ class Creature:
         }
         fresh_life = Life.new(rng, now, legacy=legacy)
         fresh_life.inherit_from(old_life, egg, parent_species)
-        fresh = Creature(name=self.name, life=fresh_life)
+        fresh = Creature(name=self.name, life=fresh_life, bag=self.bag)  # the bag is yours; it carries over
         move_id = egg.get("move")
         if move_id and move_id in MOVE_LIBRARY and move_id not in fresh.known_move_ids:
             fresh.known_move_ids.append(move_id)

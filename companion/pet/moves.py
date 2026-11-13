@@ -12,7 +12,7 @@ accuracy, energy_cost, and effect are used by the dungeon combat API
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,8 @@ class Move:
     accuracy: int = 90
     energy_cost: int = 8
     effect: str | None = None
+    # Battle type (pet/battle.py TYPES): NORM, VOLT, DATA, NET, FIRE, ICE, VOID.
+    type: str = "NORM"
 
 
 # A small, original library. Keep this list short so it is easy to read and
@@ -217,6 +219,30 @@ GUARD_MOVE = Move(
     energy_cost=0,
     effect="guard",
 )
+
+
+# Battle types for every move (see pet/battle.py for the chart).
+MOVE_TYPES: dict[str, str] = {
+    "chirp": "NORM",
+    "static_snap": "VOLT",
+    "echo_pulse": "NET",
+    "bright_arc": "FIRE",
+    "stray_handshake": "NET",
+    "packet_burst": "DATA",
+    "noise_veil": "VOID",
+    "signal_sniff": "DATA",
+    "beacon_burst": "FIRE",
+    "channel_hop": "NET",
+    "blue_pulse": "ICE",
+    "tooth_echo": "ICE",
+    "ping_echo": "DATA",
+    "arp_whisper": "VOID",
+    "tag_bite": "VOLT",
+    "near_field": "VOLT",
+    "guard": "NORM",
+}
+MOVE_LIBRARY = {key: replace(move, type=MOVE_TYPES.get(key, "NORM")) for key, move in MOVE_LIBRARY.items()}
+GUARD_MOVE = replace(GUARD_MOVE, type="NORM")
 
 
 def get_move(move_id: str) -> Move:
