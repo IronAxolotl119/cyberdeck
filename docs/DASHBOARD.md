@@ -170,6 +170,12 @@ prints every page; `pet stats 4` prints one. An older companion without
 plain `pet.status`, and builds basic pages (Overview, Combat, Care,
 Evolution, Moves) from those.
 
+Long values (3+ evolution choices, long trinket, bag item or Care
+modifier names) wrap onto the next line, indented, instead of being cut
+with `...`; Care modifier rows show the real amount. With a companion
+that has network dungeons, Discoveries ends with five more rows:
+Dungeons, Deepest, Floors done, Dungeon boss, Home turf.
+
 Settings: `config/pet.ini [stats]`: `rows` (body rows, a longer page
 scrolls), `wrap`, `remember_page` (reopen where you left), `start_page`,
 `color_bars`.

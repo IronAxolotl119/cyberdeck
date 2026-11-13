@@ -1000,6 +1000,9 @@ class PetState:
             "treasures": 0, "trinkets": len(self.trinkets),
             "favorite_trinket": max(set(self.trinkets), key=self.trinkets.count) if self.trinkets else None,
             "adventures": 0, "diary_entries": 0,
+            # Network dungeons summary (the companion's pet/dungeons.py summary()).
+            "dungeons": {"count": 0, "in_range": 0, "deepest": 0, "deepest_name": None,
+                         "floors": 0, "boss_kills": 0, "home": None},
         }
         raw["pages"] = build_pages(raw)
         raw["lines"] = flat_lines(raw["pages"])

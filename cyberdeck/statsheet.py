@@ -118,8 +118,39 @@ def pct(have: Any, need: Any) -> int:
     return 100 if n <= 0 else int(max(0, min(100, round(100 * h / n))))
 
 
+def wrap_words(text: Any, width: int, first_width: int | None = None) -> list[str]:
+    """Word-wrap plain text; a word longer than the line is hard-split."""
+    widths = [first_width or width, width]
+    lines: list[str] = []
+    cur = ""
+    for word in fit_row(str(text), 10_000).split():
+        limit = widths[min(len(lines), 1)]
+        if cur and len(cur) + 1 + len(word) <= limit:
+            cur += " " + word
+            continue
+        if cur:
+            lines.append(cur)
+            limit = widths[1]
+        while len(word) > limit:
+            lines.append(word[:limit])
+            word = word[limit:]
+            limit = widths[1]
+        cur = word
+    if cur or not lines:
+        lines.append(cur)
+    return lines
+
+
+def wrap(text: Any, prefix: str = "", indent: str = "  ", width: int = LINE_MAX) -> str:
+    """Wrap text after a prefix; continuation lines are indented. Never drops
+    data (no '...'). Lines are joined with newlines; build_pages splits them."""
+    parts = wrap_words(str(text), width - len(indent), width - len(prefix))
+    return "\n".join([prefix + parts[0]] + [indent + part for part in parts[1:]])
+
+
 def _row(label: str, value: Any) -> str:
-    return fit_row(f"{label:<13}{value}")
+    """'Label        value'; a long value wraps under the value column."""
+    return wrap(value, f"{label:<13}", " " * 13)
 
 
 def obedience_tier(value: float) -> str:
@@ -133,7 +164,7 @@ def build_pages(r: dict[str, Any]) -> list[dict[str, Any]]:
     """[{title, lines}] in PAGE_TITLES order, built from a full raw sheet."""
     gen = f"  Gen {r['generation']}" if r["generation"] > 1 else ""
     overview = [
-        f"{r['name']}" + (f"  ({r['species']})" if r["nickname"] else ""),
+        wrap(f"{r['name']}" + (f"  ({r['species']})" if r["nickname"] else "")),
         f"{r['species']}  {r['stage']}  {r['type']}{gen}",
         f"Lv {r['level']}  XP {r['xp']}/{r['xp_next_level']}",
         f"XP {bar(r['xp_pct'], 100)} {r['xp_to_next']} to go",
@@ -166,7 +197,8 @@ def build_pages(r: dict[str, Any]) -> list[dict[str, Any]]:
         _row("Sick", r["sick"] or "no"),
     ]
     for mod in r["modifiers"][:4]:
-        care.append(fit_row(f"  {mod.get('kind', '?')} {float(mod.get('value', 0)):+.0f}"))
+        # The real amount (newer companions send `amount`; older ones `value`).
+        care.append(wrap(f"{mod.get('kind', '?')} {float(mod.get('amount', mod.get('value', 0))):+.0f}", "  ", "    "))
     q = r["quirks"]
     traits = [
         _row("Catchphrase", q.get("catchphrase", "-")),
@@ -185,7 +217,7 @@ def build_pages(r: dict[str, Any]) -> list[dict[str, Any]]:
                 traits.append(fit_row(f"{gate.upper():<6}{bar(g['pct'], 100)} {g['pct']}%"))
         names = [c.get("species", "?") + ("" if c.get("available", True) else "(locked)") for c in evo["choices"]]
         if names:
-            traits.append(fit_row("Can become: " + ", ".join(names)))
+            traits.append(wrap(", ".join(names), "Can become: ", "  "))
     else:
         traits.append("Final form reached.")
     moves = []
@@ -193,8 +225,12 @@ def build_pages(r: dict[str, Any]) -> list[dict[str, Any]]:
         star = "*" if m["name"] in r["loadout"] else " "
         moves.append(fit_row(f"{star}{m['name'][:15]:<15} {m['type']:<4} P{m['power']:<3} EN{m['energy_cost']:<3} R{m['rank']}"))
     moves.append(fit_row("* = loadout" + (" (auto)" if r["loadout_auto"] else "")))
-    bag = [fit_row(f"{row['name'][:22]:<22} x{row['qty']:<3}" + ("" if row["usable_in_battle"] else " (no battle)"))
-           for row in r["bag"]]
+    bag = []
+    for row in r["bag"]:
+        # A long item name wraps; the count goes after its last line.
+        parts = wrap_words(row["name"], 22)
+        tail = f"{parts[-1]:<22} x{row['qty']:<3}" + ("" if row["usable_in_battle"] else " (no battle)")
+        bag.append("\n".join(parts[:-1] + [tail]))
     bag = bag or ["(empty)"]
     bag.append(fit_row(f"{r['bag_items']} kinds, {r['bag_total']} items"))
     rec, riv = r["record"], r["rival"]
@@ -217,8 +253,19 @@ def build_pages(r: dict[str, Any]) -> list[dict[str, Any]]:
         _row("Adventures", r["adventures"]),
         _row("Diary", f"{r['diary_entries']} entries"),
     ]
+    # Network dungeons (companion 04030ad+): five rows at the end of Discoveries.
+    dun = r.get("dungeons")
+    if isinstance(dun, dict):
+        found += [
+            _row("Dungeons", f"{dun.get('count', 0)} ({dun.get('in_range', 0)} in range)"),
+            _row("Deepest", f"B{dun.get('deepest', 0)}F {dun['deepest_name']}" if dun.get("deepest_name") else "-"),
+            _row("Floors done", dun.get("floors", 0)),
+            _row("Dungeon boss", dun.get("boss_kills", 0)),
+            _row("Home turf", dun.get("home") or "-"),
+        ]
     bodies = [overview, combat, care, traits, moves, bag, record, found]
-    return [{"title": title, "lines": [fit_row(line) for line in body]}
+    # Wrapped rows hold newlines: each part becomes its own page line.
+    return [{"title": title, "lines": [fit_row(part) for line in body for part in str(line).split("\n")]}
             for title, body in zip(PAGE_TITLES, bodies)]
 
 
@@ -296,12 +343,12 @@ def basic_sheet(pet: dict[str, Any], evolution: dict[str, Any] | None = None) ->
                       + ("  READY" if e["ready"] else ""))
         names = [str(c.get("species", "?")) + ("" if c.get("available", True) else "(locked)") for c in choices]
         if names:
-            traits.append("Can become: " + ", ".join(names))
+            traits.append(wrap(", ".join(names), "Can become: ", "  "))
     moves_page = [" " + str(m["name"]) for m in raw["moves"]]
     pages = []
     for title, body in zip(PAGE_TITLES, (overview, combat, care, traits, moves_page)):
         if body:
-            pages.append({"title": title, "lines": [fit_row(x) for x in body]})
+            pages.append({"title": title, "lines": [fit_row(part) for x in body for part in str(x).split("\n")]})
     pages[-1]["lines"].append("")
     pages[-1]["lines"].append("(older companion: basic stats only)")
     raw["pages"] = pages

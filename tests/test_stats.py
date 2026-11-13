@@ -296,6 +296,39 @@ class SimParityTests(unittest.TestCase):
         self.assertEqual(sheets["full"]["full"]["pages"], real["pages"])
         self.assertNotIn("full", sheets["plain"])            # plain pet.status is unchanged
 
+    def test_long_values_wrap_like_the_companion(self):
+        # Companion 7fa74cc: long values wrap onto lines indented 2 (no '...'),
+        # and Care modifier rows show the real amount.
+        script = companion_script()
+        if not (script.parent / "pet" / "fullstats.py").exists():
+            self.skipTest("this companion checkout has no pet.stats")
+        long_script = REAL_SHEET_SCRIPT.replace("stats = h.handle", """
+from pet.battle import Bag
+import pet.fullstats as fs
+pet.life.add_to_shelf("a trinket with a very very long name indeed", "test", 3, T0)
+pet.life.add_modifier("a_really_long_modifier_name_here", -12, 3600, T0)
+Bag(pet).add({"name": "an extremely long legendary loot item name", "kind": "food"}, 3)
+stats = h.handle""", 1).replace("print(json.dumps({", """raw = dict(stats)
+raw["evolution"] = dict(stats["evolution"], next_stage="champion", choices=[
+    {"species": n, "available": i % 2 == 0}
+    for i, n in enumerate(["Luminode", "Hexwave", "Aethernova", "Voidstatic", "Glitchling"])])
+print(json.dumps({"choices": [raw, fs._pages(raw)], """, 1)
+        out = subprocess.run([sys.executable, "-c", long_script], cwd=str(script.parent),
+                             capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        sheets = json.loads(out.stdout)
+        real = sheets["stats"]
+        self.assertEqual(build_pages(real), real["pages"])
+        raw, pages = sheets["choices"]
+        self.assertEqual(build_pages(raw), pages)
+        lines = [line for page in build_pages(real) + build_pages(raw) for line in page["lines"]]
+        self.assertFalse(any(line.endswith("...") for line in lines))
+        self.assertTrue(all(line.isascii() and len(line) <= 44 for line in lines))
+        joined = " ".join(line.strip() for line in lines)
+        for text in ("a trinket with a very very long name indeed", "an extremely long legendary loot item name",
+                     "a_really_long_modifier_name_here -12", "Glitchling", "Voidstatic(locked)"):
+            self.assertIn(text, joined)
+
     def test_status_full_matches_pet_stats_in_the_sim(self):
         link = sim_link()
         stats = link.request("pet.stats", {}).payload
